@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.*
+
+# Rust / Tauri
+src-tauri/target/
+src-tauri/.tauri-signing.key
+
+# IDE
+.idea/
+.vscode/

@@ -1,0 +1,93 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window — shell, CLI install, phonton serve, deep links",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "deep-link:default",
+    "updater:default",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "phonton-serve",
+          "cmd": "phonton",
+          "args": ["serve"],
+          "sidecar": false
+        },
+        {
+          "name": "win-phonton-serve",
+          "cmd": "cmd",
+          "args": ["/c", "phonton", "serve"],
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-kill",
+      "allow": [
+        {
+          "name": "phonton-serve",
+          "cmd": "phonton",
+          "args": ["serve"],
+          "sidecar": false
+        },
+        {
+          "name": "win-phonton-serve",
+          "cmd": "cmd",
+          "args": ["/c", "phonton", "serve"],
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "npm-version",
+          "cmd": "npm",
+          "args": ["--version"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-cmd-version",
+          "cmd": "npm.cmd",
+          "args": ["--version"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-prefix",
+          "cmd": "npm",
+          "args": ["prefix", "-g"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-cmd-prefix",
+          "cmd": "npm.cmd",
+          "args": ["prefix", "-g"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-install-phonton",
+          "cmd": "npm",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "npm-cmd-install-phonton",
+          "cmd": "npm.cmd",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "where-phonton",
+          "cmd": "where",
+          "args": ["phonton"],
+          "sidecar": false
+        }
+      ]
+    }
+  ]
+}
