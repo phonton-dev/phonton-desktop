@@ -23,7 +23,7 @@ jobs:
           - platform: windows-latest
             args: ''
           - platform: macos-latest
-            args: '--target aarch64-apple-darwin'
+            args: ''
           - platform: ubuntu-22.04
             args: ''
 
@@ -118,6 +118,7 @@ jobs:
   checksums:
     name: Publish checksums
     needs: build
+    if: always() && needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
