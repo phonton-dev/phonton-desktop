@@ -113,7 +113,6 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
-          tauriScript: npm run tauri:build
           args: ${{ matrix.args }}
 
   checksums:
