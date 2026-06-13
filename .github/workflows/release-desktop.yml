@@ -21,7 +21,7 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
-            args: '--target x86_64-pc-windows-msvc'
+            args: ''
           - platform: macos-latest
             args: '--target aarch64-apple-darwin'
           - platform: ubuntu-22.04
@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -74,6 +77,21 @@ jobs:
             echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Load release notes
+        id: notes
+        shell: bash
+        run: |
+          NOTES_FILE="release-notes/${{ steps.tag.outputs.value }}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            {
+              echo 'body<<EOF'
+              cat "$NOTES_FILE"
+              echo EOF
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "body=Automated Phonton Desktop release." >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -91,10 +109,11 @@ jobs:
         with:
           tagName: ${{ steps.tag.outputs.value }}
           releaseName: 'Phonton Desktop ${{ steps.tag.outputs.value }}'
-          releaseBodyPath: release-notes/${{ steps.tag.outputs.value }}.md
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: false
           prerelease: false
-          includeUpdaterArtifacts: true
+          includeUpdaterJson: true
+          tauriScript: npm run tauri:build
           args: ${{ matrix.args }}
 
   checksums:
