@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ping } from "../lib/serve";
-import { startSidecar } from "../lib/sidecar";
+import { restartSidecar, startSidecar } from "../lib/sidecar";
 
 export type SidecarState =
   | { status: "idle" }
@@ -8,10 +8,24 @@ export type SidecarState =
   | { status: "ready"; version: string; handoffSchema: string }
   | { status: "offline"; error: string };
 
+const POLL_ATTEMPTS = 40;
+const POLL_INTERVAL_MS = 500;
+
 type Options = {
   /** When false, sidecar is not started (e.g. before CLI install step). */
   enabled?: boolean;
 };
+
+async function waitForPing(): Promise<{ version: string; handoff_schema: string } | null> {
+  for (let i = 0; i < POLL_ATTEMPTS; i++) {
+    try {
+      return await ping();
+    } catch {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+  }
+  return null;
+}
 
 export function useSidecar({ enabled = true }: Options = {}) {
   const [state, setState] = useState<SidecarState>(enabled ? { status: "connecting" } : { status: "idle" });
@@ -21,19 +35,21 @@ export function useSidecar({ enabled = true }: Options = {}) {
       setState({ status: "idle" });
       return;
     }
-    try {
-      const info = await ping();
+    setState({ status: "connecting" });
+    await restartSidecar();
+    const info = await waitForPing();
+    if (info) {
       setState({
         status: "ready",
         version: info.version,
         handoffSchema: info.handoff_schema,
       });
-    } catch (err) {
-      setState({
-        status: "offline",
-        error: err instanceof Error ? err.message : String(err),
-      });
+      return;
     }
+    setState({
+      status: "offline",
+      error: "phonton serve didn't start — try Retry connection or reinstall the CLI.",
+    });
   }, [enabled]);
 
   useEffect(() => {
@@ -46,27 +62,20 @@ export function useSidecar({ enabled = true }: Options = {}) {
     (async () => {
       setState({ status: "connecting" });
       await startSidecar();
-      for (let i = 0; i < 12 && !cancelled; i++) {
-        try {
-          const info = await ping();
-          if (!cancelled) {
-            setState({
-              status: "ready",
-              version: info.version,
-              handoffSchema: info.handoff_schema,
-            });
-          }
-          return;
-        } catch {
-          await new Promise((r) => setTimeout(r, 500));
-        }
-      }
-      if (!cancelled) {
+      const info = await waitForPing();
+      if (cancelled) return;
+      if (info) {
         setState({
-          status: "offline",
-          error: "Cannot reach phonton serve on :47831. Install phonton-cli and try again.",
+          status: "ready",
+          version: info.version,
+          handoffSchema: info.handoff_schema,
         });
+        return;
       }
+      setState({
+        status: "offline",
+        error: "phonton serve didn't start — try Retry connection or reinstall the CLI.",
+      });
     })();
     return () => {
       cancelled = true;

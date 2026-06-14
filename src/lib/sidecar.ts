@@ -1,5 +1,5 @@
 import { Command } from "@tauri-apps/plugin-shell";
-import { getResolvedPhontonCmd } from "./cli-install";
+import { getResolvedPhontonCmd, normalizeWindowsPhontonCmd } from "./cli-install";
 
 let child: { kill: () => Promise<void> } | null = null;
 
@@ -9,6 +9,15 @@ export function isTauri(): boolean {
 
 function isWindows(): boolean {
   return navigator.userAgent.includes("Windows");
+}
+
+function quoteWindowsArg(path: string): string {
+  return `"${path.replace(/"/g, '\\"')}"`;
+}
+
+function windowsServeArgs(resolved: string): string[] {
+  const cmd = normalizeWindowsPhontonCmd(resolved);
+  return ["/c", `${quoteWindowsArg(cmd)} serve`];
 }
 
 async function spawnNamed(name: string, args: string[]) {
@@ -23,7 +32,7 @@ export async function startSidecar(): Promise<void> {
 
   try {
     if (isWindows()) {
-      child = await spawnNamed("win-phonton-serve-resolved", ["/c", resolved, "serve"]);
+      child = await spawnNamed("win-phonton-serve-resolved", windowsServeArgs(resolved));
       return;
     }
     child = await spawnNamed("unix-phonton-serve-resolved", [
@@ -37,10 +46,15 @@ export async function startSidecar(): Promise<void> {
     } catch {
       if (isWindows()) {
         try {
-          child = await spawnNamed("win-phonton-serve", ["/c", "phonton", "serve"]);
+          child = await spawnNamed("win-phonton-serve", ["/c", "phonton.cmd", "serve"]);
           return;
         } catch {
-          /* fall through */
+          try {
+            child = await spawnNamed("win-phonton-serve", ["/c", "phonton", "serve"]);
+            return;
+          } catch {
+            /* fall through */
+          }
         }
       }
     }
@@ -56,4 +70,9 @@ export async function stopSidecar(): Promise<void> {
     /* ignore */
   }
   child = null;
+}
+
+export async function restartSidecar(): Promise<void> {
+  await stopSidecar();
+  await startSidecar();
 }

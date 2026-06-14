@@ -24,6 +24,13 @@ export function setResolvedPhontonCmd(cmd: string) {
   localStorage.setItem(PHONTON_CMD_KEY, cmd);
 }
 
+/** Prefer phonton.cmd on Windows — extensionless npm shims are not runnable via cmd.exe. */
+export function normalizeWindowsPhontonCmd(path: string): string {
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".cmd") || lower.endsWith(".exe")) return path;
+  return `${path}.cmd`;
+}
+
 function npmScope(base: string): string {
   return isWindows() ? `npm-cmd-${base}` : `npm-${base}`;
 }
@@ -35,6 +42,33 @@ async function executeScoped(name: string, args: string[]): Promise<{ code: numb
     stdout: child.stdout ?? "",
     stderr: child.stderr ?? "",
   };
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    const quoted = `"${path.replace(/"/g, '\\"')}"`;
+    const result = await executeScoped("win-test-phonton-cmd", ["/c", `if exist ${quoted} (echo yes)`]);
+    return result.stdout.trim().toLowerCase() === "yes";
+  } catch {
+    return false;
+  }
+}
+
+function pickWindowsWhereLine(lines: string[]): string | null {
+  const trimmed = lines.map((l) => l.trim()).filter(Boolean);
+  const cmdLine = trimmed.find((l) => l.toLowerCase().endsWith(".cmd"));
+  if (cmdLine) return cmdLine;
+  const exeLine = trimmed.find((l) => l.toLowerCase().endsWith(".exe"));
+  if (exeLine) return exeLine;
+  return trimmed[0] ?? null;
+}
+
+async function normalizeResolvedPath(path: string): Promise<string> {
+  if (!isWindows()) return path;
+  const cmdPath = normalizeWindowsPhontonCmd(path);
+  if (cmdPath !== path && (await fileExists(cmdPath))) return cmdPath;
+  if (await fileExists(path)) return path;
+  return cmdPath;
 }
 
 export function formatCliInstallError(raw: string): string {
@@ -74,21 +108,44 @@ async function getNpmGlobalBin(): Promise<string | null> {
   }
 }
 
+export async function verifyPhontonCli(cmd?: string): Promise<boolean> {
+  if (!isTauri()) return false;
+  const resolved = cmd ?? getResolvedPhontonCmd();
+  try {
+    if (isWindows()) {
+      const winCmd = normalizeWindowsPhontonCmd(resolved);
+      const quoted = `"${winCmd.replace(/"/g, '\\"')}"`;
+      const result = await executeScoped("win-phonton-verify", ["/c", `${quoted} --version`]);
+      return result.code === 0 && /\d/.test(result.stdout);
+    }
+    const result = await executeScoped("unix-phonton-verify", [
+      "-c",
+      `'${resolved.replace(/'/g, "'\\''")}' --version`,
+    ]);
+    return result.code === 0 && /\d/.test(result.stdout);
+  } catch {
+    return false;
+  }
+}
+
 export async function resolvePhontonOnPath(): Promise<string | null> {
   if (!isTauri()) return null;
   try {
     if (isWindows()) {
       const result = await executeScoped("where-phonton", ["phonton"]);
       if (result.code === 0) {
-        const line = result.stdout.split(/\r?\n/).find((l) => l.trim())?.trim();
+        const line = pickWindowsWhereLine(result.stdout.split(/\r?\n/));
         if (line) {
-          setResolvedPhontonCmd(line);
-          return line;
+          const normalized = await normalizeResolvedPath(line);
+          if (await verifyPhontonCli(normalized)) {
+            setResolvedPhontonCmd(normalized);
+            return normalized;
+          }
         }
       }
     }
     const globalBin = await getNpmGlobalBin();
-    if (globalBin) {
+    if (globalBin && (await verifyPhontonCli(globalBin))) {
       setResolvedPhontonCmd(globalBin);
       return globalBin;
     }
@@ -98,11 +155,18 @@ export async function resolvePhontonOnPath(): Promise<string | null> {
   return null;
 }
 
-export async function installPhontonCli(
+/** Detect existing CLI before running npm install. */
+export async function ensurePhontonCli(
   onProgress?: (message: string) => void,
-): Promise<{ ok: boolean; message: string }> {
+): Promise<{ ok: boolean; message: string; installed: boolean }> {
   if (!isTauri()) {
-    return { ok: false, message: "Automatic install requires the Phonton Desktop app." };
+    return { ok: false, message: "Automatic install requires the Phonton Desktop app.", installed: false };
+  }
+
+  onProgress?.("Checking for phonton-cli…");
+  const existing = await resolvePhontonOnPath();
+  if (existing) {
+    return { ok: true, message: `Found phonton-cli — ${existing}`, installed: false };
   }
 
   onProgress?.("Checking npm…");
@@ -111,6 +175,7 @@ export async function installPhontonCli(
     return {
       ok: false,
       message: "npm not found. Install Node.js from nodejs.org, then retry or use the install guide.",
+      installed: false,
     };
   }
 
@@ -123,12 +188,13 @@ export async function installPhontonCli(
     ]);
     if (result.code !== 0) {
       const detail = (result.stderr || result.stdout).trim();
-      return { ok: false, message: formatCliInstallError(detail) };
+      return { ok: false, message: formatCliInstallError(detail), installed: false };
     }
   } catch (err) {
     return {
       ok: false,
       message: formatCliInstallError(err instanceof Error ? err.message : String(err)),
+      installed: false,
     };
   }
 
@@ -139,8 +205,16 @@ export async function installPhontonCli(
       ok: false,
       message:
         "Install finished but phonton was not found on PATH. Restart the app or run: npm install -g phonton-cli",
+      installed: true,
     };
   }
 
-  return { ok: true, message: `Installed — using ${resolved}` };
+  return { ok: true, message: `Installed — using ${resolved}`, installed: true };
+}
+
+export async function installPhontonCli(
+  onProgress?: (message: string) => void,
+): Promise<{ ok: boolean; message: string }> {
+  const result = await ensurePhontonCli(onProgress);
+  return { ok: result.ok, message: result.message };
 }

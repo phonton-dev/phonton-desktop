@@ -8,6 +8,7 @@
     "deep-link:default",
     "updater:default",
     "process:default",
+    "core:window:allow-set-icon",
     "shell:allow-open",
     {
       "identifier": "shell:allow-spawn",
@@ -110,6 +111,24 @@
           "name": "where-phonton",
           "cmd": "where",
           "args": ["phonton"],
+          "sidecar": false
+        },
+        {
+          "name": "win-test-phonton-cmd",
+          "cmd": "cmd",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "win-phonton-verify",
+          "cmd": "cmd",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "unix-phonton-verify",
+          "cmd": "sh",
+          "args": true,
           "sidecar": false
         }
       ]

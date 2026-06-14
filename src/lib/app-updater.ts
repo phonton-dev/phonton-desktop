@@ -55,6 +55,10 @@ export async function checkForAppUpdate(
 /** Silent check on launch; prompts only when a newer signed build exists. */
 export async function checkForAppUpdateOnLaunch(): Promise<void> {
   const result = await checkForAppUpdate();
+  if (result.status === "error") {
+    console.warn("Update check failed:", result.message);
+    return;
+  }
   if (result.status !== "available") return;
 
   const install = window.confirm(

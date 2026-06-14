@@ -1,18 +1,38 @@
-import { StrictMode } from "react";
+import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./app/App";
 import { applyTheme, loadStoredTheme } from "./themes/presets";
+import { isTauri } from "./lib/sidecar";
 import "./styles/globals.css";
 
 applyTheme(loadStoredTheme());
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
+function Root() {
+  useEffect(() => {
+    if (!isTauri()) return;
+    void (async () => {
+      try {
+        const win = getCurrentWindow();
+        await win.setIcon("/phonton-logo.png");
+      } catch (err) {
+        console.warn("Failed to set window icon", err);
+      }
+    })();
+  }, []);
+
+  return (
     <>
       <div className="ambient-bg" aria-hidden />
       <div className="app-root">
         <App />
       </div>
     </>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <Root />
   </StrictMode>,
 );

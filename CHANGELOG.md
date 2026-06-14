@@ -2,6 +2,15 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.3] - 2026-06-14
+
+### Fixed
+
+- Windows Scoop/npm shim path: use `phonton.cmd`, quoted spawn, sidecar restart on retry
+- Setup detects existing CLI before npm install; clearer CLI step phases
+- Taskbar/window/NSIS installer icons regenerated from canonical logo
+- Setup wizard logo header on all steps; welcome update banner
+
 ## [0.2.2] - 2026-06-14
 
 ### Added
@@ -32,6 +41,7 @@ All notable changes to Phonton Desktop are documented here.
 
 - Production builds now register the deep-link plugin (auth callback works in release builds)
 
+[0.2.3]: https://github.com/phonton-dev/phonton-desktop/releases/tag/v0.2.3
 [0.2.2]: https://github.com/phonton-dev/phonton-desktop/releases/tag/v0.2.2
 [0.2.1]: https://github.com/phonton-dev/phonton-desktop/releases/tag/v0.2.1
 [0.2.0]: https://github.com/phonton-dev/phonton-desktop/releases/tag/v0.2.0

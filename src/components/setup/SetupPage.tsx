@@ -3,6 +3,7 @@ import { useSidecar } from "../../hooks/useSidecar";
 import { isAuthenticated } from "../../lib/license";
 import { completeSetup } from "../../lib/setup";
 import type { ThemeId } from "../../themes/presets";
+import { SetupHeader } from "./SetupHeader";
 import { SetupStepAuth } from "./SetupStepAuth";
 import { SetupStepCli } from "./SetupStepCli";
 import { SetupStepFinish } from "./SetupStepFinish";
@@ -53,6 +54,7 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
   return (
     <div className="setup-page">
       <div className="setup-card">
+        <SetupHeader />
         {step !== "welcome" ? (
           <div className="setup-steps" aria-hidden>
             {STEPS.filter((s) => s !== "welcome").map((s, i) => {
