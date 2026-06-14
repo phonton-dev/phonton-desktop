@@ -22,6 +22,18 @@
           "cmd": "cmd",
           "args": ["/c", "phonton", "serve"],
           "sidecar": false
+        },
+        {
+          "name": "win-phonton-serve-resolved",
+          "cmd": "cmd",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "unix-phonton-serve-resolved",
+          "cmd": "sh",
+          "args": true,
+          "sidecar": false
         }
       ]
     },
@@ -38,6 +50,18 @@
           "name": "win-phonton-serve",
           "cmd": "cmd",
           "args": ["/c", "phonton", "serve"],
+          "sidecar": false
+        },
+        {
+          "name": "win-phonton-serve-resolved",
+          "cmd": "cmd",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "unix-phonton-serve-resolved",
+          "cmd": "sh",
+          "args": true,
           "sidecar": false
         }
       ]

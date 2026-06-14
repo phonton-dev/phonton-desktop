@@ -78,14 +78,20 @@ export function hasCloudSyncEntitlement(token: string | null): boolean {
 }
 
 export function signInUrl(state?: string) {
-  const redirect = encodeURIComponent("/account/?desktop=1");
+  const accountPath = state
+    ? `/account/?desktop=1&state=${encodeURIComponent(state)}`
+    : "/account/?desktop=1";
+  const redirect = encodeURIComponent(accountPath);
   const base = `${APP_URL.replace(/\/$/, "")}/sign-in/?redirect_url=${redirect}`;
   if (state) return `${base}&state=${encodeURIComponent(state)}`;
   return base;
 }
 
 export function signUpUrl(state?: string) {
-  const redirect = encodeURIComponent("/account/?desktop=1");
+  const accountPath = state
+    ? `/account/?desktop=1&state=${encodeURIComponent(state)}`
+    : "/account/?desktop=1";
+  const redirect = encodeURIComponent(accountPath);
   const base = `${APP_URL.replace(/\/$/, "")}/sign-up/?redirect_url=${redirect}`;
   if (state) return `${base}&state=${encodeURIComponent(state)}`;
   return base;

@@ -1,7 +1,7 @@
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { AUTH_HANDOFF_EVENT, applySessionToken } from "../../lib/auth-handoff";
+import { AUTH_HANDOFF_EVENT, applySessionToken, setPendingAuthState } from "../../lib/auth-handoff";
 import {
   accountUrl,
   getStoredSessionToken,
@@ -38,6 +38,7 @@ export function SetupStepAuth({ authState }: Props) {
   const openSignIn = () => {
     setWaiting(true);
     setError("");
+    setPendingAuthState(authState);
     const url = signInUrl(authState);
     if (isTauri()) void openExternal(url);
     else window.open(url, "_blank");
@@ -46,6 +47,7 @@ export function SetupStepAuth({ authState }: Props) {
   const openSignUp = () => {
     setWaiting(true);
     setError("");
+    setPendingAuthState(authState);
     const url = signUpUrl(authState);
     if (isTauri()) void openExternal(url);
     else window.open(url, "_blank");
@@ -98,7 +100,8 @@ export function SetupStepAuth({ authState }: Props) {
           {waiting ? (
             <p className="cli-status-detail" style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
-              Waiting for sign-in… Complete login in your browser, then return here.
+              Waiting for browser sign-in… On phonton.dev, click <strong>Open Phonton Desktop</strong> after you
+              sign in, or paste your token below.
             </p>
           ) : null}
 

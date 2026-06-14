@@ -3,14 +3,24 @@ import { ping } from "../lib/serve";
 import { startSidecar } from "../lib/sidecar";
 
 export type SidecarState =
+  | { status: "idle" }
   | { status: "connecting" }
   | { status: "ready"; version: string; handoffSchema: string }
   | { status: "offline"; error: string };
 
-export function useSidecar() {
-  const [state, setState] = useState<SidecarState>({ status: "connecting" });
+type Options = {
+  /** When false, sidecar is not started (e.g. before CLI install step). */
+  enabled?: boolean;
+};
+
+export function useSidecar({ enabled = true }: Options = {}) {
+  const [state, setState] = useState<SidecarState>(enabled ? { status: "connecting" } : { status: "idle" });
 
   const refresh = useCallback(async () => {
+    if (!enabled) {
+      setState({ status: "idle" });
+      return;
+    }
     try {
       const info = await ping();
       setState({
@@ -24,11 +34,17 @@ export function useSidecar() {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setState({ status: "idle" });
+      return;
+    }
+
     let cancelled = false;
     (async () => {
+      setState({ status: "connecting" });
       await startSidecar();
       for (let i = 0; i < 12 && !cancelled; i++) {
         try {
@@ -55,7 +71,7 @@ export function useSidecar() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enabled]);
 
   return { state, refresh };
 }

@@ -6,16 +6,16 @@ import { isSetupComplete, resetSetup } from "../lib/setup";
 import { loadStoredTheme, type ThemeId } from "../themes/presets";
 import { MainShell } from "./MainShell";
 
-function initialStep(): SetupStep {
+function initialSetupStep(): SetupStep {
   if (!isAuthenticated()) return "auth";
-  if (!isSetupComplete()) return "welcome";
+  if (!isSetupComplete()) return "theme";
   return "welcome";
 }
 
 export default function App() {
   const [setupDone, setSetupDone] = useState(() => isSetupComplete() && isAuthenticated());
   const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
-  const [setupStep, setSetupStep] = useState<SetupStep>(initialStep);
+  const [setupStep, setSetupStep] = useState<SetupStep>(initialSetupStep);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;

@@ -49,10 +49,13 @@
 }
 
 .setup-logo {
-  width: 96px;
-  height: 96px;
+  width: 112px;
+  height: 112px;
   object-fit: contain;
   margin: 0 auto 20px;
+  padding: 12px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--ph-glass-strong) 80%, transparent);
   filter: drop-shadow(0 0 24px var(--ph-accent)) drop-shadow(0 0 40px var(--ph-accent-2));
 }
 

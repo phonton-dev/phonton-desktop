@@ -23,7 +23,8 @@ type Props = {
 export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "welcome" }: Props) {
   const [step, setStep] = useState<SetupStep>(initialStep);
   const authState = useMemo(() => crypto.randomUUID(), []);
-  const { state: sidecar, refresh: refreshSidecar } = useSidecar();
+  const sidecarEnabled = step === "cli" || step === "finish";
+  const { state: sidecar, refresh: refreshSidecar } = useSidecar({ enabled: sidecarEnabled });
 
   const stepIndex = STEPS.indexOf(step);
 

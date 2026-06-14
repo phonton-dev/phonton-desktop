@@ -1,6 +1,17 @@
 import { isAuthenticated, storeSessionToken } from "./license";
 
 export const AUTH_HANDOFF_EVENT = "phonton-auth-handoff";
+const PENDING_AUTH_STATE_KEY = "phonton.auth.pendingState";
+
+export function setPendingAuthState(state: string) {
+  sessionStorage.setItem(PENDING_AUTH_STATE_KEY, state);
+}
+
+function consumePendingAuthState(): string | null {
+  const value = sessionStorage.getItem(PENDING_AUTH_STATE_KEY);
+  sessionStorage.removeItem(PENDING_AUTH_STATE_KEY);
+  return value;
+}
 
 export function parseAuthCallbackUrl(raw: string): string | null {
   try {
@@ -8,6 +19,14 @@ export function parseAuthCallbackUrl(raw: string): string | null {
     if (url.protocol !== "phonton:") return null;
     const path = `${url.hostname}${url.pathname}`;
     if (path !== "auth/callback" && path !== "auth/callback/") return null;
+
+    const pending = consumePendingAuthState();
+    const callbackState = url.searchParams.get("state");
+    if (pending && callbackState && pending !== callbackState) {
+      console.warn("Auth callback state mismatch — ignoring token");
+      return null;
+    }
+
     const token = url.searchParams.get("token");
     if (!token || !isAuthenticated(token)) return null;
     return token;

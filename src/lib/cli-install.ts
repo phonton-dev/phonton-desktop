@@ -2,7 +2,8 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { isTauri } from "./sidecar";
 
 const PHONTON_CMD_KEY = "phonton.cli.cmd";
-const CLI_VERSION = "0.20.1";
+/** Must match a published npm version: `npm view phonton-cli version` */
+export const CLI_VERSION = "0.19.7";
 
 export type CliInstallState =
   | { status: "idle" }
@@ -34,6 +35,21 @@ async function executeScoped(name: string, args: string[]): Promise<{ code: numb
     stdout: child.stdout ?? "",
     stderr: child.stderr ?? "",
   };
+}
+
+export function formatCliInstallError(raw: string): string {
+  const text = raw.trim();
+  if (/ETARGET|notarget|No matching version/i.test(text)) {
+    return `phonton-cli@${CLI_VERSION} is not on npm yet. Run manually: npm install -g phonton-cli`;
+  }
+  if (/ENOENT|not found/i.test(text) && /npm/i.test(text)) {
+    return "npm not found. Install Node.js from nodejs.org, then retry.";
+  }
+  if (/EACCES|permission denied/i.test(text)) {
+    return "Permission denied. Try running Terminal as Administrator, or: npm install -g phonton-cli";
+  }
+  const firstLine = text.split(/\r?\n/).find((l) => l.trim())?.trim();
+  return firstLine?.slice(0, 280) || "npm install failed. Try: npm install -g phonton-cli";
 }
 
 export async function checkNpmAvailable(): Promise<boolean> {
@@ -106,13 +122,13 @@ export async function installPhontonCli(
       `phonton-cli@${CLI_VERSION}`,
     ]);
     if (result.code !== 0) {
-      const detail = (result.stderr || result.stdout).trim().slice(0, 400);
-      return { ok: false, message: detail || "npm install failed" };
+      const detail = (result.stderr || result.stdout).trim();
+      return { ok: false, message: formatCliInstallError(detail) };
     }
   } catch (err) {
     return {
       ok: false,
-      message: err instanceof Error ? err.message : String(err),
+      message: formatCliInstallError(err instanceof Error ? err.message : String(err)),
     };
   }
 
@@ -121,7 +137,8 @@ export async function installPhontonCli(
   if (!resolved) {
     return {
       ok: false,
-      message: "Install finished but phonton was not found on PATH. Restart the app or run npm install -g phonton-cli manually.",
+      message:
+        "Install finished but phonton was not found on PATH. Restart the app or run: npm install -g phonton-cli",
     };
   }
 

@@ -30,14 +30,18 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
       ? "CLI connected"
       : sidecar.status === "offline"
         ? "CLI offline"
-        : "Connecting…";
+        : sidecar.status === "idle"
+          ? "Ready to install"
+          : "Connecting…";
 
   const statusDetail =
     sidecar.status === "ready"
       ? `phonton serve v${sidecar.version} on :47831`
       : sidecar.status === "offline"
         ? sidecar.error
-        : "Starting sidecar and waiting for phonton serve…";
+        : sidecar.status === "idle"
+          ? "Click Install automatically or install the CLI manually, then retry."
+          : "Starting sidecar and waiting for phonton serve…";
 
   const runAutoInstall = async () => {
     setInstalling(true);
