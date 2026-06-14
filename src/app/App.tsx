@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { SetupPage, type SetupStep } from "../components/setup/SetupPage";
+import { useAppUpdater } from "../hooks/useAppUpdater";
 import { initAuthHandoff } from "../lib/auth-handoff";
 import { isAuthenticated, clearSessionToken } from "../lib/license";
 import { isSetupComplete, resetSetup } from "../lib/setup";
@@ -16,6 +17,8 @@ export default function App() {
   const [setupDone, setSetupDone] = useState(() => isSetupComplete() && isAuthenticated());
   const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
   const [setupStep, setSetupStep] = useState<SetupStep>(initialSetupStep);
+
+  useAppUpdater();
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;

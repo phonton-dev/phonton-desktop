@@ -1,6 +1,8 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { isTauri } from "../lib/sidecar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { checkForAppUpdate } from "../lib/app-updater";
 import {
   accountUrl,
   clearCloudToken,
@@ -24,7 +26,53 @@ type Props = {
 
 export function SettingsModal({ open: isOpen, onClose, themeId, onThemeChange, onShowSetup }: Props) {
   const [tokenInput, setTokenInput] = useState(getStoredCloudToken() ?? "");
+  const [appVersion, setAppVersion] = useState("");
+  const [updateStatus, setUpdateStatus] = useState("");
+  const [updateBusy, setUpdateBusy] = useState(false);
   const cloudConnected = hasCloudSyncEntitlement(getStoredCloudToken());
+
+  useEffect(() => {
+    if (!isOpen || !isTauri()) return;
+    void getVersion().then(setAppVersion).catch(() => setAppVersion(""));
+  }, [isOpen]);
+
+  const handleCheckUpdates = async () => {
+    if (!isTauri()) return;
+    setUpdateBusy(true);
+    setUpdateStatus("Checking…");
+    const result = await checkForAppUpdate();
+    if (result.status === "current") {
+      setUpdateStatus("You're on the latest version.");
+      setUpdateBusy(false);
+      return;
+    }
+    if (result.status === "available") {
+      const install = window.confirm(
+        `Phonton ${result.version} is available. Download and install now? The app will restart.`,
+      );
+      if (!install) {
+        setUpdateStatus(`Update ${result.version} available.`);
+        setUpdateBusy(false);
+        return;
+      }
+      setUpdateStatus("Downloading…");
+      const installed = await checkForAppUpdate({
+        install: true,
+        onProgress: (pct) => setUpdateStatus(`Downloading… ${pct}%`),
+      });
+      if (installed.status === "error") {
+        setUpdateStatus(installed.message);
+      }
+      setUpdateBusy(false);
+      return;
+    }
+    if (result.status === "error") {
+      setUpdateStatus(result.message);
+    } else {
+      setUpdateStatus("");
+    }
+    setUpdateBusy(false);
+  };
 
   if (!isOpen) return null;
 
@@ -139,6 +187,26 @@ export function SettingsModal({ open: isOpen, onClose, themeId, onThemeChange, o
             Desktop is free. Cloud sync requires a Pro or Ultra subscription.
           </p>
         </div>
+
+        {isTauri() ? (
+          <div className="field">
+            <label>App updates</label>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--ph-muted)" }}>
+              {appVersion ? `Phonton Desktop v${appVersion}` : "Phonton Desktop"}
+              {updateStatus ? ` · ${updateStatus}` : null}
+            </p>
+            <div className="toolbar">
+              <button
+                type="button"
+                className="btn secondary"
+                disabled={updateBusy}
+                onClick={() => void handleCheckUpdates()}
+              >
+                {updateBusy ? "Checking…" : "Check for updates"}
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="toolbar" style={{ justifyContent: "space-between" }}>
           {onShowSetup ? (

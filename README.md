@@ -11,7 +11,7 @@ Tauri control room for the Phonton ADE. Requires a **free** phonton.dev account.
 - Shell: Tauri 2 (`src-tauri/`)
 - Auth: Clerk sign-in on phonton.dev → `phonton://auth/callback` session token
 - Engine: `phonton serve` sidecar on `127.0.0.1:47831` (from `phonton-cli`)
-- Updates: Tauri updater via signed `latest.json` on GitHub Releases
+- Updates: Tauri updater checks `latest.json` on GitHub Releases at launch (v0.2.2+). Settings → **Check for updates**.
 
 ## Development
 
