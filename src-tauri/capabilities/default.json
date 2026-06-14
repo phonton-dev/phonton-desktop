@@ -9,6 +9,9 @@
     "updater:default",
     "process:default",
     "core:window:allow-set-icon",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize",
+    "core:window:allow-show",
     "shell:allow-open",
     {
       "identifier": "shell:allow-spawn",

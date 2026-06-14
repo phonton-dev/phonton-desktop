@@ -65,26 +65,30 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
       ? "CLI connected"
       : sidecar.status === "offline"
         ? "CLI offline"
-        : sidecar.status === "idle"
-          ? "Ready to install"
-          : phase === "checking"
-            ? "Checking phonton-cli…"
-            : phase === "starting"
-              ? "Starting engine…"
-              : "Connecting…";
+        : phase === "error"
+          ? "CLI install error"
+          : sidecar.status === "idle"
+            ? "Ready to install"
+            : phase === "checking"
+              ? "Checking phonton-cli…"
+              : phase === "starting"
+                ? "Starting engine…"
+                : "Connecting…";
 
   const statusDetail =
     sidecar.status === "ready"
       ? `phonton serve v${sidecar.version} on :47831`
       : sidecar.status === "offline"
         ? sidecar.error
-        : sidecar.status === "idle"
-          ? "Detecting phonton-cli on your system…"
-          : phase === "checking"
-            ? installLog || "Looking for an existing install before downloading."
-            : phase === "starting"
-              ? installLog || "Starting sidecar and waiting for phonton serve…"
-              : "Verifying connection to phonton serve…";
+        : phase === "error"
+          ? installError || installLog || "Could not install or locate phonton-cli."
+          : sidecar.status === "idle"
+            ? "Detecting phonton-cli on your system…"
+            : phase === "checking"
+              ? installLog || "Looking for an existing install before downloading."
+              : phase === "starting"
+                ? installLog || "Starting sidecar and waiting for phonton serve…"
+                : "Verifying connection to phonton serve…";
 
   return (
     <div>

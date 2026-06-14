@@ -1,15 +1,16 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { isAuthenticated, storeSessionToken } from "./license";
 
 export const AUTH_HANDOFF_EVENT = "phonton-auth-handoff";
 const PENDING_AUTH_STATE_KEY = "phonton.auth.pendingState";
 
 export function setPendingAuthState(state: string) {
-  sessionStorage.setItem(PENDING_AUTH_STATE_KEY, state);
+  localStorage.setItem(PENDING_AUTH_STATE_KEY, state);
 }
 
 function consumePendingAuthState(): string | null {
-  const value = sessionStorage.getItem(PENDING_AUTH_STATE_KEY);
-  sessionStorage.removeItem(PENDING_AUTH_STATE_KEY);
+  const value = localStorage.getItem(PENDING_AUTH_STATE_KEY);
+  localStorage.removeItem(PENDING_AUTH_STATE_KEY);
   return value;
 }
 
@@ -35,10 +36,23 @@ export function parseAuthCallbackUrl(raw: string): string | null {
   }
 }
 
+function focusMainWindow(): void {
+  if (!("__TAURI_INTERNALS__" in window)) return;
+  try {
+    const win = getCurrentWindow();
+    void win.unminimize();
+    void win.show();
+    void win.setFocus();
+  } catch {
+    /* ignore */
+  }
+}
+
 export function applySessionToken(token: string): boolean {
   if (!isAuthenticated(token)) return false;
   storeSessionToken(token);
   window.dispatchEvent(new CustomEvent(AUTH_HANDOFF_EVENT, { detail: { token } }));
+  focusMainWindow();
   return true;
 }
 

@@ -1,5 +1,11 @@
 import { Command } from "@tauri-apps/plugin-shell";
-import { getResolvedPhontonCmd, normalizeWindowsPhontonCmd } from "./cli-install";
+import {
+  getPathSetPrefix,
+  getPhontonLaunchSpec,
+  getResolvedPhontonCmd,
+  normalizeWindowsPhontonCmd,
+  windowsLaunchServeArgs,
+} from "./cli-install";
 
 let child: { kill: () => Promise<void> } | null = null;
 
@@ -15,29 +21,35 @@ function quoteWindowsArg(path: string): string {
   return `"${path.replace(/"/g, '\\"')}"`;
 }
 
-function windowsServeArgs(resolved: string): string[] {
+function windowsServeArgsFromCmd(resolved: string, pathPrefix: string): string[] {
   const cmd = normalizeWindowsPhontonCmd(resolved);
-  return ["/c", `${quoteWindowsArg(cmd)} serve`];
+  return ["/c", `${pathPrefix}${quoteWindowsArg(cmd)} serve`];
 }
 
 async function spawnNamed(name: string, args: string[]) {
-  const cmd = Command.create(name, args);
-  return cmd.spawn();
+  return Command.create(name, args).spawn();
 }
 
 export async function startSidecar(): Promise<void> {
   if (!isTauri() || child) return;
 
+  const launch = getPhontonLaunchSpec();
   const resolved = getResolvedPhontonCmd();
 
   try {
     if (isWindows()) {
-      child = await spawnNamed("win-phonton-serve-resolved", windowsServeArgs(resolved));
+      if (launch) {
+        child = await spawnNamed("win-phonton-serve-resolved", windowsLaunchServeArgs(launch));
+        return;
+      }
+      const pathPrefix = await getPathSetPrefix();
+      child = await spawnNamed("win-phonton-serve-resolved", windowsServeArgsFromCmd(resolved, pathPrefix));
       return;
     }
+    const cmd = launch?.kind === "node" ? launch.script : resolved;
     child = await spawnNamed("unix-phonton-serve-resolved", [
       "-c",
-      `'${resolved.replace(/'/g, "'\\''")}' serve`,
+      `'${cmd.replace(/'/g, "'\\''")}' serve`,
     ]);
   } catch (err) {
     try {
@@ -46,7 +58,11 @@ export async function startSidecar(): Promise<void> {
     } catch {
       if (isWindows()) {
         try {
-          child = await spawnNamed("win-phonton-serve", ["/c", "phonton.cmd", "serve"]);
+          const pathPrefix = await getPathSetPrefix();
+          child = await spawnNamed("win-phonton-serve-resolved", [
+            "/c",
+            `${pathPrefix}${quoteWindowsArg("phonton.cmd")} serve`,
+          ]);
           return;
         } catch {
           try {

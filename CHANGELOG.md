@@ -2,6 +2,19 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.4] - 2026-06-07
+
+### Fixed
+
+- Windows Scoop/GUI PATH: PATH-independent `node.exe` + `phonton.js` launcher for verify and `phonton serve`
+- CLI setup installs/upgrades to npm latest `phonton-cli` automatically
+- Browser auth callback reuses existing window via single-instance deep-link forwarding
+- CLI setup step shows explicit error state when install fails
+
+### Added
+
+- `tauri-plugin-single-instance` with deep-link feature; window focus after sign-in
+
 ## [0.2.3] - 2026-06-14
 
 ### Fixed
