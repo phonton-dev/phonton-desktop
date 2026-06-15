@@ -23,9 +23,10 @@ type Props = {
 
 export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "welcome" }: Props) {
   const [step, setStep] = useState<SetupStep>(initialStep);
+  const [cliConnected, setCliConnected] = useState(false);
   const authState = useMemo(() => crypto.randomUUID(), []);
-  const sidecarEnabled = step === "cli" || step === "finish";
-  const { state: sidecar, refresh: refreshSidecar } = useSidecar({ enabled: sidecarEnabled });
+  const sidecarEnabled = step === "finish";
+  const { state: sidecar } = useSidecar({ enabled: sidecarEnabled });
 
   const stepIndex = STEPS.indexOf(step);
 
@@ -48,7 +49,7 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
     step === "auth"
       ? isAuthenticated()
       : step === "cli"
-        ? sidecar.status === "ready"
+        ? cliConnected
         : true;
 
   return (
@@ -76,7 +77,7 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
             <SetupStepAuth authState={authState} />
           ) : null}
           {step === "theme" ? <SetupStepTheme themeId={themeId} onThemeChange={onThemeChange} /> : null}
-          {step === "cli" ? <SetupStepCli sidecar={sidecar} onRetry={refreshSidecar} /> : null}
+          {step === "cli" ? <SetupStepCli onConnectedChange={setCliConnected} /> : null}
           {step === "finish" ? (
             <SetupStepFinish themeId={themeId} sidecar={sidecar} onOpen={finish} />
           ) : null}

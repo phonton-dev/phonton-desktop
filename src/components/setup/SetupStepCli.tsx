@@ -1,32 +1,39 @@
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { SidecarState } from "../../hooks/useSidecar";
+import { useSidecar } from "../../hooks/useSidecar";
 import { ensurePhontonCli } from "../../lib/cli-install";
 import { installDocsUrl } from "../../lib/license";
 import { isTauri } from "../../lib/sidecar";
 
 type Props = {
-  sidecar: SidecarState;
-  onRetry: () => void | Promise<void>;
+  onConnectedChange: (connected: boolean) => void;
 };
 
 type Phase = "idle" | "checking" | "starting" | "done" | "error";
 
-export function SetupStepCli({ sidecar, onRetry }: Props) {
+export function SetupStepCli({ onConnectedChange }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [installing, setInstalling] = useState(false);
   const [installLog, setInstallLog] = useState("");
   const [installError, setInstallError] = useState("");
+  const [sidecarEnabled, setSidecarEnabled] = useState(false);
   const bootstrapped = useRef(false);
+  const { state: sidecar, refresh: refreshSidecar } = useSidecar({ enabled: sidecarEnabled });
+
+  useEffect(() => {
+    onConnectedChange(sidecar.status === "ready");
+  }, [sidecar.status, onConnectedChange]);
 
   const runBootstrap = async (forceInstall = false) => {
     setInstalling(true);
     setInstallError("");
+    setSidecarEnabled(false);
+    onConnectedChange(false);
     setPhase("checking");
 
     if (forceInstall) {
-      setInstallLog(`Installing phonton-cli…`);
+      setInstallLog("Installing phonton-cli…");
     }
 
     const result = await ensurePhontonCli((msg) => setInstallLog(msg));
@@ -37,10 +44,12 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
       return;
     }
 
+    setInstallError("");
     setInstallLog(result.message);
     setPhase("starting");
     setInstallLog((prev) => `${prev}\nStarting phonton serve…`);
-    await onRetry();
+    setSidecarEnabled(true);
+    await refreshSidecar();
     setPhase("done");
     setInstalling(false);
   };
@@ -51,9 +60,15 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
     void runBootstrap(false);
   }, []);
 
+  const busy = installing || phase === "checking" || phase === "starting";
+
   const statusIcon =
     sidecar.status === "ready" ? (
       <CheckCircle2 size={20} color="var(--ph-ok)" />
+    ) : phase === "error" ? (
+      <XCircle size={20} color="var(--ph-danger)" />
+    ) : busy || sidecar.status === "connecting" ? (
+      <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
     ) : sidecar.status === "offline" ? (
       <XCircle size={20} color="var(--ph-warn)" />
     ) : (
@@ -63,32 +78,31 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
   const statusLabel =
     sidecar.status === "ready"
       ? "CLI connected"
-      : sidecar.status === "offline"
-        ? "CLI offline"
-        : phase === "error"
-          ? "CLI install error"
-          : sidecar.status === "idle"
-            ? "Ready to install"
-            : phase === "checking"
-              ? "Checking phonton-cli…"
-              : phase === "starting"
-                ? "Starting engine…"
-                : "Connecting…";
+      : phase === "error"
+        ? "CLI install error"
+        : busy
+          ? phase === "checking"
+            ? "Checking phonton-cli…"
+            : phase === "starting" || sidecar.status === "connecting"
+              ? "Starting engine…"
+              : "Working…"
+          : sidecar.status === "offline"
+            ? "CLI offline"
+            : "Ready to install";
 
   const statusDetail =
     sidecar.status === "ready"
       ? `phonton serve v${sidecar.version} on :47831`
-      : sidecar.status === "offline"
-        ? sidecar.error
-        : phase === "error"
-          ? installError || installLog || "Could not install or locate phonton-cli."
-          : sidecar.status === "idle"
-            ? "Detecting phonton-cli on your system…"
-            : phase === "checking"
-              ? installLog || "Looking for an existing install before downloading."
-              : phase === "starting"
-                ? installLog || "Starting sidecar and waiting for phonton serve…"
-                : "Verifying connection to phonton serve…";
+      : phase === "error"
+        ? installError || installLog || "Could not install or locate phonton-cli."
+        : busy
+          ? installLog ||
+            (phase === "checking"
+              ? "Looking for an existing install before downloading."
+              : "Starting sidecar and waiting for phonton serve…")
+          : sidecar.status === "offline"
+            ? sidecar.error
+            : "Detecting phonton-cli on your system…";
 
   return (
     <div>
@@ -103,11 +117,6 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
           <span className="cli-status-label">{statusLabel}</span>
         </div>
         <p className="cli-status-detail">{statusDetail}</p>
-        {installError ? (
-          <p className="cli-status-detail" style={{ color: "var(--ph-danger)" }}>
-            {installError}
-          </p>
-        ) : null}
         <div className="toolbar" style={{ marginTop: 12 }}>
           <button
             type="button"
@@ -117,7 +126,12 @@ export function SetupStepCli({ sidecar, onRetry }: Props) {
           >
             {installing ? "Working…" : "Install automatically"}
           </button>
-          <button type="button" className="btn secondary" onClick={() => void onRetry()} disabled={installing}>
+          <button
+            type="button"
+            className="btn secondary"
+            onClick={() => void runBootstrap(false)}
+            disabled={installing || !isTauri()}
+          >
             Retry connection
           </button>
           <button

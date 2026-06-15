@@ -4,11 +4,12 @@ import { isTauri } from "./sidecar";
 
 const PHONTON_CMD_KEY = "phonton.cli.cmd";
 const PHONTON_LAUNCH_KEY = "phonton.cli.launch";
+const PHONTON_EXE_KEY = "phonton.cli.exe";
 const PHONTON_NODE_KEY = "phonton.cli.node";
 const PHONTON_SCRIPT_KEY = "phonton.cli.script";
 
-/** Offline fallback when npm registry is unreachable. */
-export const CLI_VERSION_FALLBACK = "0.20.1";
+/** Last known published npm version when registry is unreachable. */
+export const CLI_VERSION_FALLBACK = "0.19.7";
 
 export type CliInstallState =
   | { status: "idle" }
@@ -18,6 +19,7 @@ export type CliInstallState =
   | { status: "error"; message: string };
 
 export type PhontonLaunchSpec =
+  | { kind: "exe"; exe: string; cmd: string }
   | { kind: "node"; node: string; script: string; cmd: string }
   | { kind: "cmd"; cmd: string };
 
@@ -25,6 +27,10 @@ let cachedLatestVersion: string | null = null;
 
 function isWindows(): boolean {
   return navigator.userAgent.includes("Windows");
+}
+
+function normalizeShellOutput(text: string): string {
+  return text.replace(/\r/g, "").trim();
 }
 
 export function getResolvedPhontonCmd(): string {
@@ -38,22 +44,33 @@ export function setResolvedPhontonCmd(cmd: string) {
 export function getPhontonLaunchSpec(): PhontonLaunchSpec | null {
   const kind = localStorage.getItem(PHONTON_LAUNCH_KEY);
   const cmd = localStorage.getItem(PHONTON_CMD_KEY);
+  if (!cmd) return null;
+  if (kind === "exe") {
+    const exe = localStorage.getItem(PHONTON_EXE_KEY);
+    if (exe) return { kind: "exe", exe, cmd };
+  }
   if (kind === "node") {
     const node = localStorage.getItem(PHONTON_NODE_KEY);
     const script = localStorage.getItem(PHONTON_SCRIPT_KEY);
-    if (node && script && cmd) return { kind: "node", node, script, cmd };
+    if (node && script) return { kind: "node", node, script, cmd };
   }
-  if (cmd) return { kind: "cmd", cmd };
+  if (kind === "cmd" || !kind) return { kind: "cmd", cmd };
   return null;
 }
 
 export function setPhontonLaunchSpec(spec: PhontonLaunchSpec) {
-  setResolvedPhontonCmd(spec.kind === "node" ? spec.cmd : spec.cmd);
+  setResolvedPhontonCmd(spec.cmd);
   localStorage.setItem(PHONTON_LAUNCH_KEY, spec.kind);
-  if (spec.kind === "node") {
+  if (spec.kind === "exe") {
+    localStorage.setItem(PHONTON_EXE_KEY, spec.exe);
+    localStorage.removeItem(PHONTON_NODE_KEY);
+    localStorage.removeItem(PHONTON_SCRIPT_KEY);
+  } else if (spec.kind === "node") {
     localStorage.setItem(PHONTON_NODE_KEY, spec.node);
     localStorage.setItem(PHONTON_SCRIPT_KEY, spec.script);
+    localStorage.removeItem(PHONTON_EXE_KEY);
   } else {
+    localStorage.removeItem(PHONTON_EXE_KEY);
     localStorage.removeItem(PHONTON_NODE_KEY);
     localStorage.removeItem(PHONTON_SCRIPT_KEY);
   }
@@ -100,6 +117,14 @@ function phontonJsFromCmd(cmdPath: string): string {
   return `${dir}\\node_modules\\phonton-cli\\npm\\bin\\phonton.js`;
 }
 
+function phontonExeFromGlobalRoot(globalRoot: string): string {
+  return `${globalRoot}\\phonton-cli\\npm\\vendor\\phonton.exe`;
+}
+
+function phontonJsFromGlobalRoot(globalRoot: string): string {
+  return `${globalRoot}\\phonton-cli\\npm\\bin\\phonton.js`;
+}
+
 let cachedWindowsPathDirs: string[] | null = null;
 
 async function resolveUserHome(): Promise<string> {
@@ -108,7 +133,7 @@ async function resolveUserHome(): Promise<string> {
   } catch {
     if (!isWindows()) throw new Error("homeDir unavailable");
     const result = await Command.create("win-test-phonton-cmd", ["/c", "echo %USERPROFILE%"]).execute();
-    const home = (result.stdout ?? "").trim();
+    const home = normalizeShellOutput(result.stdout ?? "");
     if (!home) throw new Error("USERPROFILE unavailable");
     return home;
   }
@@ -135,7 +160,7 @@ async function getEnrichedPath(): Promise<string | undefined> {
   let base = "";
   try {
     const result = await Command.create("win-test-phonton-cmd", ["/c", "echo %PATH%"]).execute();
-    base = (result.stdout ?? "").trim();
+    base = normalizeShellOutput(result.stdout ?? "");
   } catch {
     /* use supplement only */
   }
@@ -152,6 +177,7 @@ export async function getPathSetPrefix(): Promise<string> {
 function npmCommandLine(name: string, args: string[]): string {
   if (name.includes("version") && !name.includes("view")) return "npm.cmd --version";
   if (name.includes("prefix")) return "npm.cmd prefix -g";
+  if (name.includes("root")) return "npm.cmd root -g";
   if (name.includes("view")) return "npm.cmd view phonton-cli version";
   return `npm.cmd ${args.join(" ")}`;
 }
@@ -218,25 +244,34 @@ async function runWindowsLaunchLine(line: string): Promise<{ code: number; stdou
   return executeScoped("win-phonton-run", ["/c", line]);
 }
 
-export function windowsLaunchServeArgs(spec: PhontonLaunchSpec): string[] {
+function launchVersionLine(spec: PhontonLaunchSpec): string {
+  if (spec.kind === "exe") return `${quoteWindowsArg(spec.exe)} --version`;
   if (spec.kind === "node") {
-    return ["/c", `${quoteWindowsArg(spec.node)} ${quoteWindowsArg(spec.script)} serve`];
+    return `${quoteWindowsArg(spec.node)} ${quoteWindowsArg(spec.script)} --version`;
   }
-  return ["/c", `${quoteWindowsArg(normalizeWindowsPhontonCmd(spec.cmd))} serve`];
+  return `${quoteWindowsArg(normalizeWindowsPhontonCmd(spec.cmd))} --version`;
+}
+
+function launchServeLine(spec: PhontonLaunchSpec): string {
+  if (spec.kind === "exe") return `${quoteWindowsArg(spec.exe)} serve`;
+  if (spec.kind === "node") {
+    return `${quoteWindowsArg(spec.node)} ${quoteWindowsArg(spec.script)} serve`;
+  }
+  return `${quoteWindowsArg(normalizeWindowsPhontonCmd(spec.cmd))} serve`;
+}
+
+export function windowsLaunchServeArgs(spec: PhontonLaunchSpec): string[] {
+  return ["/c", launchServeLine(spec)];
 }
 
 async function verifyLaunchSpec(spec: PhontonLaunchSpec): Promise<boolean> {
   if (!isTauri()) return false;
   try {
     if (isWindows()) {
-      const line =
-        spec.kind === "node"
-          ? `${quoteWindowsArg(spec.node)} ${quoteWindowsArg(spec.script)} --version`
-          : `${quoteWindowsArg(normalizeWindowsPhontonCmd(spec.cmd))} --version`;
-      const result = await runWindowsLaunchLine(line);
+      const result = await runWindowsLaunchLine(launchVersionLine(spec));
       return result.code === 0 && /\d/.test(`${result.stdout}${result.stderr}`);
     }
-    const cmd = spec.kind === "node" ? spec.script : spec.cmd;
+    const cmd = spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd;
     const result = await executeScoped("unix-phonton-verify", [
       "-c",
       `'${cmd.replace(/'/g, "'\\''")}' --version`,
@@ -251,16 +286,12 @@ async function readInstalledVersion(spec: PhontonLaunchSpec): Promise<string | n
   if (!isTauri()) return null;
   try {
     if (isWindows()) {
-      const line =
-        spec.kind === "node"
-          ? `${quoteWindowsArg(spec.node)} ${quoteWindowsArg(spec.script)} --version`
-          : `${quoteWindowsArg(normalizeWindowsPhontonCmd(spec.cmd))} --version`;
-      const result = await runWindowsLaunchLine(line);
+      const result = await runWindowsLaunchLine(launchVersionLine(spec));
       const text = `${result.stdout}\n${result.stderr}`;
       const match = text.match(/(\d+\.\d+\.\d+)/);
       return match?.[1] ?? null;
     }
-    const cmd = spec.kind === "node" ? spec.script : spec.cmd;
+    const cmd = spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd;
     const result = await executeScoped("unix-phonton-verify", [
       "-c",
       `'${cmd.replace(/'/g, "'\\''")}' --version`,
@@ -272,6 +303,54 @@ async function readInstalledVersion(spec: PhontonLaunchSpec): Promise<string | n
   }
 }
 
+async function getNpmGlobalPrefix(): Promise<string | null> {
+  try {
+    const prefix = await executeScoped(npmScope("prefix"), ["prefix", "-g"]);
+    if (prefix.code !== 0) return null;
+    const root = normalizeShellOutput(prefix.stdout);
+    return root || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getNpmGlobalRoot(): Promise<string | null> {
+  try {
+    const root = await executeScoped(npmScope("root"), ["root", "-g"]);
+    if (root.code !== 0) return null;
+    const value = normalizeShellOutput(root.stdout);
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getNpmGlobalBin(): Promise<string | null> {
+  const prefix = await getNpmGlobalPrefix();
+  if (!prefix) return null;
+  return isWindows() ? `${prefix}\\phonton.cmd` : `${prefix}/bin/phonton`;
+}
+
+type NpmLayout = {
+  cmd: string;
+  globalRoot: string;
+  exe: string;
+  script: string;
+};
+
+async function getNpmLayout(): Promise<NpmLayout | null> {
+  const prefix = await getNpmGlobalPrefix();
+  const globalRoot = await getNpmGlobalRoot();
+  if (!prefix || !globalRoot) return null;
+  const cmd = isWindows() ? `${prefix}\\phonton.cmd` : `${prefix}/bin/phonton`;
+  return {
+    cmd,
+    globalRoot,
+    exe: isWindows() ? phontonExeFromGlobalRoot(globalRoot) : `${globalRoot}/phonton-cli/npm/vendor/phonton`,
+    script: isWindows() ? phontonJsFromGlobalRoot(globalRoot) : `${globalRoot}/phonton-cli/npm/bin/phonton.js`,
+  };
+}
+
 async function nodeExeCandidates(cmdDir: string, home: string): Promise<string[]> {
   return [
     `${cmdDir}\\node.exe`,
@@ -280,19 +359,24 @@ async function nodeExeCandidates(cmdDir: string, home: string): Promise<string[]
   ];
 }
 
-async function resolveLaunchFromCmd(cmdPath: string): Promise<PhontonLaunchSpec | null> {
-  const cmd = normalizeWindowsPhontonCmd(cmdPath);
-  if (!(await fileExists(cmd))) return null;
+async function resolveLaunchFromLayout(layout: NpmLayout): Promise<PhontonLaunchSpec | null> {
+  if (isWindows() && (await fileExists(layout.exe))) {
+    const spec: PhontonLaunchSpec = { kind: "exe", exe: layout.exe, cmd: layout.cmd };
+    if (await verifyLaunchSpec(spec)) {
+      setPhontonLaunchSpec(spec);
+      return spec;
+    }
+    setPhontonLaunchSpec(spec);
+    return spec;
+  }
 
-  const home = await resolveUserHome();
-  const sep = cmd.lastIndexOf("\\");
-  const cmdDir = sep >= 0 ? cmd.slice(0, sep) : cmd;
-  const script = phontonJsFromCmd(cmd);
-
-  if (await fileExists(script)) {
+  if (await fileExists(layout.script)) {
+    const home = await resolveUserHome();
+    const sep = layout.cmd.lastIndexOf("\\");
+    const cmdDir = sep >= 0 ? layout.cmd.slice(0, sep) : layout.cmd;
     for (const node of await nodeExeCandidates(cmdDir, home)) {
       if (!(await fileExists(node))) continue;
-      const spec: PhontonLaunchSpec = { kind: "node", node, script, cmd };
+      const spec: PhontonLaunchSpec = { kind: "node", node, script: layout.script, cmd: layout.cmd };
       if (await verifyLaunchSpec(spec)) {
         setPhontonLaunchSpec(spec);
         return spec;
@@ -300,13 +384,31 @@ async function resolveLaunchFromCmd(cmdPath: string): Promise<PhontonLaunchSpec 
     }
   }
 
-  const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd };
-  if (await verifyLaunchSpec(cmdSpec)) {
-    setPhontonLaunchSpec(cmdSpec);
-    return cmdSpec;
+  if (await fileExists(layout.cmd)) {
+    const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: layout.cmd };
+    if (await verifyLaunchSpec(cmdSpec)) {
+      setPhontonLaunchSpec(cmdSpec);
+      return cmdSpec;
+    }
   }
 
   return null;
+}
+
+async function resolveLaunchFromCmd(cmdPath: string): Promise<PhontonLaunchSpec | null> {
+  const cmd = normalizeWindowsPhontonCmd(cmdPath);
+  if (!(await fileExists(cmd))) return null;
+
+  const sep = cmd.lastIndexOf("\\");
+  const cmdDir = sep >= 0 ? cmd.slice(0, sep) : cmd;
+  const globalRoot = `${cmdDir}\\node_modules`;
+  const layout: NpmLayout = {
+    cmd,
+    globalRoot,
+    exe: phontonExeFromGlobalRoot(globalRoot),
+    script: phontonJsFromCmd(cmd),
+  };
+  return resolveLaunchFromLayout(layout);
 }
 
 async function listWindowsPhontonCandidates(): Promise<string[]> {
@@ -368,7 +470,7 @@ export async function resolveLatestCliVersion(): Promise<string> {
   if (!isTauri()) return CLI_VERSION_FALLBACK;
   try {
     const result = await executeScoped(npmScope("view-phonton"), ["view", "phonton-cli", "version"]);
-    const version = result.stdout.trim().split(/\r?\n/)[0]?.trim();
+    const version = normalizeShellOutput(result.stdout).split(/\n/)[0]?.trim();
     if (result.code === 0 && /^\d+\.\d+\.\d+/.test(version)) {
       cachedLatestVersion = version;
       return version;
@@ -377,18 +479,6 @@ export async function resolveLatestCliVersion(): Promise<string> {
     /* fallback */
   }
   return CLI_VERSION_FALLBACK;
-}
-
-async function getNpmGlobalBin(): Promise<string | null> {
-  try {
-    const prefix = await executeScoped(npmScope("prefix"), ["prefix", "-g"]);
-    if (prefix.code !== 0) return null;
-    const root = prefix.stdout.trim();
-    if (!root) return null;
-    return isWindows() ? `${root}\\phonton.cmd` : `${root}/bin/phonton`;
-  } catch {
-    return null;
-  }
 }
 
 export async function verifyPhontonCli(cmd?: string): Promise<boolean> {
@@ -411,51 +501,71 @@ export async function verifyPhontonCli(cmd?: string): Promise<boolean> {
   }
 }
 
-export async function resolvePhontonLaunch(): Promise<PhontonLaunchSpec | null> {
-  if (!isTauri()) return null;
+export async function resolvePhontonLaunch(): Promise<{ spec: PhontonLaunchSpec | null; reason?: string }> {
+  if (!isTauri()) return { spec: null, reason: "not in desktop app" };
   try {
     if (isWindows()) {
+      const layout = await getNpmLayout();
+      if (layout) {
+        const fromLayout = await resolveLaunchFromLayout(layout);
+        if (fromLayout) return { spec: fromLayout };
+      }
+
       const fromProbe = await resolveFromCandidates(await listWindowsPhontonCandidates());
-      if (fromProbe) return fromProbe;
+      if (fromProbe) return { spec: fromProbe };
 
       const result = await executeScoped("where-phonton", ["phonton"]);
       if (result.code === 0) {
         const line = pickWindowsWhereLine(result.stdout.split(/\r?\n/));
         if (line) {
           const spec = await resolveLaunchFromCmd(line);
-          if (spec) return spec;
+          if (spec) return { spec };
         }
       }
+
+      if (layout && (await fileExists(layout.exe))) {
+        const spec: PhontonLaunchSpec = { kind: "exe", exe: layout.exe, cmd: layout.cmd };
+        setPhontonLaunchSpec(spec);
+        return { spec };
+      }
+
+      return {
+        spec: null,
+        reason: layout
+          ? `phonton.exe not found at ${layout.exe}`
+          : "could not read npm global paths (prefix/root)",
+      };
     }
 
     const globalBin = await getNpmGlobalBin();
     if (globalBin) {
       const spec = await resolveLaunchFromCmd(globalBin);
-      if (spec) return spec;
+      if (spec) return { spec };
     }
 
-    if (!isWindows()) {
-      const result = await executeScoped("unix-phonton-verify", ["-c", "command -v phonton"]);
-      if (result.code === 0) {
-        const path = result.stdout.trim();
-        if (path) {
-          const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: path };
-          setPhontonLaunchSpec(cmdSpec);
-          return cmdSpec;
-        }
+    const result = await executeScoped("unix-phonton-verify", ["-c", "command -v phonton"]);
+    if (result.code === 0) {
+      const path = normalizeShellOutput(result.stdout);
+      if (path) {
+        const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: path };
+        setPhontonLaunchSpec(cmdSpec);
+        return { spec: cmdSpec };
       }
     }
-  } catch {
-    /* ignore */
+    return { spec: null, reason: "phonton not found on PATH" };
+  } catch (err) {
+    return {
+      spec: null,
+      reason: err instanceof Error ? err.message : String(err),
+    };
   }
-  return null;
 }
 
 /** @deprecated Use resolvePhontonLaunch — returns cmd path for compatibility. */
 export async function resolvePhontonOnPath(): Promise<string | null> {
-  const spec = await resolvePhontonLaunch();
+  const { spec } = await resolvePhontonLaunch();
   if (!spec) return null;
-  return spec.kind === "node" ? spec.cmd : spec.cmd;
+  return spec.cmd;
 }
 
 /** Detect, upgrade, and install phonton-cli to npm latest. */
@@ -468,14 +578,15 @@ export async function ensurePhontonCli(
 
   onProgress?.("Checking for phonton-cli…");
   const latest = await resolveLatestCliVersion();
-  let spec = await resolvePhontonLaunch();
+  let resolved = await resolvePhontonLaunch();
+  let spec = resolved.spec;
 
   if (spec) {
     const installed = await readInstalledVersion(spec);
     if (installed && !versionLessThan(installed, latest)) {
       return {
         ok: true,
-        message: `Found phonton-cli v${installed} — ${spec.kind === "node" ? spec.script : spec.cmd}`,
+        message: `Found phonton-cli v${installed} — ${spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd}`,
         installed: false,
       };
     }
@@ -518,18 +629,19 @@ export async function ensurePhontonCli(
   }
 
   onProgress?.("Locating phonton binary…");
-  spec = await resolvePhontonLaunch();
+  resolved = await resolvePhontonLaunch();
+  spec = resolved.spec;
   if (!spec) {
+    const detail = resolved.reason ? ` (${resolved.reason})` : "";
     return {
       ok: false,
-      message:
-        "Install finished but phonton could not be started. Restart the app or run: npm install -g phonton-cli",
+      message: `Install finished but phonton could not be started${detail}. Restart the app or run: npm install -g phonton-cli`,
       installed: true,
     };
   }
 
   const version = await readInstalledVersion(spec);
-  const label = spec.kind === "node" ? spec.script : spec.cmd;
+  const label = spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd;
   return {
     ok: true,
     message: version ? `Using phonton-cli v${version} — ${label}` : `Installed — using ${label}`,

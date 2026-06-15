@@ -99,6 +99,30 @@
           "sidecar": false
         },
         {
+          "name": "npm-root",
+          "cmd": "npm",
+          "args": ["root", "-g"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-cmd-root",
+          "cmd": "npm.cmd",
+          "args": ["root", "-g"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-view-phonton",
+          "cmd": "npm",
+          "args": ["view", "phonton-cli", "version"],
+          "sidecar": false
+        },
+        {
+          "name": "npm-cmd-view-phonton",
+          "cmd": "npm.cmd",
+          "args": ["view", "phonton-cli", "version"],
+          "sidecar": false
+        },
+        {
           "name": "npm-install-phonton",
           "cmd": "npm",
           "args": true,
@@ -124,6 +148,12 @@
         },
         {
           "name": "win-phonton-verify",
+          "cmd": "cmd",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "win-phonton-run",
           "cmd": "cmd",
           "args": true,
           "sidecar": false

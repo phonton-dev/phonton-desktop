@@ -2,6 +2,20 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.5] - 2026-06-07
+
+### Fixed
+
+- Windows: exe-first CLI launch via `npm root -g` vendor `phonton.exe` (PATH-independent)
+- Sidecar startup race on CLI setup step — defer until `ensurePhontonCli` succeeds
+- Post-install resolve surfaces actionable errors instead of silent failure
+- Offline CLI version fallback set to `0.19.7` (last published npm)
+
+### Added
+
+- Launch spec priority: `exe` → `node`+`phonton.js` → `phonton.cmd`
+- Shell permissions for `npm root`, `npm view`, and `win-phonton-run`
+
 ## [0.2.4] - 2026-06-07
 
 ### Fixed

@@ -46,7 +46,12 @@ export async function startSidecar(): Promise<void> {
       child = await spawnNamed("win-phonton-serve-resolved", windowsServeArgsFromCmd(resolved, pathPrefix));
       return;
     }
-    const cmd = launch?.kind === "node" ? launch.script : resolved;
+    const cmd =
+      launch?.kind === "exe"
+        ? launch.exe
+        : launch?.kind === "node"
+          ? launch.script
+          : resolved;
     child = await spawnNamed("unix-phonton-serve-resolved", [
       "-c",
       `'${cmd.replace(/'/g, "'\\''")}' serve`,
