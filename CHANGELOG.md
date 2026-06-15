@@ -2,6 +2,14 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.6] - 2026-06-07
+
+### Fixed
+
+- Bootstrap `vendor/phonton.exe` after npm install when postinstall was skipped
+- Scoop: find `node.exe` under `scoop/apps/nodejs/current` (not persist bin)
+- Accept node+phonton.js launcher when wrapper exists but native exe is missing
+
 ## [0.2.5] - 2026-06-07
 
 ### Fixed

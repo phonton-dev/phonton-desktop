@@ -1,6 +1,6 @@
 [package]
 name = "phonton-desktop"
-version = "0.2.5"
+version = "0.2.6"
 description = "Phonton Desktop — commercial control room"
 edition = "2021"
 
