@@ -243,10 +243,39 @@ async function executeScoped(name: string, args: string[]): Promise<{ code: numb
 }
 
 async function fileExists(path: string): Promise<boolean> {
+  if (!isWindows()) {
+    try {
+      const result = await executeScoped("unix-phonton-verify", [
+        "-c",
+        `test -e '${path.replace(/'/g, "'\\''")}'`,
+      ]);
+      return result.code === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  const lower = path.toLowerCase();
+  if (lower.endsWith(".exe") || lower.endsWith(".cmd")) {
+    try {
+      const line =
+        lower.endsWith(".exe") || lower.endsWith(".cmd")
+          ? `${quoteWindowsArg(path)} --version`
+          : `${quoteWindowsArg(path)} --version`;
+      const result = await runWindowsLaunchLine(line);
+      if (result.code === 0 && /\d/.test(`${result.stdout}${result.stderr}`)) return true;
+    } catch {
+      /* try existence checks */
+    }
+  }
+
   try {
     const quoted = quoteWindowsArg(path);
-    const result = await executeScoped("win-test-phonton-cmd", ["/c", `if exist ${quoted} echo yes`]);
-    return /\byes\b/i.test(result.stdout);
+    const exist = await executeScoped("win-test-phonton-cmd", ["/c", `if exist ${quoted} echo yes`]);
+    if (/\byes\b/i.test(exist.stdout)) return true;
+
+    const dir = await executeScoped("win-test-phonton-cmd", ["/c", `dir /a-d /b ${quoted} 2>nul`]);
+    return dir.code === 0 && Boolean(dir.stdout.trim());
   } catch {
     return false;
   }
@@ -377,7 +406,12 @@ async function resolveNodeForLayout(layout: NpmLayout): Promise<string | null> {
   const sep = layout.cmd.lastIndexOf("\\");
   const cmdDir = sep >= 0 ? layout.cmd.slice(0, sep) : layout.cmd;
   for (const node of await nodeExeCandidates(cmdDir, home)) {
-    if (await fileExists(node)) return node;
+    try {
+      const result = await runWindowsLaunchLine(`${quoteWindowsArg(node)} --version`);
+      if (result.code === 0 && /\d/.test(`${result.stdout}${result.stderr}`)) return node;
+    } catch {
+      /* try next candidate */
+    }
   }
   return null;
 }
@@ -387,56 +421,50 @@ async function bootstrapVendorBinary(
   layout: NpmLayout,
   onProgress?: (message: string) => void,
 ): Promise<boolean> {
-  if (await fileExists(layout.exe)) return true;
+  const exeSpec: PhontonLaunchSpec = { kind: "exe", exe: layout.exe, cmd: layout.cmd };
+  if (await verifyLaunchSpec(exeSpec)) return true;
+
   const node = await resolveNodeForLayout(layout);
-  if (!node || !(await fileExists(layout.script))) return false;
+  if (!node) return false;
 
   const installJs = phontonInstallJsFromGlobalRoot(layout.globalRoot);
-  if (await fileExists(installJs)) {
-    onProgress?.("Downloading phonton native binary…");
-    const installResult = await runWindowsLaunchLine(
-      `${quoteWindowsArg(node)} ${quoteWindowsArg(installJs)}`,
-    );
-    if (installResult.code === 0 && (await fileExists(layout.exe))) return true;
-  }
+  onProgress?.("Downloading phonton native binary…");
+  const installResult = await runWindowsLaunchLine(
+    `${quoteWindowsArg(node)} ${quoteWindowsArg(installJs)}`,
+  );
+  if (installResult.code === 0 && (await verifyLaunchSpec(exeSpec))) return true;
 
   onProgress?.("Verifying phonton-cli wrapper…");
   const wrapperResult = await runWindowsLaunchLine(
     `${quoteWindowsArg(node)} ${quoteWindowsArg(layout.script)} --version`,
   );
-  return wrapperResult.code === 0 && (await fileExists(layout.exe));
+  return wrapperResult.code === 0;
 }
 
 async function resolveLaunchFromLayout(
   layout: NpmLayout,
   onProgress?: (message: string) => void,
 ): Promise<PhontonLaunchSpec | null> {
-  if (isWindows() && !(await fileExists(layout.exe))) {
+  if (isWindows()) {
     await bootstrapVendorBinary(layout, onProgress);
+
+    const exeSpec: PhontonLaunchSpec = { kind: "exe", exe: layout.exe, cmd: layout.cmd };
+    if (await verifyLaunchSpec(exeSpec)) {
+      setPhontonLaunchSpec(exeSpec);
+      return exeSpec;
+    }
   }
 
-  if (isWindows() && (await fileExists(layout.exe))) {
-    const spec: PhontonLaunchSpec = { kind: "exe", exe: layout.exe, cmd: layout.cmd };
+  const node = await resolveNodeForLayout(layout);
+  if (node) {
+    const spec: PhontonLaunchSpec = { kind: "node", node, script: layout.script, cmd: layout.cmd };
     if (await verifyLaunchSpec(spec)) {
       setPhontonLaunchSpec(spec);
       return spec;
     }
+    // phonton.js runs ensureBinary() on serve — accept when node resolves
     setPhontonLaunchSpec(spec);
     return spec;
-  }
-
-  if (await fileExists(layout.script)) {
-    const node = await resolveNodeForLayout(layout);
-    if (node) {
-      const spec: PhontonLaunchSpec = { kind: "node", node, script: layout.script, cmd: layout.cmd };
-      if (await verifyLaunchSpec(spec)) {
-        setPhontonLaunchSpec(spec);
-        return spec;
-      }
-      // phonton.js runs ensureBinary() on serve — accept when paths are valid
-      setPhontonLaunchSpec(spec);
-      return spec;
-    }
   }
 
   if (await fileExists(layout.cmd)) {
@@ -452,8 +480,6 @@ async function resolveLaunchFromLayout(
 
 async function resolveLaunchFromCmd(cmdPath: string): Promise<PhontonLaunchSpec | null> {
   const cmd = normalizeWindowsPhontonCmd(cmdPath);
-  if (!(await fileExists(cmd))) return null;
-
   const sep = cmd.lastIndexOf("\\");
   const cmdDir = sep >= 0 ? cmd.slice(0, sep) : cmd;
   const globalRoot = `${cmdDir}\\node_modules`;
@@ -472,7 +498,6 @@ async function layoutsToTry(): Promise<NpmLayout[]> {
   if (fromNpm) layouts.push(fromNpm);
 
   for (const cmd of await listWindowsPhontonCandidates()) {
-    if (!(await fileExists(cmd))) continue;
     const sep = cmd.lastIndexOf("\\");
     const cmdDir = sep >= 0 ? cmd.slice(0, sep) : cmd;
     const globalRoot = `${cmdDir}\\node_modules`;
@@ -599,7 +624,7 @@ export async function resolvePhontonLaunch(
       const layout = (await layoutsToTry())[0];
       if (layout) {
         const node = await resolveNodeForLayout(layout);
-        if (node && (await fileExists(layout.script))) {
+        if (node) {
           const spec: PhontonLaunchSpec = {
             kind: "node",
             node,
@@ -611,9 +636,7 @@ export async function resolvePhontonLaunch(
         }
         return {
           spec: null,
-          reason: (await fileExists(layout.script))
-            ? "node.exe not found for phonton-cli wrapper"
-            : `phonton-cli package incomplete at ${layout.globalRoot}`,
+          reason: `node.exe not found for phonton-cli (checked Scoop and npm global bin)`,
         };
       }
 

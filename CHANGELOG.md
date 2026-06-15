@@ -2,6 +2,14 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.7] - 2026-06-07
+
+### Fixed
+
+- Windows Scoop: probe executables with `--version` instead of broken `if exist` from GUI shell
+- Accept node+phonton.js launcher when npm layout is known but file checks fail
+- Vendor binary bootstrap uses verify probes, not existence checks
+
 ## [0.2.6] - 2026-06-07
 
 ### Fixed
