@@ -39,7 +39,7 @@ export async function startSidecar(): Promise<void> {
   try {
     if (isWindows()) {
       if (launch) {
-        child = await spawnNamed("win-phonton-serve-resolved", windowsLaunchServeArgs(launch));
+        child = await spawnNamed("win-phonton-serve-resolved", await windowsLaunchServeArgs(launch));
         return;
       }
       const pathPrefix = await getPathSetPrefix();

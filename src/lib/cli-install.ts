@@ -242,47 +242,13 @@ async function executeScoped(name: string, args: string[]): Promise<{ code: numb
   };
 }
 
-async function fileExists(path: string): Promise<boolean> {
-  if (!isWindows()) {
-    try {
-      const result = await executeScoped("unix-phonton-verify", [
-        "-c",
-        `test -e '${path.replace(/'/g, "'\\''")}'`,
-      ]);
-      return result.code === 0;
-    } catch {
-      return false;
-    }
-  }
-
-  const lower = path.toLowerCase();
-  if (lower.endsWith(".exe") || lower.endsWith(".cmd")) {
-    try {
-      const line =
-        lower.endsWith(".exe") || lower.endsWith(".cmd")
-          ? `${quoteWindowsArg(path)} --version`
-          : `${quoteWindowsArg(path)} --version`;
-      const result = await runWindowsLaunchLine(line);
-      if (result.code === 0 && /\d/.test(`${result.stdout}${result.stderr}`)) return true;
-    } catch {
-      /* try existence checks */
-    }
-  }
-
-  try {
-    const quoted = quoteWindowsArg(path);
-    const exist = await executeScoped("win-test-phonton-cmd", ["/c", `if exist ${quoted} echo yes`]);
-    if (/\byes\b/i.test(exist.stdout)) return true;
-
-    const dir = await executeScoped("win-test-phonton-cmd", ["/c", `dir /a-d /b ${quoted} 2>nul`]);
-    return dir.code === 0 && Boolean(dir.stdout.trim());
-  } catch {
-    return false;
-  }
+function normalizeWindowsPath(path: string): string {
+  return path.replace(/\//g, "\\");
 }
 
 async function runWindowsLaunchLine(line: string): Promise<{ code: number; stdout: string; stderr: string }> {
-  return executeScoped("win-phonton-run", ["/c", line]);
+  const prefix = await getPathSetPrefix();
+  return executeScoped("win-phonton-verify", ["/c", `${prefix}${line}`]);
 }
 
 function launchVersionLine(spec: PhontonLaunchSpec): string {
@@ -301,8 +267,10 @@ function launchServeLine(spec: PhontonLaunchSpec): string {
   return `${quoteWindowsArg(normalizeWindowsPhontonCmd(spec.cmd))} serve`;
 }
 
-export function windowsLaunchServeArgs(spec: PhontonLaunchSpec): string[] {
-  return ["/c", launchServeLine(spec)];
+export async function windowsLaunchServeArgs(spec: PhontonLaunchSpec): Promise<string[]> {
+  const prefix = await getPathSetPrefix();
+  const line = spec.kind === "cmd" ? `${prefix}${launchServeLine(spec)}` : launchServeLine(spec);
+  return ["/c", line];
 }
 
 async function verifyLaunchSpec(spec: PhontonLaunchSpec): Promise<boolean> {
@@ -401,11 +369,44 @@ async function nodeExeCandidates(cmdDir: string, home: string): Promise<string[]
   ];
 }
 
+async function resolveNodeViaPath(): Promise<string | null> {
+  const prefix = await getPathSetPrefix();
+  try {
+    const where = await executeScoped("win-test-phonton-cmd", ["/c", `${prefix}where node`]);
+    if (where.code === 0) {
+      for (const line of where.stdout.split(/\r?\n/)) {
+        const node = normalizeWindowsPath(line.trim());
+        if (!node.toLowerCase().endsWith("node.exe")) continue;
+        const probe = await runWindowsLaunchLine(`${quoteWindowsArg(node)} --version`);
+        if (probe.code === 0 && /\d/.test(`${probe.stdout}${probe.stderr}`)) return node;
+      }
+    }
+    const probe = await runWindowsLaunchLine("node --version");
+    if (probe.code === 0 && /\d/.test(`${probe.stdout}${probe.stderr}`)) {
+      const whereAgain = await executeScoped("win-test-phonton-cmd", ["/c", `${prefix}where node`]);
+      if (whereAgain.code === 0) {
+        const node = whereAgain.stdout
+          .split(/\r?\n/)
+          .map((line) => normalizeWindowsPath(line.trim()))
+          .find((line) => line.toLowerCase().endsWith("node.exe"));
+        if (node) return node;
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  return null;
+}
+
 async function resolveNodeForLayout(layout: NpmLayout): Promise<string | null> {
+  const fromPath = await resolveNodeViaPath();
+  if (fromPath) return fromPath;
+
   const home = await resolveUserHome();
   const sep = layout.cmd.lastIndexOf("\\");
   const cmdDir = sep >= 0 ? layout.cmd.slice(0, sep) : layout.cmd;
-  for (const node of await nodeExeCandidates(cmdDir, home)) {
+  for (const candidate of await nodeExeCandidates(cmdDir, home)) {
+    const node = normalizeWindowsPath(candidate);
     try {
       const result = await runWindowsLaunchLine(`${quoteWindowsArg(node)} --version`);
       if (result.code === 0 && /\d/.test(`${result.stdout}${result.stderr}`)) return node;
@@ -467,12 +468,10 @@ async function resolveLaunchFromLayout(
     return spec;
   }
 
-  if (await fileExists(layout.cmd)) {
-    const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: layout.cmd };
-    if (await verifyLaunchSpec(cmdSpec)) {
-      setPhontonLaunchSpec(cmdSpec);
-      return cmdSpec;
-    }
+  const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: layout.cmd };
+  if (await verifyLaunchSpec(cmdSpec)) {
+    setPhontonLaunchSpec(cmdSpec);
+    return cmdSpec;
   }
 
   return null;
@@ -623,6 +622,11 @@ export async function resolvePhontonLaunch(
 
       const layout = (await layoutsToTry())[0];
       if (layout) {
+        const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: layout.cmd };
+        if (await verifyLaunchSpec(cmdSpec)) {
+          setPhontonLaunchSpec(cmdSpec);
+          return { spec: cmdSpec };
+        }
         const node = await resolveNodeForLayout(layout);
         if (node) {
           const spec: PhontonLaunchSpec = {
@@ -636,7 +640,7 @@ export async function resolvePhontonLaunch(
         }
         return {
           spec: null,
-          reason: `node.exe not found for phonton-cli (checked Scoop and npm global bin)`,
+          reason: "node.exe not found for phonton-cli (checked Scoop and npm global bin)",
         };
       }
 

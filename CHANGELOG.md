@@ -2,6 +2,14 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.8] - 2026-06-07
+
+### Fixed
+
+- Scoop: run CLI probes with enriched PATH (`where node`, `phonton.cmd --version`)
+- phonton.cmd fallback when direct node.exe resolution fails
+- Sidecar serve applies PATH prefix for cmd launcher
+
 ## [0.2.7] - 2026-06-07
 
 ### Fixed
