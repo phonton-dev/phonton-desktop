@@ -2,6 +2,20 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.2.9] - 2026-06-07
+
+### Fixed
+
+- Windows: native Rust spawn of vendor `phonton.exe serve` (bypasses cmd/phonton.js chain)
+- Shell serve fallback always uses enriched PATH
+- Setup CLI step sidecar bootstrap race (stale `refreshSidecar` closure)
+- Sidecar errors distinguish spawn failure from ping timeout
+
+### Added
+
+- `spawn_phonton_serve` / `stop_phonton_serve` Tauri commands
+- `checkServeHealth()` and longer bootstrap ping window (60s)
+
 ## [0.2.8] - 2026-06-07
 
 ### Fixed

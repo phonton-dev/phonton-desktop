@@ -269,8 +269,23 @@ function launchServeLine(spec: PhontonLaunchSpec): string {
 
 export async function windowsLaunchServeArgs(spec: PhontonLaunchSpec): Promise<string[]> {
   const prefix = await getPathSetPrefix();
-  const line = spec.kind === "cmd" ? `${prefix}${launchServeLine(spec)}` : launchServeLine(spec);
-  return ["/c", line];
+  return ["/c", `${prefix}${launchServeLine(spec)}`];
+}
+
+/** Vendor phonton.exe path for native Rust sidecar spawn. */
+export function getVendorExePath(): string | null {
+  const spec = getPhontonLaunchSpec();
+  if (spec?.kind === "exe") return spec.exe;
+  return localStorage.getItem(PHONTON_EXE_KEY);
+}
+
+export async function resolveVendorExeForServe(): Promise<string | null> {
+  const fromSpec = getVendorExePath();
+  if (fromSpec) return fromSpec;
+  const layout = await getNpmLayout();
+  if (layout) return layout.exe;
+  const layouts = await layoutsToTry();
+  return layouts[0]?.exe ?? null;
 }
 
 async function verifyLaunchSpec(spec: PhontonLaunchSpec): Promise<boolean> {
@@ -447,10 +462,9 @@ async function resolveLaunchFromLayout(
   onProgress?: (message: string) => void,
 ): Promise<PhontonLaunchSpec | null> {
   if (isWindows()) {
-    await bootstrapVendorBinary(layout, onProgress);
-
+    const bootstrapped = await bootstrapVendorBinary(layout, onProgress);
     const exeSpec: PhontonLaunchSpec = { kind: "exe", exe: layout.exe, cmd: layout.cmd };
-    if (await verifyLaunchSpec(exeSpec)) {
+    if ((await verifyLaunchSpec(exeSpec)) || bootstrapped) {
       setPhontonLaunchSpec(exeSpec);
       return exeSpec;
     }
@@ -463,9 +477,6 @@ async function resolveLaunchFromLayout(
       setPhontonLaunchSpec(spec);
       return spec;
     }
-    // phonton.js runs ensureBinary() on serve — accept when node resolves
-    setPhontonLaunchSpec(spec);
-    return spec;
   }
 
   const cmdSpec: PhontonLaunchSpec = { kind: "cmd", cmd: layout.cmd };

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-stop-phonton-serve"
+description = "Stop the native phonton serve sidecar process."
+commands.allow = ["stop_phonton_serve"]

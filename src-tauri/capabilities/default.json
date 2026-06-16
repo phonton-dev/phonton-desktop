@@ -5,6 +5,8 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "allow-spawn-phonton-serve",
+    "allow-stop-phonton-serve",
     "deep-link:default",
     "updater:default",
     "process:default",

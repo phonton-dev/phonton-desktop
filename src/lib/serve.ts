@@ -1,4 +1,5 @@
 const SERVE_URL = "http://127.0.0.1:47831/rpc";
+const SERVE_HEALTH_URL = "http://127.0.0.1:47831/health";
 let rpcId = 1;
 
 async function rpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
@@ -17,6 +18,15 @@ async function rpc<T>(method: string, params: Record<string, unknown> = {}): Pro
     throw new Error(body.error.message ?? "rpc error");
   }
   return body.result as T;
+}
+
+export async function checkServeHealth(): Promise<boolean> {
+  try {
+    const res = await fetch(SERVE_HEALTH_URL, { method: "GET" });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function ping() {

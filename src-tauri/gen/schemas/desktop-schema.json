@@ -387,6 +387,18 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Spawn vendor phonton.exe as the local serve sidecar.",
+          "type": "string",
+          "const": "allow-spawn-phonton-serve",
+          "markdownDescription": "Spawn vendor phonton.exe as the local serve sidecar."
+        },
+        {
+          "description": "Stop the native phonton serve sidecar process.",
+          "type": "string",
+          "const": "allow-stop-phonton-serve",
+          "markdownDescription": "Stop the native phonton serve sidecar process."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",

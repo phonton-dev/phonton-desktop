@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-spawn-phonton-serve"
+description = "Spawn vendor phonton.exe as the local serve sidecar."
+commands.allow = ["spawn_phonton_serve"]

@@ -1,10 +1,12 @@
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useSidecar } from "../../hooks/useSidecar";
+import type { SidecarState } from "../../hooks/useSidecar";
+import { waitForPing } from "../../hooks/useSidecar";
 import { ensurePhontonCli } from "../../lib/cli-install";
 import { installDocsUrl } from "../../lib/license";
-import { isTauri } from "../../lib/sidecar";
+import { checkServeHealth } from "../../lib/serve";
+import { isTauri, restartSidecar } from "../../lib/sidecar";
 
 type Props = {
   onConnectedChange: (connected: boolean) => void;
@@ -17,18 +19,69 @@ export function SetupStepCli({ onConnectedChange }: Props) {
   const [installing, setInstalling] = useState(false);
   const [installLog, setInstallLog] = useState("");
   const [installError, setInstallError] = useState("");
-  const [sidecarEnabled, setSidecarEnabled] = useState(false);
+  const [sidecar, setSidecar] = useState<SidecarState>({ status: "idle" });
   const bootstrapped = useRef(false);
-  const { state: sidecar, refresh: refreshSidecar } = useSidecar({ enabled: sidecarEnabled });
 
   useEffect(() => {
     onConnectedChange(sidecar.status === "ready");
   }, [sidecar.status, onConnectedChange]);
 
+  const connectSidecar = async (): Promise<boolean> => {
+    setPhase("starting");
+    setInstallLog((prev) => `${prev}\nStarting phonton serve…`);
+
+    if (await checkServeHealth()) {
+      try {
+        const info = await waitForPing(false);
+        if (info) {
+          setSidecar({
+            status: "ready",
+            version: info.version,
+            handoffSchema: info.handoff_schema,
+          });
+          setPhase("done");
+          return true;
+        }
+      } catch {
+        /* spawn fresh */
+      }
+    }
+
+    try {
+      await restartSidecar();
+    } catch (err) {
+      setInstallError(`spawn failed: ${err instanceof Error ? err.message : String(err)}`);
+      setSidecar({
+        status: "offline",
+        error: `spawn failed: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      setPhase("error");
+      return false;
+    }
+
+    const info = await waitForPing(true);
+    if (info) {
+      setSidecar({
+        status: "ready",
+        version: info.version,
+        handoffSchema: info.handoff_schema,
+      });
+      setPhase("done");
+      return true;
+    }
+
+    setSidecar({
+      status: "offline",
+      error: "ping timeout — phonton serve did not respond on :47831",
+    });
+    setPhase("error");
+    return false;
+  };
+
   const runBootstrap = async (forceInstall = false) => {
     setInstalling(true);
     setInstallError("");
-    setSidecarEnabled(false);
+    setSidecar({ status: "idle" });
     onConnectedChange(false);
     setPhase("checking");
 
@@ -46,11 +99,8 @@ export function SetupStepCli({ onConnectedChange }: Props) {
 
     setInstallError("");
     setInstallLog(result.message);
-    setPhase("starting");
-    setInstallLog((prev) => `${prev}\nStarting phonton serve…`);
-    setSidecarEnabled(true);
-    await refreshSidecar();
-    setPhase("done");
+    setSidecar({ status: "connecting" });
+    await connectSidecar();
     setInstalling(false);
   };
 
@@ -60,17 +110,13 @@ export function SetupStepCli({ onConnectedChange }: Props) {
     void runBootstrap(false);
   }, []);
 
-  const busy = installing || phase === "checking" || phase === "starting";
+  const busy = installing || phase === "checking" || phase === "starting" || sidecar.status === "connecting";
 
   const statusIcon =
     sidecar.status === "ready" ? (
       <CheckCircle2 size={20} color="var(--ph-ok)" />
-    ) : phase === "error" ? (
-      <XCircle size={20} color="var(--ph-danger)" />
-    ) : busy || sidecar.status === "connecting" ? (
-      <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
-    ) : sidecar.status === "offline" ? (
-      <XCircle size={20} color="var(--ph-warn)" />
+    ) : phase === "error" || sidecar.status === "offline" ? (
+      <XCircle size={20} color={phase === "error" ? "var(--ph-danger)" : "var(--ph-warn)"} />
     ) : (
       <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
     );
@@ -83,9 +129,7 @@ export function SetupStepCli({ onConnectedChange }: Props) {
         : busy
           ? phase === "checking"
             ? "Checking phonton-cli…"
-            : phase === "starting" || sidecar.status === "connecting"
-              ? "Starting engine…"
-              : "Working…"
+            : "Starting engine…"
           : sidecar.status === "offline"
             ? "CLI offline"
             : "Ready to install";
