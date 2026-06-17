@@ -1,5 +1,6 @@
 import { Command } from "@tauri-apps/plugin-shell";
 import { homeDir, join } from "@tauri-apps/api/path";
+import { resolveTargetCliVersion } from "./cli-version";
 import { isTauri } from "./sidecar";
 
 const PHONTON_CMD_KEY = "phonton.cli.cmd";
@@ -9,7 +10,7 @@ const PHONTON_NODE_KEY = "phonton.cli.node";
 const PHONTON_SCRIPT_KEY = "phonton.cli.script";
 
 /** Last known published npm version when registry is unreachable. */
-export const CLI_VERSION_FALLBACK = "0.19.7";
+export const CLI_VERSION_FALLBACK = "0.21.0";
 
 export type CliInstallState =
   | { status: "idle" }
@@ -715,12 +716,13 @@ export async function ensurePhontonCli(
 
   onProgress?.("Checking for phonton-cli…");
   const latest = await resolveLatestCliVersion();
+  const targetVersion = resolveTargetCliVersion(latest);
   let resolved = await resolvePhontonLaunch(onProgress);
   let spec = resolved.spec;
 
   if (spec) {
     const installed = await readInstalledVersion(spec);
-    if (installed && !versionLessThan(installed, latest)) {
+    if (installed && !versionLessThan(installed, targetVersion)) {
       for (const layout of await layoutsToTry()) {
         await bootstrapVendorBinary(layout, onProgress);
       }
@@ -736,7 +738,7 @@ export async function ensurePhontonCli(
       }
     }
     if (installed) {
-      onProgress?.(`Upgrading phonton-cli to ${latest}…`);
+      onProgress?.(`Upgrading phonton-cli to ${targetVersion}…`);
     }
   }
 
@@ -750,29 +752,29 @@ export async function ensurePhontonCli(
         installed: false,
       };
     }
-    onProgress?.(`Installing phonton-cli@${latest}…`);
+    onProgress?.(`Installing phonton-cli@${targetVersion}…`);
   } else {
-    onProgress?.(`Upgrading phonton-cli to ${latest}…`);
+    onProgress?.(`Upgrading phonton-cli to ${targetVersion}…`);
   }
 
   const installedVersion = spec ? await readInstalledVersion(spec) : null;
-  const shouldRunNpm = !spec || !installedVersion || versionLessThan(installedVersion, latest);
+  const shouldRunNpm = !spec || !installedVersion || versionLessThan(installedVersion, targetVersion);
 
   if (shouldRunNpm) {
     try {
       const result = await executeScoped(npmScope("install-phonton"), [
         "install",
         "-g",
-        `phonton-cli@${latest}`,
+        `phonton-cli@${targetVersion}`,
       ]);
       if (result.code !== 0) {
         const detail = (result.stderr || result.stdout).trim();
-        return { ok: false, message: formatCliInstallError(detail, latest), installed: false };
+        return { ok: false, message: formatCliInstallError(detail, targetVersion), installed: false };
       }
     } catch (err) {
       return {
         ok: false,
-        message: formatCliInstallError(err instanceof Error ? err.message : String(err), latest),
+        message: formatCliInstallError(err instanceof Error ? err.message : String(err), targetVersion),
         installed: false,
       };
     }

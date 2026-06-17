@@ -55,6 +55,24 @@ export async function ping() {
   return rpc<{ version: string; handoff_schema: string }>("ping");
 }
 
+const POLL_ATTEMPTS = 40;
+const POLL_ATTEMPTS_BOOTSTRAP = 120;
+const POLL_INTERVAL_MS = 500;
+
+export async function waitForPing(
+  bootstrap = false,
+): Promise<{ version: string; handoff_schema: string } | null> {
+  const attempts = bootstrap ? POLL_ATTEMPTS_BOOTSTRAP : POLL_ATTEMPTS;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await ping();
+    } catch {
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+    }
+  }
+  return null;
+}
+
 export async function planPreview(goal: string) {
   return rpc<unknown>("plan.preview", { goal });
 }

@@ -2,10 +2,10 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { SidecarState } from "../../hooks/useSidecar";
-import { waitForPing } from "../../hooks/useSidecar";
+import { ensureSidecarReady } from "../../hooks/useSidecar";
 import { ensurePhontonCli } from "../../lib/cli-install";
 import { installDocsUrl } from "../../lib/license";
-import { checkServeHealth } from "../../lib/serve";
+import { checkServeHealth, waitForPing } from "../../lib/serve";
 import { clearStaleServePort, isTauri, restartSidecar } from "../../lib/sidecar";
 
 type Props = {
@@ -31,19 +31,17 @@ export function SetupStepCli({ onConnectedChange }: Props) {
     setInstallLog((prev) => `${prev}\nStarting phonton serve…`);
 
     if (await checkServeHealth()) {
-      try {
-        const info = await waitForPing(false);
-        if (info) {
-          setSidecar({
-            status: "ready",
-            version: info.version,
-            handoffSchema: info.handoff_schema,
-          });
-          setPhase("done");
-          return true;
-        }
-      } catch {
-        /* stale listener — clear and respawn */
+      const upgraded = await ensureSidecarReady(false, (msg) =>
+        setInstallLog((prev) => `${prev}\n${msg}`),
+      );
+      if (upgraded.ok) {
+        setSidecar({
+          status: "ready",
+          version: upgraded.version,
+          handoffSchema: upgraded.handoffSchema,
+        });
+        setPhase("done");
+        return true;
       }
       await clearStaleServePort();
     }
@@ -62,13 +60,18 @@ export function SetupStepCli({ onConnectedChange }: Props) {
 
     const info = await waitForPing(true);
     if (info) {
-      setSidecar({
-        status: "ready",
-        version: info.version,
-        handoffSchema: info.handoff_schema,
-      });
-      setPhase("done");
-      return true;
+      const upgraded = await ensureSidecarReady(true, (msg) =>
+        setInstallLog((prev) => `${prev}\n${msg}`),
+      );
+      if (upgraded.ok) {
+        setSidecar({
+          status: "ready",
+          version: upgraded.version,
+          handoffSchema: upgraded.handoffSchema,
+        });
+        setPhase("done");
+        return true;
+      }
     }
 
     setSidecar({

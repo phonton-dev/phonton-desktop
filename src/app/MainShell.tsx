@@ -7,12 +7,9 @@ import { AppHeader } from "@/components/shell/AppHeader";
 import { AppSidebar } from "@/components/shell/AppSidebar";
 import { ContextPanel } from "@/components/shell/ContextPanel";
 import { useSessions } from "@/hooks/useSessions";
-import { useSidecar } from "@/hooks/useSidecar";
-import { listTasks, trustGrant, workspaceInfo, type TaskSummary } from "@/lib/config";
-import {
-  getActiveProject,
-  setActiveProject,
-} from "@/lib/projects";
+import { ensureSidecarReady, useSidecar } from "@/hooks/useSidecar";
+import { fetchConfig, listTasks, trustGrant, workspaceInfo, type PhontonConfig, type TaskSummary } from "@/lib/config";
+import { projectLabel, getActiveProject, setActiveProject } from "@/lib/projects";
 import { isTauri, restartSidecar, setSidecarWorkspace } from "@/lib/sidecar";
 
 type Props = {
@@ -22,6 +19,7 @@ type Props = {
 export function MainShell({ onOpenSettings }: Props) {
   const [projectPath, setProjectPath] = useState<string | null>(() => getActiveProject());
   const [history, setHistory] = useState<TaskSummary[]>([]);
+  const [config, setConfig] = useState<PhontonConfig | null>(null);
   const { state: sidecar, refresh: refreshSidecar } = useSidecar();
   const sessionsApi = useSessions();
 
@@ -35,9 +33,30 @@ export function MainShell({ onOpenSettings }: Props) {
     }
   }, [sidecar.status]);
 
+  const refreshConfig = useCallback(async () => {
+    if (sidecar.status !== "ready") return;
+    try {
+      const result = await fetchConfig();
+      setConfig(result.config);
+    } catch {
+      setConfig(null);
+    }
+  }, [sidecar.status]);
+
   useEffect(() => {
     void refreshHistory();
   }, [refreshHistory, sessionsApi.active?.running]);
+
+  useEffect(() => {
+    void refreshConfig();
+  }, [refreshConfig]);
+
+  const handleSidecarAction = useCallback(async () => {
+    await ensureSidecarReady(true, () => undefined);
+    await refreshSidecar();
+    await refreshConfig();
+    await refreshHistory();
+  }, [refreshConfig, refreshHistory, refreshSidecar]);
 
   const openProject = useCallback(async () => {
     if (!isTauri()) return;
@@ -59,7 +78,8 @@ export function MainShell({ onOpenSettings }: Props) {
     await restartSidecar(selected);
     await refreshSidecar();
     await refreshHistory();
-  }, [refreshHistory, refreshSidecar]);
+    await refreshConfig();
+  }, [refreshConfig, refreshHistory, refreshSidecar]);
 
   useEffect(() => {
     if (!projectPath || !isTauri()) return;
@@ -68,6 +88,8 @@ export function MainShell({ onOpenSettings }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap once on mount when project stored
   }, []);
 
+  const showProjectCta = !projectPath;
+
   return (
     <SidebarProvider defaultOpen>
       <div className="flex h-screen w-full flex-col overflow-hidden">
@@ -75,6 +97,7 @@ export function MainShell({ onOpenSettings }: Props) {
           sidecar={sidecar}
           projectPath={projectPath}
           onOpenSettings={onOpenSettings}
+          onSidecarAction={() => void handleSidecarAction()}
         />
         <div className="flex min-h-0 flex-1">
           <AppSidebar
@@ -85,29 +108,50 @@ export function MainShell({ onOpenSettings }: Props) {
             onOpenProject={() => void openProject()}
             onNewSession={sessionsApi.createSession}
             onSelectSession={sessionsApi.selectSession}
+            onTogglePin={sessionsApi.togglePin}
             onRunDoctor={() => void sessionsApi.runDoctor()}
-            onSelectHistory={(task) => sessionsApi.resumeFromTask(task.task_id, task.goal_text)}
+            onSelectHistory={(task) => void sessionsApi.resumeFromTask(task.task_id, task.goal_text)}
           />
           <SidebarInset className="min-h-0 flex-1 p-0">
-            <ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
-              <ResizablePanel defaultSize={62} minSize={40}>
-                <AgentWorkspace
-                  session={sessionsApi.active}
-                  sidecar={sidecar}
-                  onGoalChange={sessionsApi.setGoal}
-                  onPreviewPlan={() => void sessionsApi.previewPlan()}
-                  onRunGoal={() => void sessionsApi.runGoal()}
-                  onRetrySidecar={() => void refreshSidecar()}
-                />
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={38} minSize={24}>
-                <ContextPanel
-                  session={sessionsApi.active}
-                  onLoadReview={() => void sessionsApi.loadReview()}
-                />
-              </ResizablePanel>
-            </ResizablePanelGroup>
+            {showProjectCta ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                <h2 className="text-xl font-semibold">Open a project to start</h2>
+                <p className="max-w-md text-sm text-muted-foreground">
+                  Phonton Desktop runs goals against a local folder. Open your repo, then describe a
+                  merge-bound goal.
+                </p>
+                <button
+                  type="button"
+                  className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
+                  onClick={() => void openProject()}
+                >
+                  Open project folder
+                </button>
+              </div>
+            ) : (
+              <ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
+                <ResizablePanel defaultSize={62} minSize={40}>
+                  <AgentWorkspace
+                    session={sessionsApi.active}
+                    sidecar={sidecar}
+                    projectLabel={projectPath ? projectLabel(projectPath) : null}
+                    providerModel={config?.provider.model ?? config?.provider.name ?? null}
+                    onGoalChange={sessionsApi.setGoal}
+                    onPreviewPlan={() => void sessionsApi.previewPlan()}
+                    onRunGoal={() => void sessionsApi.runGoal()}
+                    onRetrySidecar={() => void refreshSidecar()}
+                    onUpgradeSidecar={() => void handleSidecarAction()}
+                  />
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={38} minSize={24}>
+                  <ContextPanel
+                    session={sessionsApi.active}
+                    onLoadReview={() => void sessionsApi.loadReview()}
+                  />
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            )}
           </SidebarInset>
         </div>
       </div>

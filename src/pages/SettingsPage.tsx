@@ -27,6 +27,8 @@ import {
   saveConfig,
   type PhontonConfig,
 } from "@/lib/config";
+import { isConfigGetError, MIN_SERVE_CLI_VERSION } from "@/lib/cli-version";
+import { ensureSidecarReady } from "@/hooks/useSidecar";
 import { doctorRun } from "@/lib/serve";
 import {
   accountUrl,
@@ -83,6 +85,8 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   const [config, setConfig] = useState<PhontonConfig | null>(null);
   const [configPath, setConfigPath] = useState<string | null>(null);
   const [configStatus, setConfigStatus] = useState("");
+  const [configUpgradeNeeded, setConfigUpgradeNeeded] = useState(false);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [tokenInput, setTokenInput] = useState(getStoredCloudToken() ?? "");
   const [appVersion, setAppVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState("");
@@ -101,10 +105,27 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
       const result = await fetchConfig();
       setConfig(result.config);
       setConfigPath(result.path);
+      setConfigUpgradeNeeded(false);
+      setConfigStatus("");
     } catch (err) {
-      setConfigStatus(String(err));
+      const message = String(err);
+      setConfigUpgradeNeeded(isConfigGetError(message));
+      setConfigStatus(message);
     }
   }, []);
+
+  const upgradeCli = async () => {
+    setUpgradeBusy(true);
+    setConfigStatus("Upgrading phonton-cli…");
+    const result = await ensureSidecarReady(true, (msg) => setConfigStatus(msg));
+    setUpgradeBusy(false);
+    if (result.ok) {
+      await loadConfig();
+      setConfigStatus(`Sidecar ready — v${result.version}`);
+    } else {
+      setConfigStatus(result.error);
+    }
+  };
 
   useEffect(() => {
     void loadConfig();
@@ -182,6 +203,18 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
         </nav>
         <ScrollArea className="min-h-0 flex-1 p-6">
           <div className="mx-auto max-w-2xl space-y-6">
+            {configUpgradeNeeded ? (
+              <Alert variant="destructive">
+                <AlertTitle>CLI upgrade required</AlertTitle>
+                <p className="text-sm mt-2">
+                  Settings need phonton-cli v{MIN_SERVE_CLI_VERSION}+ with desktop serve RPC (
+                  <code className="mono text-xs">config.get</code>). Your sidecar is too old or stale.
+                </p>
+                <Button className="mt-3" size="sm" disabled={upgradeBusy} onClick={() => void upgradeCli()}>
+                  {upgradeBusy ? "Upgrading…" : "Upgrade CLI and restart sidecar"}
+                </Button>
+              </Alert>
+            ) : null}
             {section === "account" ? (
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Account</h2>
@@ -429,6 +462,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                   <Label>Qdrant URL</Label>
                   <Input
                     value={config.index.qdrant_url ?? ""}
+                    disabled={config.index.backend === "local-hnsw"}
                     onChange={(e) =>
                       setConfig({
                         ...config,
@@ -441,6 +475,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                   <Label>Qdrant collection</Label>
                   <Input
                     value={config.index.qdrant_collection ?? ""}
+                    disabled={config.index.backend === "local-hnsw"}
                     onChange={(e) =>
                       setConfig({
                         ...config,
@@ -460,16 +495,21 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                 <h2 className="text-base font-medium">Permissions</h2>
                 <div className="space-y-2">
                   <Label>Default mode</Label>
-                  <Input
-                    value={config.permissions.mode ?? ""}
-                    placeholder="ask"
-                    onChange={(e) =>
-                      setConfig({
-                        ...config,
-                        permissions: { mode: e.target.value },
-                      })
-                    }
-                  />
+                  <Select
+                    value={config.permissions.mode ?? "ask"}
+                    onValueChange={(mode: string | null) => {
+                      if (!mode) return;
+                      setConfig({ ...config, permissions: { mode } });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ask">ask — prompt before privileged actions</SelectItem>
+                      <SelectItem value="full-access">full-access — auto-approve sandboxed commands</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button onClick={() => void persistConfig({ permissions: config.permissions })}>
                   Save permissions

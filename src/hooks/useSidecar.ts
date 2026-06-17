@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
-import { checkServeHealth, ping } from "../lib/serve";
-import { restartSidecar, startSidecar } from "../lib/sidecar";
+import { ensureSidecarReady } from "../lib/sidecar-upgrade";
+import { startSidecar } from "../lib/sidecar";
 
 export type SidecarState =
   | { status: "idle" }
-  | { status: "connecting" }
+  | { status: "connecting"; message?: string }
   | { status: "ready"; version: string; handoffSchema: string }
-  | { status: "offline"; error: string };
-
-const POLL_ATTEMPTS = 40;
-const POLL_ATTEMPTS_BOOTSTRAP = 120;
-const POLL_INTERVAL_MS = 500;
+  | { status: "offline"; error: string }
+  | {
+      status: "upgrade_required";
+      error: string;
+      installedVersion?: string;
+    };
 
 type Options = {
   /** When false, sidecar is not started (e.g. before CLI install step). */
@@ -19,64 +20,44 @@ type Options = {
   bootstrap?: boolean;
 };
 
-export async function waitForPing(
-  bootstrap = false,
-): Promise<{ version: string; handoff_schema: string } | null> {
-  const attempts = bootstrap ? POLL_ATTEMPTS_BOOTSTRAP : POLL_ATTEMPTS;
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await ping();
-    } catch {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    }
+function applyConnectResult(
+  setState: (s: SidecarState) => void,
+  result: Awaited<ReturnType<typeof ensureSidecarReady>>,
+) {
+  if (result.ok) {
+    setState({
+      status: "ready",
+      version: result.version,
+      handoffSchema: result.handoffSchema,
+    });
+    return;
   }
-  return null;
+  if (result.reason === "upgrade_required") {
+    setState({
+      status: "upgrade_required",
+      error: result.error,
+      installedVersion: result.installedVersion,
+    });
+    return;
+  }
+  setState({ status: "offline", error: result.error });
 }
 
 export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) {
-  const [state, setState] = useState<SidecarState>(enabled ? { status: "connecting" } : { status: "idle" });
+  const [state, setState] = useState<SidecarState>(
+    enabled ? { status: "connecting" } : { status: "idle" },
+  );
 
   const refresh = useCallback(async () => {
     if (!enabled) {
       setState({ status: "idle" });
       return;
     }
-    setState({ status: "connecting" });
-    if (await checkServeHealth()) {
-      try {
-        const info = await ping();
-        setState({
-          status: "ready",
-          version: info.version,
-          handoffSchema: info.handoff_schema,
-        });
-        return;
-      } catch {
-        /* spawn fresh */
-      }
-    }
-    try {
-      await restartSidecar();
-    } catch (err) {
-      setState({
-        status: "offline",
-        error: `spawn failed: ${err instanceof Error ? err.message : String(err)}`,
-      });
-      return;
-    }
-    const info = await waitForPing(bootstrap);
-    if (info) {
-      setState({
-        status: "ready",
-        version: info.version,
-        handoffSchema: info.handoff_schema,
-      });
-      return;
-    }
-    setState({
-      status: "offline",
-      error: "ping timeout — phonton serve did not respond on :47831",
+    setState({ status: "connecting", message: "Connecting to sidecar…" });
+    const result = await ensureSidecarReady(bootstrap, (message) => {
+      setState({ status: "connecting", message });
     });
+    applyConnectResult(setState, result);
   }, [bootstrap, enabled]);
 
   useEffect(() => {
@@ -87,22 +68,7 @@ export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) 
 
     let cancelled = false;
     (async () => {
-      setState({ status: "connecting" });
-      if (await checkServeHealth()) {
-        try {
-          const info = await ping();
-          if (!cancelled) {
-            setState({
-              status: "ready",
-              version: info.version,
-              handoffSchema: info.handoff_schema,
-            });
-          }
-          return;
-        } catch {
-          /* fall through */
-        }
-      }
+      setState({ status: "connecting", message: "Starting sidecar…" });
       try {
         await startSidecar();
       } catch (err) {
@@ -114,21 +80,12 @@ export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) 
         }
         return;
       }
-      const info = await waitForPing(bootstrap);
-      if (cancelled) return;
-      if (info) {
-        setState({
-          status: "ready",
-          version: info.version,
-          handoffSchema: info.handoff_schema,
-        });
-        return;
-      }
-      setState({
-        status: "offline",
-        error: "ping timeout — phonton serve did not respond on :47831",
+      const result = await ensureSidecarReady(bootstrap, (message) => {
+        if (!cancelled) setState({ status: "connecting", message });
       });
+      if (!cancelled) applyConnectResult(setState, result);
     })();
+
     return () => {
       cancelled = true;
     };
@@ -136,3 +93,6 @@ export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) 
 
   return { state, refresh };
 }
+
+/** Re-export for setup flow and settings upgrade button. */
+export { ensureSidecarReady } from "../lib/sidecar-upgrade";
