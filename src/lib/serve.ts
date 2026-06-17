@@ -1,17 +1,39 @@
+import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "./sidecar";
+
 const SERVE_URL = "http://127.0.0.1:47831/rpc";
 const SERVE_HEALTH_URL = "http://127.0.0.1:47831/health";
 let rpcId = 1;
 
-async function rpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-  const res = await fetch(SERVE_URL, {
+async function serveFetch(url: string, init?: RequestInit): Promise<Response> {
+  if (isTauri()) {
+    if (url.endsWith("/health") && (!init?.method || init.method === "GET")) {
+      const ok = await invoke<boolean>("serve_health");
+      return new Response(ok ? "ok" : "", { status: ok ? 200 : 503 });
+    }
+    if (url.endsWith("/rpc") && init?.method === "POST") {
+      const body = typeof init.body === "string" ? init.body : "";
+      const text = await invoke<string>("serve_rpc", { body });
+      return new Response(text, {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+  return fetch(url, init);
+}
+
+export async function rpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    id: rpcId++,
+    method,
+    params,
+  });
+  const res = await serveFetch(SERVE_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: rpcId++,
-      method,
-      params,
-    }),
+    body: payload,
   });
   const body = await res.json();
   if (body.error) {
@@ -22,7 +44,7 @@ async function rpc<T>(method: string, params: Record<string, unknown> = {}): Pro
 
 export async function checkServeHealth(): Promise<boolean> {
   try {
-    const res = await fetch(SERVE_HEALTH_URL, { method: "GET" });
+    const res = await serveFetch(SERVE_HEALTH_URL, { method: "GET" });
     return res.ok;
   } catch {
     return false;

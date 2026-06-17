@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-sidecar-lifecycle"
+description = "Sidecar health checks and stale port cleanup on Windows."
+commands.allow = ["phonton_sidecar_alive", "kill_serve_port_listeners"]

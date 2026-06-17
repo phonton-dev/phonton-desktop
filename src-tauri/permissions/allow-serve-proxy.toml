@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-serve-proxy"
+description = "Proxy HTTP to phonton serve (bypasses webview CORS on /rpc)."
+commands.allow = ["serve_health", "serve_rpc"]

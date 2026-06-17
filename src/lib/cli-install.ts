@@ -272,6 +272,22 @@ export async function windowsLaunchServeArgs(spec: PhontonLaunchSpec): Promise<s
   return ["/c", `${prefix}${launchServeLine(spec)}`];
 }
 
+export async function promoteExeLaunchSpec(): Promise<PhontonLaunchSpec | null> {
+  if (!isWindows()) return null;
+  const layout = await getNpmLayout();
+  if (!layout) return null;
+  const exeSpec: PhontonLaunchSpec = {
+    kind: "exe",
+    exe: normalizeWindowsPath(layout.exe),
+    cmd: layout.cmd,
+  };
+  if (await verifyLaunchSpec(exeSpec)) {
+    setPhontonLaunchSpec(exeSpec);
+    return exeSpec;
+  }
+  return null;
+}
+
 /** Vendor phonton.exe path for native Rust sidecar spawn. */
 export function getVendorExePath(): string | null {
   const spec = getPhontonLaunchSpec();
@@ -708,6 +724,7 @@ export async function ensurePhontonCli(
       for (const layout of await layoutsToTry()) {
         await bootstrapVendorBinary(layout, onProgress);
       }
+      await promoteExeLaunchSpec();
       resolved = await resolvePhontonLaunch(onProgress);
       spec = resolved.spec;
       if (spec) {
@@ -764,6 +781,8 @@ export async function ensurePhontonCli(
   for (const layout of await layoutsToTry()) {
     await bootstrapVendorBinary(layout, onProgress);
   }
+
+  await promoteExeLaunchSpec();
 
   onProgress?.("Locating phonton binary…");
   resolved = await resolvePhontonLaunch(onProgress);

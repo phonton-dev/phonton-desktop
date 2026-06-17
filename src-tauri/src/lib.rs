@@ -1,8 +1,13 @@
+mod serve_proxy;
 mod sidecar_spawn;
 
 use std::sync::Mutex;
 
-use sidecar_spawn::{spawn_phonton_serve, stop_phonton_serve, SidecarChild};
+use serve_proxy::{serve_health, serve_rpc};
+use sidecar_spawn::{
+    kill_serve_port_listeners, phonton_sidecar_alive, spawn_phonton_serve, stop_phonton_serve,
+    SidecarChild,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -27,7 +32,15 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![spawn_phonton_serve, stop_phonton_serve])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            spawn_phonton_serve,
+            stop_phonton_serve,
+            phonton_sidecar_alive,
+            kill_serve_port_listeners,
+            serve_health,
+            serve_rpc,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Phonton Desktop");
 }

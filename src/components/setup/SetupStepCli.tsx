@@ -6,7 +6,7 @@ import { waitForPing } from "../../hooks/useSidecar";
 import { ensurePhontonCli } from "../../lib/cli-install";
 import { installDocsUrl } from "../../lib/license";
 import { checkServeHealth } from "../../lib/serve";
-import { isTauri, restartSidecar } from "../../lib/sidecar";
+import { clearStaleServePort, isTauri, restartSidecar } from "../../lib/sidecar";
 
 type Props = {
   onConnectedChange: (connected: boolean) => void;
@@ -43,8 +43,9 @@ export function SetupStepCli({ onConnectedChange }: Props) {
           return true;
         }
       } catch {
-        /* spawn fresh */
+        /* stale listener — clear and respawn */
       }
+      await clearStaleServePort();
     }
 
     try {
@@ -74,6 +75,7 @@ export function SetupStepCli({ onConnectedChange }: Props) {
       status: "offline",
       error: "ping timeout — phonton serve did not respond on :47831",
     });
+    setInstallError("");
     setPhase("error");
     return false;
   };
@@ -124,28 +126,30 @@ export function SetupStepCli({ onConnectedChange }: Props) {
   const statusLabel =
     sidecar.status === "ready"
       ? "CLI connected"
-      : phase === "error"
+      : installError
         ? "CLI install error"
-        : busy
-          ? phase === "checking"
-            ? "Checking phonton-cli…"
-            : "Starting engine…"
-          : sidecar.status === "offline"
-            ? "CLI offline"
+        : phase === "error" || sidecar.status === "offline"
+          ? "CLI offline"
+          : busy
+            ? phase === "checking"
+              ? "Checking phonton-cli…"
+              : "Starting engine…"
             : "Ready to install";
 
   const statusDetail =
     sidecar.status === "ready"
       ? `phonton serve v${sidecar.version} on :47831`
-      : phase === "error"
-        ? installError || installLog || "Could not install or locate phonton-cli."
-        : busy
-          ? installLog ||
-            (phase === "checking"
-              ? "Looking for an existing install before downloading."
-              : "Starting sidecar and waiting for phonton serve…")
-          : sidecar.status === "offline"
+      : installError
+        ? installError
+        : phase === "error" || sidecar.status === "offline"
+          ? sidecar.status === "offline"
             ? sidecar.error
+            : installLog || "Could not connect to phonton serve."
+          : busy
+            ? installLog ||
+              (phase === "checking"
+                ? "Looking for an existing install before downloading."
+                : "Starting sidecar and waiting for phonton serve…")
             : "Detecting phonton-cli on your system…";
 
   return (

@@ -1,6 +1,7 @@
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import App from "./app/App";
 import { applyTheme, loadStoredTheme } from "./themes/presets";
 import { isTauri } from "./lib/sidecar";
@@ -22,12 +23,12 @@ function Root() {
   }, []);
 
   return (
-    <>
+    <TooltipProvider>
       <div className="ambient-bg" aria-hidden />
       <div className="app-root">
         <App />
       </div>
-    </>
+    </TooltipProvider>
   );
 }
 

@@ -1,9 +1,12 @@
+import { shadcnVarsFromPreset } from "./shadcn-map";
+
 export type ThemeId = "nebula" | "cursor-dark" | "light" | "high-contrast";
 
 export type ThemePreset = {
   id: ThemeId;
   label: string;
   vars: Record<string, string>;
+  shadcn?: Record<string, string>;
 };
 
 export const THEME_STORAGE_KEY = "phonton.theme";
@@ -133,7 +136,12 @@ export function applyTheme(id: ThemeId) {
   for (const [key, value] of Object.entries(preset.vars)) {
     root.style.setProperty(key, value);
   }
+  const shadcn = shadcnVarsFromPreset(preset);
+  for (const [key, value] of Object.entries(shadcn)) {
+    root.style.setProperty(key, value);
+  }
   root.dataset.theme = preset.id;
+  root.classList.toggle("dark", preset.id !== "light");
   root.style.colorScheme = preset.id === "light" ? "light" : "dark";
   localStorage.setItem(THEME_STORAGE_KEY, preset.id);
 }

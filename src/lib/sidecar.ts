@@ -9,6 +9,20 @@ import {
   windowsLaunchServeArgs,
 } from "./cli-install";
 
+import { getActiveProject } from "./projects";
+
+const SERVE_PORT = 47831;
+
+let sidecarWorkspace: string | null = null;
+
+export function setSidecarWorkspace(path: string | null): void {
+  sidecarWorkspace = path;
+}
+
+function resolveWorkspaceDir(): string | null {
+  return sidecarWorkspace ?? getActiveProject();
+}
+
 let child: { kill: () => Promise<void> } | null = null;
 let rustSpawned = false;
 
@@ -18,6 +32,10 @@ export function isTauri(): boolean {
 
 function isWindows(): boolean {
   return navigator.userAgent.includes("Windows");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function quoteWindowsArg(path: string): string {
@@ -40,8 +58,21 @@ async function spawnNamed(name: string, args: string[]) {
   return Command.create(name, args).spawn();
 }
 
+async function spawnExeViaShell(exe: string): Promise<void> {
+  const pathPrefix = await getPathSetPrefix();
+  child = await spawnNamed("win-phonton-serve-resolved", [
+    "/c",
+    `${pathPrefix}${quoteWindowsArg(exe)} serve`,
+  ]);
+}
+
 async function spawnViaShell(launch: ReturnType<typeof getPhontonLaunchSpec>, resolved: string): Promise<void> {
   if (isWindows()) {
+    const vendorExe = await resolveVendorExeForServe();
+    if (vendorExe) {
+      await spawnExeViaShell(vendorExe);
+      return;
+    }
     if (launch) {
       child = await spawnNamed("win-phonton-serve-resolved", await windowsLaunchServeArgs(launch));
       return;
@@ -63,6 +94,24 @@ async function spawnViaShell(launch: ReturnType<typeof getPhontonLaunchSpec>, re
   ]);
 }
 
+async function verifyRustSidecar(): Promise<boolean> {
+  await sleep(400);
+  try {
+    return await invoke<boolean>("phonton_sidecar_alive");
+  } catch {
+    return false;
+  }
+}
+
+export async function clearStaleServePort(): Promise<void> {
+  if (!isTauri() || !isWindows()) return;
+  try {
+    await invoke<number>("kill_serve_port_listeners", { port: SERVE_PORT });
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function startSidecar(): Promise<void> {
   if (!isTauri()) return;
   if (child || rustSpawned) return;
@@ -75,9 +124,21 @@ export async function startSidecar(): Promise<void> {
     const vendorExe = await resolveVendorExeForServe();
     if (vendorExe) {
       try {
-        await invoke<number>("spawn_phonton_serve", { exe: vendorExe });
-        rustSpawned = true;
-        return;
+        await invoke<number>("spawn_phonton_serve", {
+          exe: vendorExe,
+          workspaceDir: resolveWorkspaceDir(),
+        });
+        if (await verifyRustSidecar()) {
+          rustSpawned = true;
+          return;
+        }
+        rustSpawned = false;
+        try {
+          await invoke("stop_phonton_serve");
+        } catch {
+          /* ignore */
+        }
+        errors.push(`native spawn exited immediately (${vendorExe})`);
       } catch (err) {
         errors.push(
           `native spawn (${vendorExe}): ${err instanceof Error ? err.message : String(err)}`,
@@ -127,7 +188,8 @@ export async function stopSidecar(): Promise<void> {
   child = null;
 }
 
-export async function restartSidecar(): Promise<void> {
+export async function restartSidecar(workspace?: string | null): Promise<void> {
+  if (workspace !== undefined) setSidecarWorkspace(workspace);
   await stopSidecar();
   await startSidecar();
 }
