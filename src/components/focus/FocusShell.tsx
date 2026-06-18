@@ -1,5 +1,14 @@
+import { useEffect, useState } from "react";
 import type { GoalSession } from "@/hooks/useSessions";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ChevronDown } from "lucide-react";
 import { PlanFocus } from "./PlanFocus";
 import { RunFocus } from "./RunFocus";
 import { ReceiptFocus } from "./ReceiptFocus";
@@ -25,35 +34,86 @@ type Props = {
   onFocusChange: (view: FocusView) => void;
 };
 
-const TABS: { id: FocusView; label: string }[] = [
-  { id: "plan", label: "Plan" },
+const PRIMARY_TABS: { id: FocusView; label: string }[] = [
   { id: "run", label: "Run" },
+  { id: "plan", label: "Plan" },
   { id: "receipt", label: "Receipt" },
   { id: "problems", label: "Problems" },
+];
+
+const SECONDARY_TABS: { id: FocusView; label: string }[] = [
   { id: "code", label: "Code" },
   { id: "context", label: "Context" },
   { id: "tokens", label: "Tokens" },
   { id: "log", label: "Log" },
 ];
 
+const ALL_VIEWS = new Set<FocusView>([
+  ...PRIMARY_TABS.map((t) => t.id),
+  ...SECONDARY_TABS.map((t) => t.id),
+]);
+
 export function FocusShell({ session, focus, onFocusChange }: Props) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const isSecondary = SECONDARY_TABS.some((t) => t.id === focus);
+  const secondaryLabel = SECONDARY_TABS.find((t) => t.id === focus)?.label ?? "More";
+
+  useEffect(() => {
+    if (session?.statusTone === "destructive" && !session.running) {
+      onFocusChange("problems");
+    } else if (session?.statusTone === "success" && session.handoff && !session.running) {
+      onFocusChange("receipt");
+    }
+  }, [session?.statusTone, session?.handoff, session?.running, session?.id, onFocusChange]);
+
   return (
     <Tabs
       value={focus}
-      onValueChange={(v) => onFocusChange(v as FocusView)}
+      onValueChange={(v) => {
+        if (ALL_VIEWS.has(v as FocusView)) onFocusChange(v as FocusView);
+      }}
       className="flex min-h-0 flex-1 flex-col"
     >
-      <TabsList className="mx-4 mt-2 h-auto flex-wrap gap-1 bg-transparent p-0">
-        {TABS.map((tab) => (
-          <TabsTrigger
-            key={tab.id}
-            value={tab.id}
-            className="h-7 px-2.5 text-xs data-[state=active]:bg-secondary"
+      <div className="mx-4 mt-2 flex flex-wrap items-center gap-1">
+        <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0">
+          {PRIMARY_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="h-7 px-2.5 text-xs data-[state=active]:bg-secondary"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant={isSecondary ? "secondary" : "ghost"}
+                size="sm"
+                className="h-7 gap-1 px-2.5 text-xs"
+              />
+            }
           >
-            {tab.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+            {isSecondary ? secondaryLabel : "More"}
+            <ChevronDown className="size-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {SECONDARY_TABS.map((tab) => (
+              <DropdownMenuItem
+                key={tab.id}
+                onClick={() => {
+                  onFocusChange(tab.id);
+                  setMoreOpen(false);
+                }}
+              >
+                {tab.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       <TabsContent value="plan" className="min-h-0 flex-1 px-4 pb-4 mt-2">
         <PlanFocus session={session} />
       </TabsContent>

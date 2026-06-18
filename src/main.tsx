@@ -6,6 +6,7 @@ import App from "./app/App";
 import { applyTheme, loadStoredTheme } from "./themes/presets";
 import { isTauri } from "./lib/sidecar";
 import "./styles/globals.css";
+import "./styles/shell.css";
 
 applyTheme(loadStoredTheme());
 

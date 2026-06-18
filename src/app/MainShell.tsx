@@ -4,13 +4,28 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { AgentWorkspace } from "@/components/shell/AgentWorkspace";
 import { AppHeader } from "@/components/shell/AppHeader";
-import { AppSidebar } from "@/components/shell/AppSidebar";
+import { AppSidebar, type SidebarTab } from "@/components/shell/AppSidebar";
 import { ContextPanel } from "@/components/shell/ContextPanel";
+import { WelcomeShell } from "@/components/shell/WelcomeShell";
+import type { FocusView } from "@/components/focus/FocusShell";
 import { useSessions } from "@/hooks/useSessions";
 import { ensureSidecarReady, useSidecar } from "@/hooks/useSidecar";
 import { fetchConfig, listTasks, trustGrant, workspaceInfo, type PhontonConfig, type TaskSummary } from "@/lib/config";
-import { projectLabel, getActiveProject, setActiveProject } from "@/lib/projects";
+import {
+  clearActiveProject,
+  getActiveProject,
+  getRecentProjects,
+  projectLabel,
+  setActiveProject,
+} from "@/lib/projects";
 import { isTauri, restartSidecar, setSidecarWorkspace } from "@/lib/sidecar";
+
+const SIDEBAR_TAB_KEY = "phonton.shell.sidebarTab";
+
+function loadSidebarTab(): SidebarTab {
+  const v = localStorage.getItem(SIDEBAR_TAB_KEY);
+  return v === "history" ? "history" : "sessions";
+}
 
 type Props = {
   onOpenSettings: () => void;
@@ -18,10 +33,17 @@ type Props = {
 
 export function MainShell({ onOpenSettings }: Props) {
   const [projectPath, setProjectPath] = useState<string | null>(() => getActiveProject());
+  const [recentProjects, setRecentProjects] = useState(() => getRecentProjects());
   const [history, setHistory] = useState<TaskSummary[]>([]);
   const [config, setConfig] = useState<PhontonConfig | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<SidebarTab>(loadSidebarTab);
+  const [activeFocus, setActiveFocus] = useState<FocusView>("run");
   const { state: sidecar, refresh: refreshSidecar } = useSidecar();
   const sessionsApi = useSessions();
+
+  const refreshRecent = useCallback(() => {
+    setRecentProjects(getRecentProjects());
+  }, []);
 
   const refreshHistory = useCallback(async () => {
     if (sidecar.status !== "ready") return;
@@ -51,12 +73,37 @@ export function MainShell({ onOpenSettings }: Props) {
     void refreshConfig();
   }, [refreshConfig]);
 
+  const handleSidebarTabChange = useCallback((tab: SidebarTab) => {
+    setSidebarTab(tab);
+    localStorage.setItem(SIDEBAR_TAB_KEY, tab);
+  }, []);
+
   const handleSidecarAction = useCallback(async () => {
     await ensureSidecarReady(true, () => undefined);
     await refreshSidecar();
     await refreshConfig();
     await refreshHistory();
   }, [refreshConfig, refreshHistory, refreshSidecar]);
+
+  const openProjectPath = useCallback(
+    async (selected: string) => {
+      setActiveProject(selected);
+      setProjectPath(selected);
+      refreshRecent();
+      setSidecarWorkspace(selected);
+      try {
+        const info = await workspaceInfo();
+        if (!info.trusted) await trustGrant(selected);
+      } catch {
+        /* optional */
+      }
+      await restartSidecar(selected);
+      await refreshSidecar();
+      await refreshHistory();
+      await refreshConfig();
+    },
+    [refreshConfig, refreshHistory, refreshRecent, refreshSidecar],
+  );
 
   const openProject = useCallback(async () => {
     if (!isTauri()) return;
@@ -66,20 +113,14 @@ export function MainShell({ onOpenSettings }: Props) {
       title: "Open project folder",
     });
     if (!selected || Array.isArray(selected)) return;
-    setActiveProject(selected);
-    setProjectPath(selected);
-    setSidecarWorkspace(selected);
-    try {
-      const info = await workspaceInfo();
-      if (!info.trusted) await trustGrant(selected);
-    } catch {
-      /* optional */
-    }
-    await restartSidecar(selected);
-    await refreshSidecar();
-    await refreshHistory();
-    await refreshConfig();
-  }, [refreshConfig, refreshHistory, refreshSidecar]);
+    await openProjectPath(selected);
+  }, [openProjectPath]);
+
+  const clearProject = useCallback(() => {
+    clearActiveProject();
+    setProjectPath(null);
+    refreshRecent();
+  }, [refreshRecent]);
 
   useEffect(() => {
     if (!projectPath || !isTauri()) return;
@@ -88,7 +129,7 @@ export function MainShell({ onOpenSettings }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bootstrap once on mount when project stored
   }, []);
 
-  const showProjectCta = !projectPath;
+  const hasProject = Boolean(projectPath);
 
   return (
     <SidebarProvider defaultOpen>
@@ -97,15 +138,23 @@ export function MainShell({ onOpenSettings }: Props) {
           sidecar={sidecar}
           projectPath={projectPath}
           onOpenSettings={onOpenSettings}
+          onOpenProject={() => void openProject()}
+          onOpenRecent={(path) => void openProjectPath(path)}
+          onClearProject={clearProject}
           onSidecarAction={() => void handleSidecarAction()}
         />
         <div className="flex min-h-0 flex-1">
           <AppSidebar
             projectPath={projectPath}
+            hasProject={hasProject}
+            sidebarTab={sidebarTab}
+            onSidebarTabChange={handleSidebarTabChange}
             sessions={sessionsApi.sessions}
             activeSessionId={sessionsApi.activeId}
             history={history}
             onOpenProject={() => void openProject()}
+            onOpenRecent={(path) => void openProjectPath(path)}
+            onClearProject={clearProject}
             onNewSession={sessionsApi.createSession}
             onSelectSession={sessionsApi.selectSession}
             onTogglePin={sessionsApi.togglePin}
@@ -113,21 +162,14 @@ export function MainShell({ onOpenSettings }: Props) {
             onSelectHistory={(task) => void sessionsApi.resumeFromTask(task.task_id, task.goal_text)}
           />
           <SidebarInset className="min-h-0 flex-1 p-0">
-            {showProjectCta ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-                <h2 className="text-xl font-semibold">Open a project to start</h2>
-                <p className="max-w-md text-sm text-muted-foreground">
-                  Phonton Desktop runs goals against a local folder. Open your repo, then describe a
-                  merge-bound goal.
-                </p>
-                <button
-                  type="button"
-                  className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground"
-                  onClick={() => void openProject()}
-                >
-                  Open project folder
-                </button>
-              </div>
+            {!hasProject ? (
+              <WelcomeShell
+                recentProjects={recentProjects}
+                sidecar={sidecar}
+                onOpenProject={() => void openProject()}
+                onOpenRecent={(path) => void openProjectPath(path)}
+                onSidecarAction={() => void handleSidecarAction()}
+              />
             ) : (
               <ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
                 <ResizablePanel defaultSize={62} minSize={40}>
@@ -141,12 +183,14 @@ export function MainShell({ onOpenSettings }: Props) {
                     onRunGoal={() => void sessionsApi.runGoal()}
                     onRetrySidecar={() => void refreshSidecar()}
                     onUpgradeSidecar={() => void handleSidecarAction()}
+                    onFocusChange={setActiveFocus}
                   />
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={38} minSize={24}>
                   <ContextPanel
                     session={sessionsApi.active}
+                    activeFocus={activeFocus}
                     onLoadReview={() => void sessionsApi.loadReview()}
                   />
                 </ResizablePanel>
