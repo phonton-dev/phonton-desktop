@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import type { SidecarState } from "@/hooks/useSidecar";
 import { MIN_SERVE_CLI_VERSION } from "@/lib/cli-version";
 import { projectLabel } from "@/lib/projects";
+import { isTauri } from "@/lib/sidecar";
 import { FolderOpen, FolderKanban, Goal, ShieldCheck } from "lucide-react";
 
 type Props = {
@@ -14,8 +15,8 @@ type Props = {
 
 const STEPS = [
   { icon: FolderKanban, title: "Open repo", detail: "Pick a local folder Phonton can index and verify against." },
-  { icon: Goal, title: "Describe a goal", detail: "State a merge-bound outcome — not a chat prompt." },
-  { icon: ShieldCheck, title: "Review verified diff", detail: "Inspect the HandoffPacket after static verification passes." },
+  { icon: Goal, title: "Describe a goal", detail: "State a merge-bound outcome, not a chat prompt." },
+  { icon: ShieldCheck, title: "Review the receipt", detail: "See models, checks, cost, and saved vs frontier after verification." },
 ];
 
 export function WelcomeShell({
@@ -40,16 +41,22 @@ export function WelcomeShell({
           />
           <h1 className="text-2xl font-semibold tracking-tight">Open a project to start</h1>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            Phonton is a local-first agentic development environment. Open your repo,
-            describe a goal, and review verified output — not raw chat.
+            Phonton is a local-first ADE. Open your repo, describe a goal, and
+            review a verified receipt: models, checks, and cost versus frontier.
           </p>
+          {!isTauri() ? (
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              Browser preview cannot spawn the engine. Start <code className="font-mono">phonton serve</code>{" "}
+              yourself, or use the Tauri app.
+            </p>
+          ) : null}
         </div>
 
         {sidecarIssue ? (
           <div className="shell-surface rounded-xl border border-amber-500/30 px-4 py-3 text-sm">
             {sidecar.status === "upgrade_required" ? (
               <p className="text-amber-500">
-                Sidecar needs phonton-cli v{MIN_SERVE_CLI_VERSION}+.{" "}
+                Engine needs phonton-cli v{MIN_SERVE_CLI_VERSION}+.{" "}
                 <button type="button" className="underline" onClick={onSidecarAction}>
                   Upgrade CLI
                 </button>
@@ -58,7 +65,7 @@ export function WelcomeShell({
               <p className="text-amber-500">
                 {sidecar.error}{" "}
                 <button type="button" className="underline" onClick={onSidecarAction}>
-                  Retry sidecar
+                  Retry engine
                 </button>
               </p>
             )}

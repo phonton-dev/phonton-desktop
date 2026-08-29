@@ -10,7 +10,7 @@ export function PlanFocus({ session }: Props) {
   if (!contract && !plan) {
     return (
       <p className="text-sm text-muted-foreground">
-        Preview a plan or run a goal to see the GoalContract and task graph.
+        Preview a plan or run a goal to see acceptance criteria, the verify plan, and which model tier each subtask starts on.
       </p>
     );
   }

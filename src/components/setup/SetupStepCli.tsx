@@ -76,7 +76,7 @@ export function SetupStepCli({ onConnectedChange }: Props) {
 
     setSidecar({
       status: "offline",
-      error: "ping timeout — phonton serve did not respond on :47831",
+      error: "ping timeout - phonton serve did not respond on :47831",
     });
     setInstallError("");
     setPhase("error");

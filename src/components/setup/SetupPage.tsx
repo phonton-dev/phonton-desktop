@@ -7,11 +7,12 @@ import { SetupHeader } from "./SetupHeader";
 import { SetupStepAuth } from "./SetupStepAuth";
 import { SetupStepCli } from "./SetupStepCli";
 import { SetupStepFinish } from "./SetupStepFinish";
+import { SetupStepProvider } from "./SetupStepProvider";
 import { SetupStepTheme } from "./SetupStepTheme";
 import { SetupStepWelcome } from "./SetupStepWelcome";
 import "./setup.css";
 
-const STEPS = ["welcome", "auth", "theme", "cli", "finish"] as const;
+const STEPS = ["welcome", "auth", "theme", "cli", "provider", "finish"] as const;
 export type SetupStep = (typeof STEPS)[number];
 
 type Props = {
@@ -24,8 +25,9 @@ type Props = {
 export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "welcome" }: Props) {
   const [step, setStep] = useState<SetupStep>(initialStep);
   const [cliConnected, setCliConnected] = useState(false);
+  const [providerReady, setProviderReady] = useState(false);
   const authState = useMemo(() => crypto.randomUUID(), []);
-  const sidecarEnabled = step === "finish";
+  const sidecarEnabled = step === "provider" || step === "finish";
   const { state: sidecar } = useSidecar({ enabled: sidecarEnabled });
 
   const stepIndex = STEPS.indexOf(step);
@@ -50,7 +52,9 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
       ? isAuthenticated()
       : step === "cli"
         ? cliConnected
-        : true;
+        : step === "provider"
+          ? providerReady
+          : true;
 
   return (
     <div className="setup-page">
@@ -78,14 +82,20 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
           ) : null}
           {step === "theme" ? <SetupStepTheme themeId={themeId} onThemeChange={onThemeChange} /> : null}
           {step === "cli" ? <SetupStepCli onConnectedChange={setCliConnected} /> : null}
+          {step === "provider" ? <SetupStepProvider onReadyChange={setProviderReady} /> : null}
           {step === "finish" ? (
-            <SetupStepFinish themeId={themeId} sidecar={sidecar} onOpen={finish} />
+            <SetupStepFinish
+              themeId={themeId}
+              sidecar={sidecar}
+              providerReady={providerReady}
+              onOpen={finish}
+            />
           ) : null}
         </div>
 
         {step !== "welcome" && step !== "finish" ? (
           <div className="setup-footer">
-            <button type="button" className="btn ghost" onClick={goBack} disabled={step === "auth"}>
+            <button type="button" className="btn ghost" onClick={goBack} disabled={stepIndex === 0}>
               Back
             </button>
             <div className="setup-footer-right">

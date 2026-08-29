@@ -3,19 +3,72 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GoalSession } from "@/hooks/useSessions";
 import type { HandoffPacket } from "@/lib/types/global-state";
+import {
+  costReceiptFromSession,
+  formatUsdMicros,
+  routeLabels,
+  savedPercent,
+  taskHeadline,
+} from "@/lib/economics";
 
 type Props = {
   session: GoalSession | undefined;
   compact?: boolean;
+  filesOnly?: boolean;
 };
 
-function ReceiptBody({ packet }: { packet: HandoffPacket }) {
+function EconomicsBlock({ session }: { session: GoalSession | undefined }) {
+  const receipt = costReceiptFromSession(session);
+  const saved = savedPercent(receipt);
+  const route = routeLabels(session);
+
+  return (
+    <>
+      <section className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border bg-card/40 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost</p>
+          <p className="text-lg font-semibold tabular-nums">
+            {receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"}
+          </p>
+        </div>
+        <div className="rounded-lg border bg-card/40 px-3 py-2">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved vs frontier</p>
+          <p className="text-lg font-semibold tabular-nums text-emerald-400">
+            {receipt && saved != null
+              ? `${formatUsdMicros(receipt.saved_usd_micros)} (${saved}%)`
+              : "-"}
+          </p>
+        </div>
+      </section>
+      <section>
+        <h4 className="text-sm font-medium mb-2">Models</h4>
+        <p className="text-xs text-muted-foreground">{route}</p>
+        {receipt && !receipt.pricing_known ? (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Cost is estimated from published list prices for the model tier.
+          </p>
+        ) : null}
+      </section>
+    </>
+  );
+}
+
+function ReceiptBody({
+  packet,
+  session,
+  filesOnly,
+}: {
+  packet: HandoffPacket;
+  session: GoalSession | undefined;
+  filesOnly?: boolean;
+}) {
   return (
     <div className="space-y-4">
       <div>
         <h3 className="text-base font-semibold">{packet.headline}</h3>
         <p className="text-xs text-muted-foreground mt-1">{packet.goal}</p>
       </div>
+      {filesOnly ? null : <EconomicsBlock session={session} />}
       {packet.changed_files.length > 0 ? (
         <section>
           <h4 className="text-sm font-medium mb-2">Changed files</h4>
@@ -76,22 +129,37 @@ function ReceiptBody({ packet }: { packet: HandoffPacket }) {
           </ul>
         </section>
       ) : null}
-      <p className="text-xs text-muted-foreground">
-        Tokens: {(packet.token_usage.total_tokens ?? packet.token_usage.input_tokens ?? 0).toLocaleString()}
-      </p>
     </div>
   );
 }
 
-export function ReceiptFocus({ session, compact }: Props) {
+export function ReceiptFocus({ session, compact, filesOnly }: Props) {
   const packet = session?.handoff ?? session?.globalState?.handoff_packet ?? null;
+  const receipt = costReceiptFromSession(session);
 
   if (!packet) {
+    if (receipt && !filesOnly) {
+      return (
+        <ScrollArea className={compact ? "h-[calc(100vh-14rem)]" : "h-full max-h-[calc(100vh-16rem)]"}>
+          <div className="space-y-4 pr-3">
+            <div>
+              <h3 className="text-base font-semibold">{taskHeadline(session)}</h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cost receipt from this run. File-level handoff appears when the engine publishes one.
+              </p>
+            </div>
+            <EconomicsBlock session={session} />
+          </div>
+        </ScrollArea>
+      );
+    }
     return (
       <p className="text-sm text-muted-foreground">
-        {compact
-          ? "Run a goal to generate a HandoffPacket receipt."
-          : "Complete a goal to see the typed receipt: changed files, verification, run commands, and known gaps."}
+        {filesOnly
+          ? "Changed files and checks appear here after a goal finishes."
+          : compact
+            ? "Run a goal to generate a receipt: files, checks, models, and cost."
+            : "Complete a goal to see the receipt: changed files, verification, models used, cost vs frontier, and known gaps."}
       </p>
     );
   }
@@ -99,7 +167,7 @@ export function ReceiptFocus({ session, compact }: Props) {
   return (
     <ScrollArea className={compact ? "h-[calc(100vh-14rem)]" : "h-full max-h-[calc(100vh-16rem)]"}>
       <div className="pr-3">
-        <ReceiptBody packet={packet} />
+        <ReceiptBody packet={packet} session={session} filesOnly={filesOnly} />
       </div>
     </ScrollArea>
   );

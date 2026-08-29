@@ -732,7 +732,7 @@ export async function ensurePhontonCli(
       if (spec) {
         return {
           ok: true,
-          message: `Found phonton-cli v${installed} — ${spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd}`,
+          message: `Found phonton-cli v${installed} - ${spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd}`,
           installed: false,
         };
       }
@@ -802,7 +802,7 @@ export async function ensurePhontonCli(
   const label = spec.kind === "exe" ? spec.exe : spec.kind === "node" ? spec.script : spec.cmd;
   return {
     ok: true,
-    message: version ? `Using phonton-cli v${version} — ${label}` : `Installed — using ${label}`,
+    message: version ? `Using phonton-cli v${version} - ${label}` : `Installed - using ${label}`,
     installed: true,
   };
 }

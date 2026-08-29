@@ -5,6 +5,7 @@ import type { GoalSession } from "@/hooks/useSessions";
 import type { SidecarState } from "@/hooks/useSidecar";
 import { MIN_SERVE_CLI_VERSION } from "@/lib/cli-version";
 import { FocusShell, type FocusView } from "@/components/focus/FocusShell";
+import { EconomicsStrip } from "@/components/shell/EconomicsStrip";
 import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 
@@ -22,7 +23,7 @@ type Props = {
 };
 
 const EXAMPLE_GOALS = [
-  "Fix failing tests in the auth module",
+  "Make add_one return n + 1 so the unit tests in src/lib.rs pass.",
   "Add input validation to the config loader",
   "Refactor sidebar layout without changing behavior",
 ];
@@ -82,7 +83,7 @@ export function AgentWorkspace({
             <Textarea
               placeholder={
                 projectLabel
-                  ? `Describe a merge-bound goal for ${projectLabel}…`
+                  ? `Describe a merge-bound goal for ${projectLabel}`
                   : "Fix the config panic in src/config.js"
               }
               value={goal}
@@ -97,7 +98,7 @@ export function AgentWorkspace({
                   </Badge>
                 ) : null}
                 <Badge variant="outline" className="font-normal text-xs">
-                  Work locally
+                  Your keys, local
                 </Badge>
                 {providerModel ? (
                   <Badge variant="outline" className="font-normal text-xs">
@@ -135,7 +136,7 @@ export function AgentWorkspace({
           ) : null}
           {sidecar.status === "upgrade_required" ? (
             <p className="text-xs text-amber-500">
-              Sidecar needs phonton-cli v{MIN_SERVE_CLI_VERSION}+
+              Engine needs phonton-cli v{MIN_SERVE_CLI_VERSION}+
               {sidecar.installedVersion ? ` (found v${sidecar.installedVersion})` : ""}.{" "}
               <button type="button" className="underline" onClick={onUpgradeSidecar ?? onRetrySidecar}>
                 Upgrade CLI
@@ -155,6 +156,7 @@ export function AgentWorkspace({
           ) : null}
         </div>
       </div>
+      <EconomicsStrip session={session} />
       <FocusShell session={session} focus={focus} onFocusChange={handleFocusChange} />
     </div>
   );

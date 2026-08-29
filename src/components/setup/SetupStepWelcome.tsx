@@ -70,13 +70,13 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
     <div className="setup-welcome">
       <img src="/phonton-logo.png" alt="Phonton" className="setup-logo" />
       <h1>Phonton Desktop</h1>
-      <p>Goal-driven control room for phonton-cli.</p>
+      <p>Give Phonton a goal. It starts cheap, verifies, and shows the cost.</p>
 
       {isTauri() ? (
         <div className="setup-update-banner">
           <p>
             {appVersion ? `Installed version: v${appVersion}` : "Phonton Desktop"}
-            {updateStatus ? ` — ${updateStatus}` : null}
+            {updateStatus ? ` - ${updateStatus}` : null}
           </p>
           <div className="toolbar" style={{ justifyContent: "center" }}>
             <button

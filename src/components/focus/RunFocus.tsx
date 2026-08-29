@@ -36,7 +36,7 @@ export function RunFocus({ session }: Props) {
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm font-medium">{w.subtask_description}</span>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
-                    {w.model_tier}
+                    {w.model_name?.trim() || w.model_tier}
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">

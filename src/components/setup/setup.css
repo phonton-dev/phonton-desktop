@@ -20,7 +20,7 @@
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: var(--ph-ink);
+  color: var(--ph-text);
 }
 
 .setup-update-banner {
@@ -248,6 +248,71 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  background: var(--ph-accent);
+  color: var(--ph-bg, #07070c);
+  cursor: pointer;
+}
+
+.btn.secondary {
+  background: var(--ph-glass);
+  color: var(--ph-text);
+  border-color: var(--ph-glass-border);
+}
+
+.btn.ghost {
+  background: transparent;
+  color: var(--ph-muted);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field label {
+  font-size: 13px;
+  color: var(--ph-muted);
+}
+
+.goal-input {
+  width: 100%;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid var(--ph-glass-border);
+  background: var(--ph-glass);
+  color: var(--ph-text);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.goal-input::placeholder {
+  color: var(--ph-faint);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,6 +2,19 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.3.3] - 2026-08-29
+
+### Added
+
+- Economics strip: task, models, cost, verification, saved vs frontier
+- Provider-key setup step (local BYOK, doctor probe)
+- Idle strip copy: "Run a goal to fill cost and checks."
+
+### Changed
+
+- Side panel is files and checks only; cost stays on the strip and Receipt tab
+- Browser preview documents that it cannot spawn `phonton serve`
+
 ## [0.2.9] - 2026-06-07
 
 ### Fixed

@@ -11,13 +11,20 @@ import { SettingsPage } from "../pages/SettingsPage";
 type AppView = "main" | "settings";
 
 function initialSetupStep(): SetupStep {
-  if (!isAuthenticated()) return "auth";
-  if (!isSetupComplete()) return "theme";
+  if (!isAuthenticated() && isSetupComplete()) return "auth";
+  if (!isSetupComplete() && isAuthenticated()) return "theme";
   return "welcome";
 }
 
+function wantsHarnessPreview() {
+  if (!import.meta.env.DEV) return false;
+  return new URLSearchParams(window.location.search).has("preview");
+}
+
 export default function App() {
-  const [setupDone, setSetupDone] = useState(() => isSetupComplete() && isAuthenticated());
+  const [setupDone, setSetupDone] = useState(
+    () => wantsHarnessPreview() || (isSetupComplete() && isAuthenticated()),
+  );
   const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
   const [setupStep, setSetupStep] = useState<SetupStep>(initialSetupStep);
   const [view, setView] = useState<AppView>("main");
@@ -42,7 +49,7 @@ export default function App() {
     return () => window.removeEventListener("phonton-auth-handoff", onAuth);
   }, []);
 
-  if (!setupDone || !isAuthenticated()) {
+  if ((!setupDone || !isAuthenticated()) && !wantsHarnessPreview()) {
     return (
       <SetupPage
         themeId={themeId}

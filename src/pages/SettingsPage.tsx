@@ -121,7 +121,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
     setUpgradeBusy(false);
     if (result.ok) {
       await loadConfig();
-      setConfigStatus(`Sidecar ready — v${result.version}`);
+      setConfigStatus(`Sidecar ready - v${result.version}`);
     } else {
       setConfigStatus(result.error);
     }
@@ -506,8 +506,8 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ask">ask — prompt before privileged actions</SelectItem>
-                      <SelectItem value="full-access">full-access — auto-approve sandboxed commands</SelectItem>
+                      <SelectItem value="ask">ask: prompt before privileged actions</SelectItem>
+                      <SelectItem value="full-access">full-access: auto-approve sandboxed commands</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

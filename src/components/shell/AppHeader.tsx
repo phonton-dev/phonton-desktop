@@ -38,9 +38,9 @@ function sidecarMeta(sidecar: SidecarState): {
   switch (sidecar.status) {
     case "ready":
       return {
-        label: `Sidecar v${sidecar.version}`,
+        label: `Engine v${sidecar.version}`,
         tone: "ok",
-        detail: `Handoff schema ${sidecar.handoffSchema}`,
+        detail: `Receipt schema ${sidecar.handoffSchema}`,
       };
     case "upgrade_required":
       return {
@@ -49,7 +49,13 @@ function sidecarMeta(sidecar: SidecarState): {
         detail: sidecar.error,
       };
     case "offline":
-      return { label: "Sidecar offline", tone: "err", detail: sidecar.error };
+      return {
+        label: "Engine offline",
+        tone: "err",
+        detail: isTauri()
+          ? sidecar.error
+          : "Start `phonton serve` in a terminal. The browser cannot spawn the engine.",
+      };
     case "connecting":
       return {
         label: sidecar.message ?? "Connecting…",
@@ -57,7 +63,7 @@ function sidecarMeta(sidecar: SidecarState): {
         detail: "Starting phonton serve",
       };
     default:
-      return { label: "Sidecar idle", tone: "muted", detail: "" };
+      return { label: "Engine idle", tone: "muted", detail: "" };
   }
 }
 

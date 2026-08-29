@@ -24,9 +24,24 @@ export type WorkerState = {
   subtask_id: string;
   subtask_description: string;
   model_tier: string;
+  model_name?: string;
   tokens_used: number;
   status: SubtaskStatus;
   is_thinking?: boolean;
+};
+
+export type RouteStep = {
+  model: string;
+  tier: string;
+  outcome: string;
+};
+
+export type CostReceipt = {
+  actual_usd_micros: number;
+  frontier_equivalent_usd_micros: number;
+  saved_usd_micros: number;
+  pricing_known: boolean;
+  route: RouteStep[];
 };
 
 export type GoalContract = {
@@ -71,6 +86,7 @@ export type HandoffPacket = {
     cached_tokens?: number;
     total_tokens?: number;
   };
+  cost_receipt?: CostReceipt | null;
   influence: {
     memories: string[];
     index_slices: string[];
@@ -87,6 +103,7 @@ export type GlobalState = {
   tokens_used: number;
   tokens_budget?: number | null;
   estimated_naive_tokens: number;
+  cost_receipt?: CostReceipt | null;
 };
 
 export type OrchestratorEvent = {

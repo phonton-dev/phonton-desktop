@@ -44,7 +44,7 @@ const PRIMARY_TABS: { id: FocusView; label: string }[] = [
 const SECONDARY_TABS: { id: FocusView; label: string }[] = [
   { id: "code", label: "Code" },
   { id: "context", label: "Context" },
-  { id: "tokens", label: "Tokens" },
+  { id: "tokens", label: "Cost" },
   { id: "log", label: "Log" },
 ];
 

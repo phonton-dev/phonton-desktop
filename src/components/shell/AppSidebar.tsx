@@ -141,7 +141,7 @@ export function AppSidebar({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="p-3 text-[10px] text-muted-foreground">
-          v0.3.2 · Ctrl+B sidebar
+          v0.3.3 · Ctrl+B sidebar
         </SidebarFooter>
       </Sidebar>
     );
@@ -225,7 +225,7 @@ export function AppSidebar({
               <SidebarMenu>
                 {history.length === 0 ? (
                   <p className="px-2 text-xs text-muted-foreground">
-                    No runs yet — run a goal to populate history.
+                    No runs yet. Run a goal to populate history.
                   </p>
                 ) : (
                   history.map((task) => (
@@ -253,7 +253,7 @@ export function AppSidebar({
         </Tabs>
       </SidebarContent>
       <SidebarFooter className="p-3 text-[10px] text-muted-foreground">
-        v0.3.2 · Ctrl+B sidebar
+        v0.3.3 · Ctrl+B sidebar
       </SidebarFooter>
     </Sidebar>
   );

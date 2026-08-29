@@ -71,7 +71,7 @@ export async function ensureSidecarReady(
     return {
       ok: false,
       reason: "offline",
-      error: "ping timeout — phonton serve did not respond on :47831",
+      error: "ping timeout - phonton serve did not respond on :47831",
     };
   }
 

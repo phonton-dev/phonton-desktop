@@ -22,6 +22,12 @@ import { isTauri, restartSidecar, setSidecarWorkspace } from "@/lib/sidecar";
 
 const SIDEBAR_TAB_KEY = "phonton.shell.sidebarTab";
 
+function previewProjectPath(): string | null {
+  if (!import.meta.env.DEV) return null;
+  if (!new URLSearchParams(window.location.search).has("preview")) return null;
+  return "preview-workspace";
+}
+
 function loadSidebarTab(): SidebarTab {
   const v = localStorage.getItem(SIDEBAR_TAB_KEY);
   return v === "history" ? "history" : "sessions";
@@ -32,7 +38,9 @@ type Props = {
 };
 
 export function MainShell({ onOpenSettings }: Props) {
-  const [projectPath, setProjectPath] = useState<string | null>(() => getActiveProject());
+  const [projectPath, setProjectPath] = useState<string | null>(
+    () => getActiveProject() ?? previewProjectPath(),
+  );
   const [recentProjects, setRecentProjects] = useState(() => getRecentProjects());
   const [history, setHistory] = useState<TaskSummary[]>([]);
   const [config, setConfig] = useState<PhontonConfig | null>(null);
@@ -106,7 +114,11 @@ export function MainShell({ onOpenSettings }: Props) {
   );
 
   const openProject = useCallback(async () => {
-    if (!isTauri()) return;
+    if (!isTauri()) {
+      const typed = window.prompt("Project folder path");
+      if (typed?.trim()) await openProjectPath(typed.trim());
+      return;
+    }
     const selected = await open({
       directory: true,
       multiple: false,

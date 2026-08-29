@@ -6,10 +6,11 @@ import { themePresets, type ThemeId } from "../../themes/presets";
 type Props = {
   themeId: ThemeId;
   sidecar: SidecarState;
+  providerReady: boolean;
   onOpen: () => void;
 };
 
-export function SetupStepFinish({ themeId, sidecar, onOpen }: Props) {
+export function SetupStepFinish({ themeId, sidecar, providerReady, onOpen }: Props) {
   const themeLabel = themePresets.find((t) => t.id === themeId)?.label ?? themeId;
   const cliLabel =
     sidecar.status === "ready" ? `Connected (v${sidecar.version})` : "Not connected";
@@ -32,13 +33,17 @@ export function SetupStepFinish({ themeId, sidecar, onOpen }: Props) {
           <Check size={16} color={sidecar.status === "ready" ? "var(--ph-ok)" : "var(--ph-warn)"} />
           CLI: {cliLabel}
         </li>
+        <li>
+          <Check size={16} color={providerReady ? "var(--ph-ok)" : "var(--ph-warn)"} />
+          Provider key: {providerReady ? "Probed locally" : "Not verified"}
+        </li>
       </ul>
       <button
         type="button"
         className="btn"
         onClick={onOpen}
         style={{ width: "100%" }}
-        disabled={!isAuthenticated() || sidecar.status !== "ready"}
+        disabled={!isAuthenticated() || sidecar.status !== "ready" || !providerReady}
       >
         Open Phonton
       </button>
