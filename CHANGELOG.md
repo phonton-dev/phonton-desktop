@@ -2,6 +2,12 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## [0.3.4] - 2026-08-29
+
+### Changed
+
+- App icon, window icon, and NSIS installer art use the pixel phi mark.
+
 ## [0.3.3] - 2026-08-29
 
 ### Added

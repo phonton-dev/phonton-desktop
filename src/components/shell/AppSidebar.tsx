@@ -141,7 +141,7 @@ export function AppSidebar({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="p-3 text-[10px] text-muted-foreground">
-          v0.3.3 · Ctrl+B sidebar
+          v0.3.4 · Ctrl+B sidebar
         </SidebarFooter>
       </Sidebar>
     );
@@ -253,7 +253,7 @@ export function AppSidebar({
         </Tabs>
       </SidebarContent>
       <SidebarFooter className="p-3 text-[10px] text-muted-foreground">
-        v0.3.3 · Ctrl+B sidebar
+        v0.3.4 · Ctrl+B sidebar
       </SidebarFooter>
     </Sidebar>
   );
