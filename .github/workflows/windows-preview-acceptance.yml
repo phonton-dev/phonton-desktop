@@ -2,6 +2,12 @@ name: Windows Preview acceptance
 
 on:
   workflow_dispatch:
+    inputs:
+      full_journey:
+        description: 'Download the pinned model and test calibration, verified edits, Apply, reopen and rollback'
+        type: boolean
+        required: true
+        default: false
   push:
     branches: ['2ntt/windows-preview-acceptance-*']
 
@@ -59,7 +65,9 @@ jobs:
   installed-smoke:
     needs: package
     runs-on: windows-2022
-    timeout-minutes: 25
+    timeout-minutes: ${{ inputs.full_journey && 100 || 25 }}
+    env:
+      PHONTON_ACCEPTANCE_FULL_JOURNEY: ${{ inputs.full_journey && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:

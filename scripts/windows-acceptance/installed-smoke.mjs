@@ -4,20 +4,22 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { fullFixtureTests, fullJourney } from './full-journey.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Disposable Actions runner required');
 assert.equal(process.platform, 'win32');
 const app = process.env.PHONTON_ACCEPTANCE_APP;
 const profile = process.env.PHONTON_ACCEPTANCE_PROFILE;
 const fixture = process.env.PHONTON_ACCEPTANCE_FIXTURE;
+const full = process.env.PHONTON_ACCEPTANCE_FULL_JOURNEY === 'true';
 assert.ok(app && profile && fixture);
 const candidate = JSON.parse(readFileSync('acceptance-candidate/candidate.json', 'utf8'));
 const evidence = path.resolve('acceptance-evidence');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
-const report = { schema: 1, status: 'running', checks: [], limitations: [
+const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', checks: [], limitations: [
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
   'Workspace selection is seeded in localStorage; native folder picker is not exercised.',
-  'No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.',
+  ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),
   'Unsigned Windows Server runner candidate; consumer Windows, signing and updater checks remain open.',
 ] };
 let session;
@@ -92,7 +94,7 @@ async function start() {
 async function closeNormally(name) {
   // Keep both WebDrivers alive until the app's own cleanup has been observed.
   native('close');
-  await until(() => { const s = native(); return !s.apps.length && !s.engines.length && !s.listeners.length; }, 'normal close releases engine and listener', 30000);
+  await until(() => { const s = native(); return !s.apps.length && !s.engines.length && !s.listeners.length && (!full || (!s.runtimes.length && !s.runtimeListeners.length)); }, 'normal close releases engine and owned runtime listeners', 30000);
   const driverStatus = await request('GET', '/status');
   assert.equal(typeof driverStatus?.ready, 'boolean', 'Both WebDrivers must still respond after app cleanup');
   record(name);
@@ -103,7 +105,7 @@ async function closeNormally(name) {
 try {
   mkdirSync(fixture);
   writeFileSync(path.join(fixture, 'port.py'), 'def parse_port(value):\n    return int(value)\n');
-  writeFileSync(path.join(fixture, 'test_port.py'), 'import unittest\nfrom port import parse_port\n\nclass PortTests(unittest.TestCase):\n    def test_port(self):\n        self.assertEqual(parse_port("8080"), 8080)\n');
+  writeFileSync(path.join(fixture, 'test_port.py'), full ? fullFixtureTests : 'import unittest\nfrom port import parse_port\n\nclass PortTests(unittest.TestCase):\n    def test_port(self):\n        self.assertEqual(parse_port("8080"), 8080)\n');
   execFileSync('git', ['init', '--quiet', fixture]);
   execFileSync('git', ['-C', fixture, 'add', 'port.py', 'test_port.py']);
   const identities = ['port.py', 'test_port.py', '.git/index'].map(file => [file, hash(path.join(fixture, file))]);
@@ -140,6 +142,10 @@ try {
   assert.match(await execute('return document.querySelector(".model-hardware-details summary").textContent'), /RAM free/);
   await screenshot('03-local-models');
   record('native Local models page reads machine state');
+  if (full) {
+    await fullJourney({ command, execute, click, type, screenshot, hash, record, fixture,
+      evidence, identities, start, closeNormally, ownedEngine, native });
+  } else {
   await closeNormally('normal window close releases engine and listener');
 
   await start();
@@ -151,6 +157,7 @@ try {
   record('new native process restores active repository', restarted);
   for (const [file, digest] of identities) assert.equal(hash(path.join(fixture, file)), digest);
   await closeNormally('restarted window close also releases engine');
+  }
   report.status = 'passed';
 } catch (error) {
   report.status = 'failed';

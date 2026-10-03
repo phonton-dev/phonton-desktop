@@ -16,14 +16,24 @@ if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
 $app = Join-Path $installDir 'phonton-desktop.exe'
 $engine = Join-Path $installDir 'local-engine/phonton.exe'
 $manifest = Get-Content (Join-Path $installDir 'local-engine/manifest.json') -Raw | ConvertFrom-Json
-if ((Get-FileHash -LiteralPath $app).Hash.ToLowerInvariant() -ne $candidate.desktopSha256) { throw 'Installed Desktop hash mismatch' }
-if ((Get-FileHash -LiteralPath $engine).Hash.ToLowerInvariant() -ne $candidate.engine.sha256 -or $manifest.sha256 -ne $candidate.engine.sha256 -or $manifest.profile -ne 'release' -or $manifest.version -ne $candidate.engine.version) { throw 'Installed engine mismatch' }
 Copy-Item acceptance-candidate/candidate.json acceptance-evidence/candidate.json
-@{ installed = $true; installDirectory = $installDir; installerExitCode = $install.ExitCode; signature = (Get-AuthenticodeSignature $app).Status.ToString() } | ConvertTo-Json | Set-Content acceptance-evidence/install.json
+$installedDesktopHash = (Get-FileHash -LiteralPath $app).Hash.ToLowerInvariant()
+$installedEngineHash = (Get-FileHash -LiteralPath $engine).Hash.ToLowerInvariant()
+@{ installed = $true; installDirectory = $installDir; installerExitCode = $install.ExitCode; desktopSha256 = $installedDesktopHash; engineSha256 = $installedEngineHash; signature = (Get-AuthenticodeSignature $app).Status.ToString() } | ConvertTo-Json | Set-Content acceptance-evidence/install.json
+if ($installedDesktopHash -ne $candidate.desktopSha256) { throw 'Installed Desktop hash mismatch' }
+if ($installedEngineHash -ne $candidate.engine.sha256 -or $manifest.sha256 -ne $candidate.engine.sha256 -or $manifest.profile -ne 'release' -or $manifest.version -ne $candidate.engine.version) { throw 'Installed engine mismatch' }
 $env:PHONTON_ACCEPTANCE_APP = $app
 $env:PHONTON_ACCEPTANCE_PROFILE = Join-Path $env:RUNNER_TEMP 'phonton-preview-webview-profile'
 $env:PHONTON_ACCEPTANCE_FIXTURE = Join-Path $env:RUNNER_TEMP 'phonton acceptance fixture'
 if ((Test-Path $env:PHONTON_ACCEPTANCE_PROFILE) -or (Test-Path $env:PHONTON_ACCEPTANCE_FIXTURE)) { throw 'Test profile and fixture must be fresh' }
+if ($env:PHONTON_ACCEPTANCE_FULL_JOURNEY -eq 'true') {
+    if (Get-NetTCPConnection -State Listen -LocalPort 11434 -ErrorAction SilentlyContinue) { throw 'Model runtime port already occupied' }
+    $stateDirectory = Join-Path $env:RUNNER_TEMP 'phonton acceptance state'
+    if (Test-Path -LiteralPath $stateDirectory) { throw 'Full acceptance state must be fresh' }
+    New-Item -ItemType Directory -Path $stateDirectory | Out-Null
+    $env:PHONTON_LOCAL_STATE = Join-Path $stateDirectory 'local-models.json'
+    $env:PHONTON_CONFIG_PATH = Join-Path $stateDirectory 'config.toml'
+}
 $driver = Start-Process tauri-driver -ArgumentList @('--native-driver', ('"' + $env:PHONTON_EDGE_DRIVER + '"')) -PassThru -WindowStyle Hidden -RedirectStandardOutput acceptance-evidence/tauri-driver.log -RedirectStandardError acceptance-evidence/tauri-driver-error.log
 try {
     node scripts/windows-acceptance/installed-smoke.mjs

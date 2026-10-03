@@ -12,5 +12,13 @@ if ($Action -eq 'close') {
     if ($appProcess.Path -ne $appPath -or !$appProcess.CloseMainWindow()) { throw 'Normal window-close request failed' }
 } else {
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort 47831 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess)
-    @{ apps = @($apps | Select-Object ProcessId,ParentProcessId,ExecutablePath); engines = @($engines | Select-Object ProcessId,ParentProcessId,ExecutablePath); listeners = $listeners } | ConvertTo-Json -Depth 5 -Compress
+    $runtimes = @()
+    $runtimeListeners = @()
+    if ($env:PHONTON_ACCEPTANCE_FULL_JOURNEY -eq 'true') {
+        $runtimeRoot = Join-Path (Split-Path $env:PHONTON_LOCAL_STATE) 'runtime'
+        $runtimePrefix = [IO.Path]::GetFullPath($runtimeRoot).TrimEnd('\') + '\'
+        $runtimes = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($runtimePrefix, [StringComparison]::OrdinalIgnoreCase) } | Select-Object ProcessId,ParentProcessId,ExecutablePath)
+        $runtimeListeners = @(Get-NetTCPConnection -State Listen -LocalPort 11434 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess)
+    }
+    @{ apps = @($apps | Select-Object ProcessId,ParentProcessId,ExecutablePath); engines = @($engines | Select-Object ProcessId,ParentProcessId,ExecutablePath); listeners = $listeners; runtimes = $runtimes; runtimeListeners = $runtimeListeners } | ConvertTo-Json -Depth 5 -Compress
 }

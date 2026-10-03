@@ -4,6 +4,14 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Windows acceptance compares installed Desktop bytes with the NSIS
+  payload and verifies Tauri's exact bundle-marker change from the raw build.
+- [added] Explicit extended Windows acceptance for managed model setup,
+  calibration, verified edits, Apply, receipt reopen and original-byte rollback.
+
+- [fixed] Refresh vulnerable build-tool dependencies in the npm lockfile:
+  Browserslist, baseline-browser-mapping, PostCSS and Nano ID.
+
 - [added] Separate Windows Preview CI smoke for installed bytes, native plan
   review, owned-engine reconnect, normal close and workspace persistence.
 
