@@ -4,6 +4,8 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Refresh compatible Rust dependencies for published advisories in
+  Rustls, Quinn, Anyhow and Event Listener; update plist to use patched Quick XML.
 - [fixed] Windows acceptance compares installed Desktop bytes with the NSIS
   payload and verifies Tauri's exact bundle-marker change from the raw build.
 - [added] Explicit extended Windows acceptance for managed model setup,
