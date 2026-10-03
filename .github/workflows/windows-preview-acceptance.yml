@@ -1,0 +1,88 @@
+name: Windows Preview acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['2ntt/windows-preview-acceptance-*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - name: Validate exact public engine pin
+        id: pin
+        shell: pwsh
+        run: |
+          $pin = Get-Content engine-source.json -Raw | ConvertFrom-Json
+          if ($pin.repository -ne 'phonton-dev/phonton-cli' -or $pin.commit -cnotmatch '^[a-f0-9]{40}$' -or $pin.version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid engine pin' }
+          "sha=$($pin.commit)" >> $env:GITHUB_OUTPUT
+          "version=$($pin.version)" >> $env:GITHUB_OUTPUT
+      - uses: actions/checkout@v4
+        with:
+          repository: phonton-dev/phonton-cli
+          ref: ${{ steps.pin.outputs.sha }}
+          path: engine-source
+          persist-credentials: false
+      - run: npm ci
+      - name: Check desktop contracts
+        run: node --test scripts/*.test.mjs
+      - name: Build isolated unsigned Preview with its pinned release engine
+        env:
+          PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/engine-source
+          PHONTON_ENGINE_EXPECTED_VERSION: ${{ steps.pin.outputs.version }}
+        run: npm run tauri:build:local -- -- --locked
+      - name: Record candidate identity
+        run: node scripts/windows-acceptance/package-candidate.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-preview-candidate
+          path: acceptance-candidate/
+          if-no-files-found: error
+          retention-days: 7
+
+  installed-smoke:
+    needs: package
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-preview-candidate
+          path: acceptance-candidate
+      - name: Install WebDriver
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Match EdgeDriver to installed WebView2
+        run: ./scripts/windows-acceptance/prepare-driver.ps1
+      - name: Install and test the actual Preview application
+        run: ./scripts/windows-acceptance/run.ps1
+      - name: Upload evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-preview-native-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7

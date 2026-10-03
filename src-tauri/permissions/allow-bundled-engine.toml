@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-bundled-engine"
+description = "Inspect and hash-check the engine packaged with this application."
+commands.allow = ["bundled_phonton_engine"]

@@ -105,32 +105,35 @@ export function SetupStepAuth({ authState }: Props) {
             </p>
           ) : null}
 
-          <div className="field" style={{ marginTop: 16 }}>
-            <label htmlFor="session-paste">Manual token (if deep link fails)</label>
-            <textarea
-              id="session-paste"
-              className="goal-input"
-              rows={3}
-              placeholder="Paste session token from phonton.dev/account"
-              value={pasteToken}
-              onChange={(e) => setPasteToken(e.target.value)}
-            />
-            <div className="toolbar">
-              <button type="button" className="btn secondary" onClick={applyPaste}>
-                Apply token
-              </button>
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  if (isTauri()) void openExternal(accountUrl(true));
-                  else window.open(accountUrl(true), "_blank");
-                }}
-              >
-                Open account page
-              </button>
+          <details className="setup-token-details">
+            <summary>Having trouble signing in?</summary>
+            <div className="field" style={{ marginTop: 12 }}>
+              <label htmlFor="session-paste">Paste a session token from phonton.dev/account</label>
+              <textarea
+                id="session-paste"
+                className="goal-input"
+                rows={3}
+                placeholder="Paste session token"
+                value={pasteToken}
+                onChange={(e) => setPasteToken(e.target.value)}
+              />
+              <div className="toolbar">
+                <button type="button" className="btn secondary" onClick={applyPaste}>
+                  Apply token
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  onClick={() => {
+                    if (isTauri()) void openExternal(accountUrl(true));
+                    else window.open(accountUrl(true), "_blank");
+                  }}
+                >
+                  Open account page
+                </button>
+              </div>
             </div>
-          </div>
+          </details>
         </>
       )}
 

@@ -6,6 +6,7 @@ import { isAuthenticated, clearSessionToken } from "../lib/license";
 import { isSetupComplete, resetSetup } from "../lib/setup";
 import { loadStoredTheme, type ThemeId } from "../themes/presets";
 import { MainShell } from "./MainShell";
+import { LocalWorkbench } from "./LocalWorkbench";
 import { SettingsPage } from "../pages/SettingsPage";
 
 type AppView = "main" | "settings";
@@ -21,7 +22,7 @@ function wantsHarnessPreview() {
   return new URLSearchParams(window.location.search).has("preview");
 }
 
-export default function App() {
+function OnlineApp() {
   const [setupDone, setSetupDone] = useState(
     () => wantsHarnessPreview() || (isSetupComplete() && isAuthenticated()),
   );
@@ -82,4 +83,15 @@ export default function App() {
   return (
     <MainShell onOpenSettings={() => setView("settings")} />
   );
+}
+
+/** Local work is available without an account or an online bootstrap request. */
+export default function App() {
+  const [onlineSetup, setOnlineSetup] = useState(false);
+  const [settings, setSettings] = useState(false);
+  const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
+  if (onlineSetup) return <OnlineApp />;
+  if (settings) return <SettingsPage themeId={themeId} onThemeChange={setThemeId}
+    onBack={() => setSettings(false)} onShowSetup={() => setOnlineSetup(true)} />;
+  return <LocalWorkbench onSettings={() => setSettings(true)} />;
 }

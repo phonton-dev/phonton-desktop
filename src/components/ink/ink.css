@@ -1,0 +1,63 @@
+/* Ink & Photon tokens: see DESIGN.md at the repository root. */
+:root {
+  --ink-bg: #0b0b0c;
+  --ink-panel: #121214;
+  --ink-raised: #1a1a1d;
+  --ink-line: #2a2a2e;
+  --ink-rule: #3a3936;
+  --ink-paper: #ecebe6;
+  --ink-muted: #a3a19a;
+  --ink-dim: #96938c;
+  --ink-verified: #8be38b;
+  --ink-running: #ffb35c;
+  --ink-failed: #ff6b6b;
+  --ink-photon: #5fe0e8;
+  --ink-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ink-mono: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+}
+
+.ink-phi { margin: 0; font: 700 13px/1.05 var(--ink-mono); letter-spacing: .5px; white-space: pre; user-select: none; }
+
+.ink-track { display: flex; flex-wrap: wrap; align-items: center; row-gap: 8px; font: 13px/1 var(--ink-mono); }
+.ink-step { display: inline-flex; align-items: center; }
+.ink-stage { display: inline-flex; gap: 7px; align-items: center; color: var(--ink-dim); }
+.ink-stage .m { width: 1ch; text-align: center; }
+.ink-stage[data-state=idle] { color: var(--ink-muted); }
+.ink-stage[data-state=done] { color: var(--ink-muted); }
+.ink-stage[data-state=done] .m { color: var(--ink-verified); }
+.ink-stage[data-state=active] { color: var(--ink-paper); font-weight: 700; }
+.ink-stage[data-state=active] .m { color: var(--ink-photon); animation: ink-pulse 1.1s ease-in-out infinite; }
+.ink-stage[data-state=failed] { color: var(--ink-failed); font-weight: 700; }
+.ink-conn { position: relative; width: 34px; height: 1px; margin: 0 12px; background: var(--ink-line); }
+.ink-conn[data-done] { background: var(--ink-dim); }
+.ink-conn .p { position: absolute; top: -3px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 10px var(--c); opacity: 0; }
+.ink-conn[data-live] .p { animation: ink-travel 1.1s linear infinite; }
+.ink-track[data-idle] .ink-conn .p { animation: none; }
+@keyframes ink-pulse { 50% { opacity: .35; } }
+@keyframes ink-travel { 0% { left: 0; opacity: 0; } 15%, 85% { opacity: 1; } 100% { left: calc(100% - 7px); opacity: 0; } }
+@keyframes ink-relay { 0% { left: 0; opacity: 0; } 3%, 17% { opacity: 1; } 20%, 100% { left: calc(100% - 7px); opacity: 0; } }
+
+.ink-receipt { border: 1px solid var(--ink-rule); background: var(--ink-panel); padding: 0 20px 16px; font: 13px/1.6 var(--ink-mono); max-width: 640px; }
+.ink-receipt header { display: flex; justify-content: space-between; align-items: center; margin: 0 -20px 4px; padding: 10px 20px; border-bottom: 1px solid var(--ink-line); color: var(--ink-muted); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; }
+.ink-headline { margin: 12px 0 14px; color: var(--ink-paper); }
+.ink-receipt dl { margin: 0; }
+.ink-leader { display: flex; align-items: baseline; margin: 3px 0; }
+.ink-leader dt { color: var(--ink-muted); }
+.ink-leader .dots { flex: 1; margin: 0 10px; height: 2px; align-self: center; transform: translateY(3px); background: radial-gradient(circle, var(--ink-dim) 0.9px, transparent 1.2px) left center / 7px 2px repeat-x; }
+.ink-leader dd { margin: 0; color: var(--ink-paper); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.ink-stamp { padding: 3px 9px; font-weight: 700; letter-spacing: 1px; color: var(--ink-bg); animation: ink-stamp .5s cubic-bezier(.2, .9, .3, 1.2) .9s both; }
+.ink-stamp[data-verdict=verified] { background: var(--ink-verified); }
+.ink-stamp[data-verdict=partial] { background: var(--ink-running); }
+.ink-stamp[data-verdict=unverified] { background: var(--ink-muted); }
+.ink-stamp[data-verdict=failed] { background: var(--ink-failed); }
+@keyframes ink-stamp { from { opacity: 0; transform: scale(1.6) rotate(-4deg); } to { opacity: 1; transform: none; } }
+
+.ink-gauge { font-family: var(--ink-mono); color: var(--ink-line); letter-spacing: -1px; }
+.ink-gauge b { color: var(--ink-muted); font-weight: 400; }
+.ink-spin { color: var(--ink-photon); font-family: var(--ink-mono); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-stage[data-state=active] .m, .ink-conn .p, .ink-stamp { animation: none !important; }
+  .ink-conn[data-live] .p { opacity: 1; left: 45%; }
+  .ink-stamp { opacity: 1; }
+}

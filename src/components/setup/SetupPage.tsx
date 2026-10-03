@@ -59,7 +59,7 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
   return (
     <div className="setup-page">
       <div className="setup-card">
-        <SetupHeader />
+        {step !== "welcome" ? <SetupHeader /> : null}
         {step !== "welcome" ? (
           <div className="setup-steps" aria-hidden>
             {STEPS.filter((s) => s !== "welcome").map((s, i) => {

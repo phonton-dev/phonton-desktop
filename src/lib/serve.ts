@@ -5,6 +5,20 @@ const SERVE_URL = "http://127.0.0.1:47831/rpc";
 const SERVE_HEALTH_URL = "http://127.0.0.1:47831/health";
 let rpcId = 1;
 
+export class RpcRemoteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RpcRemoteError";
+  }
+}
+
+export function localEngineErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return error instanceof TypeError && /^(failed to fetch|networkerror when attempting to fetch resource\.?)$/i.test(message)
+    ? "Cannot reach the local engine. Reconnect it, then retry."
+    : message;
+}
+
 async function serveFetch(url: string, init?: RequestInit): Promise<Response> {
   if (isTauri()) {
     if (url.endsWith("/health") && (!init?.method || init.method === "GET")) {
@@ -37,7 +51,7 @@ export async function rpc<T>(method: string, params: Record<string, unknown> = {
   });
   const body = await res.json();
   if (body.error) {
-    throw new Error(body.error.message ?? "rpc error");
+    throw new RpcRemoteError(body.error.message ?? "rpc error");
   }
   return body.result as T;
 }
@@ -51,8 +65,25 @@ export async function checkServeHealth(): Promise<boolean> {
   }
 }
 
+export type EnginePing = {
+  version: string;
+  handoff_schema: string;
+  local_models_schema?: number;
+  local_model_operation_schema?: number;
+  local_catalog_snapshot_schema?: number;
+  local_endpoint_schema?: number;
+  local_storage_schema?: number;
+  local_run_schema?: number;
+  local_creation_schema?: number;
+};
+
 export async function ping() {
-  return rpc<{ version: string; handoff_schema: string }>("ping");
+  const value = await rpc<unknown>("ping");
+  if (!value || typeof value !== "object" || !("version" in value) || typeof value.version !== "string"
+    || !("handoff_schema" in value) || typeof value.handoff_schema !== "string") {
+    throw new Error("Local engine returned an invalid ping response.");
+  }
+  return value as EnginePing;
 }
 
 const POLL_ATTEMPTS = 40;
@@ -61,7 +92,7 @@ const POLL_INTERVAL_MS = 500;
 
 export async function waitForPing(
   bootstrap = false,
-): Promise<{ version: string; handoff_schema: string } | null> {
+): Promise<EnginePing | null> {
   const attempts = bootstrap ? POLL_ATTEMPTS_BOOTSTRAP : POLL_ATTEMPTS;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -91,6 +122,10 @@ export async function goalStart(goal: string) {
 
 export async function goalStatus(taskId: string) {
   return rpc<{ done: boolean; state: unknown }>("goal.status", { task_id: taskId });
+}
+
+export async function goalActive() {
+  return rpc<{ running: boolean; task_ids: string[] }>("goal.active");
 }
 
 export function subscribeEvents(taskId: string, onEvent: (data: string) => void) {

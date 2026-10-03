@@ -26,13 +26,13 @@ function EconomicsBlock({ session }: { session: GoalSession | undefined }) {
     <>
       <section className="grid grid-cols-2 gap-3">
         <div className="rounded-lg border bg-card/40 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost</p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost estimate</p>
           <p className="text-lg font-semibold tabular-nums">
             {receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"}
           </p>
         </div>
         <div className="rounded-lg border bg-card/40 px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Saved vs frontier</p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Est. saved vs frontier</p>
           <p className="text-lg font-semibold tabular-nums text-emerald-400">
             {receipt && saved != null
               ? `${formatUsdMicros(receipt.saved_usd_micros)} (${saved}%)`
@@ -43,9 +43,11 @@ function EconomicsBlock({ session }: { session: GoalSession | undefined }) {
       <section>
         <h4 className="text-sm font-medium mb-2">Models</h4>
         <p className="text-xs text-muted-foreground">{route}</p>
-        {receipt && !receipt.pricing_known ? (
+        {receipt ? (
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Cost is estimated from published list prices for the model tier.
+            {receipt.pricing_known
+              ? "Model-rate estimate from token counts; discounts and cache pricing can change the billed amount."
+              : "Model-tier price proxy; complete model pricing was unavailable. This is not a bill."}
           </p>
         ) : null}
       </section>

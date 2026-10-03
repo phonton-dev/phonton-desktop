@@ -1,0 +1,12 @@
+{
+  "build": {
+    "beforeDevCommand": "node scripts/prepare-local-engine.mjs --tauri && npm run dev",
+    "beforeBuildCommand": "node scripts/prepare-local-engine.mjs --tauri && npm run build"
+  },
+  "bundle": {
+    "resources": {
+      "binaries/phonton-engine.exe": "local-engine/phonton.exe",
+      "binaries/local-engine.json": "local-engine/manifest.json"
+    }
+  }
+}

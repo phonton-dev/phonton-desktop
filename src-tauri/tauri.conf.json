@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Phonton",
-  "version": "0.3.4",
+  "version": "0.4.0-beta.1",
   "identifier": "dev.phonton.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -53,7 +53,9 @@
     },
     "deep-link": {
       "desktop": {
-        "schemes": ["phonton"]
+        "schemes": [
+          "phonton"
+        ]
       }
     },
     "updater": {
