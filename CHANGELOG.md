@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Installed full-journey acceptance waits for Run to become enabled
+  before clicking once; readiness delays cannot silently discard the action.
+
 - [fixed] Installed navigation acceptance waits for the asynchronous machine
   evidence directory before each full-plan snapshot; strict draft, plan
   and consent comparisons remain unchanged.

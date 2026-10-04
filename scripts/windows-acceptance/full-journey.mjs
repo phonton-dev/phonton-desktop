@@ -183,7 +183,7 @@ export async function fullJourney(api) {
   assert.equal(await execute('return document.querySelector(".lw-approval input").checked'), true);
   unchanged();
   await screenshot('full-02-approved-plan');
-  await click('.lw-plan-actions .lw-primary');
+  await button('Run local goal →', '//div[contains(concat(" ",normalize-space(@class)," ")," lw-plan-actions ")]//');
   const runId = await wait(() => execute('return localStorage.getItem("phonton.local.lastRun")'), 'new run ID');
   assert.match(runId, /^[a-f0-9-]{36}$/);
   const runDirectory = path.join(stateDirectory, 'runs', runId);
