@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Installed navigation acceptance waits for the asynchronous machine
+  evidence directory before each full-plan snapshot; strict draft, plan
+  and consent comparisons remain unchanged.
+
 - [changed] Add a focused workbench, persistent workspace navigation, and a
   shared Graphite appearance across local models and settings.
 - [fixed] Preserve drafts and sessions across navigation, synchronize selected

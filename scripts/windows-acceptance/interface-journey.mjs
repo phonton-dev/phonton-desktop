@@ -13,14 +13,19 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
   }
   const settingsButton = text => button(text, '//div[contains(concat(" ",normalize-space(@class)," ")," settings-page ")]//');
   const section = text => button(text, '//nav[@aria-label="Settings sections"]//');
-  const draftState = () => execute(`return {
+  // Machine metadata arrives after the plan and can refresh on focus changes.
+  // Read readiness and the complete draft atomically at every comparison; never
+  // retry a changed draft until it happens to match the expected state.
+  const draftState = () => until(() => execute(`
+    if (!document.querySelector('.lw-plan-flow code')?.textContent.trim()) return false;
+    return {
     goal: document.querySelector('#local-goal').value,
     files: document.querySelector('#local-files').value,
     check: document.querySelector('#local-check').value,
     plan: document.querySelector('[aria-label=Plan]').textContent,
     approved: document.querySelector('.lw-approval input').checked,
     repository: localStorage.getItem('phonton.projects.active')
-  }`);
+  }`), 'machine evidence directory in the plan');
   const original = await draftState();
   assert.ok(original.goal && original.plan, 'A real plan must already be present');
   assert.equal(original.approved, false);
