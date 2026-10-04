@@ -13,6 +13,22 @@ export function validateReleaseVersions(tag, versions) {
   return { version, prerelease: version.includes('-') };
 }
 
+export function validateMsiVersion(appVersion, configuredVersion) {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-beta\.([1-9]\d*))?$/.exec(appVersion);
+  if (!match) throw new Error('MSI version mapping supports stable and beta.N releases; define a mapping before adding another release channel.');
+  const fields = match.slice(1, 4).map(Number);
+  if (match[4]) fields.push(Number(match[4]));
+  const limits = [255, 255, 65535, 65535];
+  if (fields.some((value, index) => !Number.isSafeInteger(value) || value > limits[index])) {
+    throw new Error('MSI version exceeds Windows Installer numeric limits.');
+  }
+  const expected = fields.join('.');
+  if (configuredVersion !== expected) {
+    throw new Error(`Windows MSI version is ${configuredVersion ?? 'unset'}; ${appVersion} requires ${expected}.`);
+  }
+  return expected;
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const read = file => readFileSync(file, 'utf8');
   const cargo = read('src-tauri/Cargo.toml');
@@ -26,6 +42,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     'Cargo package': cargo.match(/\[package\][\s\S]*?^version\s*=\s*"([^"\n]+)"/m)?.[1],
     'Cargo lock': lock.match(/name = "phonton-desktop"\r?\nversion = "([^"\n]+)"/)?.[1],
   });
+  result.msiVersion = validateMsiVersion(result.version, JSON.parse(read('src-tauri/tauri.windows.conf.json')).bundle?.windows?.wix?.version);
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `prerelease=${result.prerelease}\n`);
   console.log(JSON.stringify(result));
 }

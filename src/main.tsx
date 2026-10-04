@@ -7,6 +7,7 @@ import { applyTheme, loadStoredTheme } from "./themes/presets";
 import { isTauri } from "./lib/sidecar";
 import "./styles/globals.css";
 import "./styles/shell.css";
+import "./styles/workspace.css";
 
 applyTheme(loadStoredTheme());
 

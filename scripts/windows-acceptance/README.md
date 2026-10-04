@@ -36,12 +36,18 @@ Checks:
   source/test bytes and Git index stay unchanged, host permission stays off, and
   inference stays disabled without a calibrated model.
 - Local models reads the runner's actual hardware state.
+- All eleven Settings sections render and identify the selected section. Light
+  reaches the actual workbench surface; Graphite is restored. Settings and optional
+  online-setup round trips preserve the goal, scope, checks, reviewed plan and
+  unapproved execution consent, without restarting the engine or changing files.
 - Normal window-close via `CloseMainWindow` ends the app, engine and listener while
   both WebDrivers remain alive. Driver teardown cannot make that assertion pass.
 - A new app process restores the selected repository; closing it again cleans up.
 
 Screenshots, candidate/driver identities, process ownership and assertion results
 are uploaded as `windows-preview-native-evidence`, including partial failure data.
+Four `ui-*` captures show theme and navigation results. These are still images,
+not a recorded video or pointer-motion trace.
 The scripts refuse to run on a non-Actions machine. Syntax checks do not establish
 runtime acceptance; only a completed workflow at the recorded source commit does.
 

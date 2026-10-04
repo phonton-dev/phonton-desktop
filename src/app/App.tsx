@@ -22,15 +22,14 @@ function wantsHarnessPreview() {
   return new URLSearchParams(window.location.search).has("preview");
 }
 
-function OnlineApp() {
+function OnlineApp({ themeId, onThemeChange, active }: { themeId: ThemeId; onThemeChange: (id: ThemeId) => void; active: boolean }) {
   const [setupDone, setSetupDone] = useState(
     () => wantsHarnessPreview() || (isSetupComplete() && isAuthenticated()),
   );
-  const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
   const [setupStep, setSetupStep] = useState<SetupStep>(initialSetupStep);
   const [view, setView] = useState<AppView>("main");
 
-  useAppUpdater();
+  useAppUpdater(active && setupDone);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -54,7 +53,7 @@ function OnlineApp() {
     return (
       <SetupPage
         themeId={themeId}
-        onThemeChange={setThemeId}
+        onThemeChange={onThemeChange}
         initialStep={setupStep}
         onComplete={() => {
           if (isAuthenticated()) setSetupDone(true);
@@ -63,11 +62,12 @@ function OnlineApp() {
     );
   }
 
-  if (view === "settings") {
-    return (
+  return <>
+    <div className="workspace-view" hidden={view === "settings"}><MainShell onOpenSettings={() => setView("settings")} /></div>
+    {view === "settings" && (
       <SettingsPage
         themeId={themeId}
-        onThemeChange={setThemeId}
+        onThemeChange={onThemeChange}
         onBack={() => setView("main")}
         onShowSetup={() => {
           resetSetup();
@@ -77,21 +77,24 @@ function OnlineApp() {
           setView("main");
         }}
       />
-    );
-  }
-
-  return (
-    <MainShell onOpenSettings={() => setView("settings")} />
-  );
+    )}
+  </>;
 }
 
 /** Local work is available without an account or an online bootstrap request. */
 export default function App() {
   const [onlineSetup, setOnlineSetup] = useState(false);
+  const [onlineVisited, setOnlineVisited] = useState(false);
   const [settings, setSettings] = useState(false);
   const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
-  if (onlineSetup) return <OnlineApp />;
-  if (settings) return <SettingsPage themeId={themeId} onThemeChange={setThemeId}
-    onBack={() => setSettings(false)} onShowSetup={() => setOnlineSetup(true)} />;
-  return <LocalWorkbench onSettings={() => setSettings(true)} />;
+  const returnToWorkspace = () => { setOnlineSetup(false); setSettings(false); setThemeId(loadStoredTheme()); };
+  const openOnlineWorkspace = () => { setOnlineVisited(true); setOnlineSetup(true); };
+  return <>
+    <div className="workspace-view" hidden={settings || onlineSetup}>
+      <LocalWorkbench onSettings={() => setSettings(true)} />
+    </div>
+    {settings && !onlineSetup && <SettingsPage themeId={themeId} onThemeChange={setThemeId}
+      onBack={returnToWorkspace} onShowSetup={openOnlineWorkspace} onOpenOnline={openOnlineWorkspace} />}
+    {onlineVisited && <div className="online-view workspace-view" hidden={!onlineSetup}><div className="online-return"><button onClick={returnToWorkspace}>← Return to local workspace</button><span>Optional account setup</span></div><OnlineApp active={onlineSetup} themeId={themeId} onThemeChange={setThemeId} /></div>}
+  </>;
 }

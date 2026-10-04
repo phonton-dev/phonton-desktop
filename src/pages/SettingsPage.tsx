@@ -18,11 +18,11 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useState } from "react";
 import { checkForAppUpdate } from "@/lib/app-updater";
 import {
-  extensionsList,
   extensionsRead,
   extensionsValidate,
   extensionsWrite,
   fetchConfig,
+  workspaceInfo,
   KNOWN_PROVIDERS,
   saveConfig,
   type PhontonConfig,
@@ -41,6 +41,7 @@ import {
   signInUrl,
   storeCloudToken,
 } from "@/lib/license";
+import { workspacePathMatches } from "@/lib/workspace-identity";
 import { getActiveProject } from "@/lib/projects";
 import { isTauri } from "@/lib/sidecar";
 import { themePresets, themeSwatches, type ThemeId, applyTheme } from "@/themes/presets";
@@ -79,9 +80,10 @@ type Props = {
   onThemeChange: (id: ThemeId) => void;
   onBack: () => void;
   onShowSetup?: () => void;
+  onOpenOnline?: () => void;
 };
 
-export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Props) {
+export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOpenOnline }: Props) {
   const [section, setSection] = useState<SettingsSection>("account");
   const [config, setConfig] = useState<PhontonConfig | null>(null);
   const [configPath, setConfigPath] = useState<string | null>(null);
@@ -99,8 +101,11 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   const [extContent, setExtContent] = useState("");
   const [extStatus, setExtStatus] = useState("");
 
-  const cloudConnected = hasCloudSyncEntitlement(getStoredCloudToken());
-  const projectOpen = Boolean(getActiveProject());
+  const [savedCloudToken, setSavedCloudToken] = useState(getStoredCloudToken());
+  const [tokenFeedback, setTokenFeedback] = useState("");
+  const cloudTokenSaved = hasCloudSyncEntitlement(savedCloudToken);
+  const [engineWorkspace, setEngineWorkspace] = useState<string | null>(null);
+  const projectOpen = workspacePathMatches(getActiveProject(), engineWorkspace);
 
   const loadConfig = useCallback(async () => {
     try {
@@ -112,7 +117,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
     } catch (err) {
       const message = String(err);
       setConfigUpgradeNeeded(isConfigGetError(message));
-      setConfigStatus(message);
+      setConfigStatus(err instanceof TypeError ? "The local engine is unavailable. Connect it from the workspace, then retry." : message);
     }
   }, []);
 
@@ -135,6 +140,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
 
   useEffect(() => {
     void loadConfig();
+    void workspaceInfo().then(info => setEngineWorkspace(info.path)).catch(() => setEngineWorkspace(null));
     if (isTauri()) {
       void getVersion().then(setAppVersion).catch(() => undefined);
       void getName().then(name => setLocalPreview(name === "Phonton Preview")).catch(() => undefined);
@@ -152,7 +158,21 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
     }
   };
 
+  const confirmWorkspaceScope = async () => {
+    try {
+      const info = await workspaceInfo();
+      setEngineWorkspace(info.path);
+      if (workspacePathMatches(getActiveProject(), info.path)) return true;
+      setExtStatus(`Workspace operation stopped. Selected: ${getActiveProject() ?? "none"}. Engine: ${info.path}.`);
+    } catch {
+      setEngineWorkspace(null);
+      setExtStatus("The engine workspace could not be confirmed. Reconnect before editing project configuration.");
+    }
+    return false;
+  };
+
   const loadExtensionFile = async (file: string, scope: "user" | "workspace") => {
+    if (scope === "workspace" && !await confirmWorkspaceScope()) { setExtStatus("The engine workspace does not match this project. Reconnect to the intended folder before editing workspace configuration."); return; }
     setExtFile(file);
     setExtScope(scope);
     try {
@@ -181,7 +201,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   };
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="settings-page flex h-screen flex-col bg-background">
       <header className="flex h-12 items-center gap-3 border-b px-4">
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft className="mr-1 size-4" />
@@ -193,7 +213,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
         ) : null}
       </header>
       <div className="flex min-h-0 flex-1">
-        <nav className="w-52 shrink-0 border-r p-3">
+        <nav className="settings-nav w-52 shrink-0 border-r p-3" aria-label="Settings sections">
           <ScrollArea className="h-full">
             <div className="space-y-1">
               {NAV.map((item) => (
@@ -202,6 +222,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                   variant={section === item.id ? "secondary" : "ghost"}
                   size="sm"
                   className="w-full justify-start"
+                  aria-current={section === item.id ? "page" : undefined}
                   onClick={() => setSection(item.id)}
                 >
                   {item.label}
@@ -212,6 +233,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
         </nav>
         <ScrollArea className="min-h-0 flex-1 p-6">
           <div className="mx-auto max-w-2xl space-y-6">
+            {!config && ["provider", "budget", "index", "permissions", "general"].includes(section) && <section className="space-y-3"><h2>{NAV.find(item => item.id === section)?.label}</h2><p className="text-sm text-muted-foreground">Connect the local engine to read and change these settings. Saved values have not been changed.</p></section>}
             {configUpgradeNeeded ? (
               <Alert variant="destructive">
                 <AlertTitle>CLI upgrade required</AlertTitle>
@@ -234,6 +256,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                     : "Not signed in"}
                 </p>
                 <div className="flex flex-wrap gap-2">
+                  {onOpenOnline && <Button variant="outline" onClick={onOpenOnline}>Open online workspace</Button>}
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -248,7 +271,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                       variant="ghost"
                       onClick={() => {
                         clearSessionToken();
-                        onShowSetup?.();
+                        onBack();
                       }}
                     >
                       Sign out
@@ -269,7 +292,10 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                     variant="secondary"
                     onClick={() => {
                       const t = tokenInput.trim();
-                      if (hasCloudSyncEntitlement(t)) storeCloudToken(t);
+                      if (hasCloudSyncEntitlement(t)) {
+                        storeCloudToken(t); setSavedCloudToken(t);
+                        setTokenFeedback("Token saved on this device. Sync has not been checked.");
+                      } else setTokenFeedback("This token is missing a current cloud entitlement. Get a new token from your account.");
                     }}
                   >
                     Save token
@@ -278,7 +304,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                     variant="ghost"
                     onClick={() => {
                       clearCloudToken();
-                      setTokenInput("");
+                      setTokenInput(""); setSavedCloudToken(null); setTokenFeedback("Cloud token removed from this device.");
                     }}
                   >
                     Clear
@@ -293,9 +319,10 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                     Open account
                   </Button>
                 </div>
-                {cloudConnected ? (
+                {tokenFeedback && <p role="status" className="text-sm text-muted-foreground">{tokenFeedback}</p>}
+                {cloudTokenSaved ? (
                   <Alert>
-                    <AlertTitle>Cloud sync connected</AlertTitle>
+                    <AlertTitle>Cloud token saved</AlertTitle><p className="text-sm mt-2">A saved token does not confirm an active sync connection.</p>
                   </Alert>
                 ) : null}
               </section>
@@ -582,36 +609,37 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                     This project
                   </Button>
                 </div>
+                {!projectOpen && <p className="text-sm text-muted-foreground">Workspace editing is unavailable until the engine and selected repository match. Global settings remain separate.</p>}
                 <Textarea
                   className="min-h-[320px] font-mono text-xs"
+                  aria-label={`${extFile} configuration`}
                   value={extContent}
                   onChange={(e) => setExtContent(e.target.value)}
                 />
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    onClick={() =>
-                      void extensionsWrite(extScope, extFile, extContent).then((r) =>
-                        setExtStatus(`Saved ${r.path}`),
-                      )
-                    }
+                    onClick={async () => {
+                      if (extScope === "workspace" && !await confirmWorkspaceScope()) return;
+                      try { const result = await extensionsWrite(extScope, extFile, extContent); setExtStatus(`Saved ${result.path}`); }
+                      catch { setExtStatus("Could not save this file. Reconnect and try again; your draft is still here."); }
+                    }}
                   >
                     Save {extFile}
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() =>
-                      void extensionsValidate().then((r) =>
-                        setExtStatus(
-                          `Valid=${r.ok} steering=${r.steering_rules} mcp=${r.mcp_servers}`,
-                        ),
-                      )
-                    }
+                    disabled={!projectOpen}
+                    onClick={async () => {
+                      if (!await confirmWorkspaceScope()) return;
+                      try { const result = await extensionsValidate(); setExtStatus(`Valid=${result.ok} steering=${result.steering_rules} mcp=${result.mcp_servers}`); }
+                      catch { setExtStatus("Validation could not run. Reconnect the local engine and try again."); }
+                    }}
                   >
                     Validate
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => void extensionsList().then(() => undefined)}
+                    onClick={() => void loadExtensionFile(extFile, extScope)}
                   >
                     Refresh
                   </Button>
@@ -625,7 +653,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                 <h2 className="text-base font-medium">Doctor</h2>
                 <Button
                   onClick={() =>
-                    void doctorRun(true).then((r) => setDoctorJson(JSON.stringify(r, null, 2)))
+                    void doctorRun(true).then((r) => setDoctorJson(JSON.stringify(r, null, 2))).catch(() => setDoctorJson("Doctor could not connect to the local engine. Reconnect and try again."))
                   }
                 >
                   Run doctor (with provider probe)
@@ -634,9 +662,10 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
               </section>
             ) : null}
 
-            {section === "updates" && isTauri() ? (
+            {section === "updates" ? (
               <section className="space-y-4">
                 <h2 className="text-base font-medium">App updates</h2>
+                {!isTauri() && <p className="text-sm text-muted-foreground">Update checks are available in the installed Desktop app.</p>}
                 <p className="text-sm text-muted-foreground">
                   {appVersion ? `Phonton Desktop v${appVersion}` : "Phonton Desktop"}
                   {updateStatus ? ` · ${updateStatus}` : ""}
@@ -649,7 +678,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
             ) : null}
 
             {configStatus ? (
-              <p className="text-xs text-muted-foreground">{configStatus}</p>
+              <div role="status" className="settings-status"><p className="text-sm text-muted-foreground">{configStatus}</p>{!config && <Button variant="outline" size="sm" onClick={() => void loadConfig()}>Retry connection</Button>}</div>
             ) : null}
           </div>
         </ScrollArea>

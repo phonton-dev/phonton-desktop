@@ -72,7 +72,7 @@ export function SetupStepAuth({ authState }: Props) {
     <div>
       <h2 className="setup-section-title">Sign in to Phonton</h2>
       <p className="setup-section-desc">
-        A free account is required to use Phonton Desktop. Sign in or create an account on phonton.dev. We&apos;ll
+        An account connects the optional online workspace. Local work is available without signing in. Sign in on phonton.dev and we&apos;ll
         return you here automatically.
       </p>
 

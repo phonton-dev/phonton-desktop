@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests, fullJourney } from './full-journey.mjs';
+import { interfaceJourney } from './interface-journey.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Disposable Actions runner required');
 assert.equal(process.platform, 'win32');
@@ -145,7 +146,13 @@ try {
   await screenshot('02-plan-review');
   record('native plan, source identity, unchanged source and index, execution gates', { sourceHashes: identities, planText });
 
-  await click('nav[aria-label=Workspace] button:first-child');
+  await interfaceJourney({ command, execute, click, screenshot, record, until });
+  const afterNavigation = await ownedEngine();
+  assert.equal(afterNavigation.engines[0].ProcessId, first.engines[0].ProcessId, 'Settings and optional setup must preserve the owned engine');
+  for (const [file, digest] of identities) assert.equal(hash(path.join(fixture, file)), digest, `${file} changed during settings navigation`);
+  record('settings navigation preserves engine, source and staging');
+
+  await click('nav[aria-label=Workspace] button[aria-label="Local models"]');
   await until(() => execute('return document.querySelector("#models-title")?.textContent === "Local models" && [...document.querySelectorAll("button")].some(b => b.textContent === "Refresh readings" && !b.disabled)'), 'native model hardware readings');
   assert.match(await execute('return document.querySelector(".model-hardware-details summary").textContent'), /RAM free/);
   await screenshot('03-local-models');

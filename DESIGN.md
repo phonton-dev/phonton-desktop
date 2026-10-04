@@ -1,16 +1,17 @@
 # Phonton desktop design: Ink & Photon
 
-This document describes the current public Desktop design system.
-Tokens are in `src/components/ink/ink.css`; the φ art, loop track, receipt,
+This document describes the upcoming Desktop candidate design system.
+Shared theme tokens are in `src/themes/presets.ts` and `src/styles/workspace.css`; the φ art, loop track, receipt,
 gauge and spinner are in `src/components/ink/Ink.tsx`.
 
 - Ink surfaces, paper text, readable local system sans for interface prose.
   Cascadia/Consolas for code, paths and measured data; no font network requests.
   Numerals are tabular. The composer fits above the fold at common laptop sizes.
 - Colour is light: the φ logo's spectrum appears only on the φ and the photon.
-  Signals are flat: verified green, running amber, failed red, focus cyan.
-- Structure is ASCII: framed boxes with labels on the top rule, bracket nav,
-  dotted leaders, line gauges.
+  Signals are flat: verified green, running amber, failed red, focus sage in Graphite. Appearance presets apply to the whole app.
+- Structure is a persistent workspace rail and a focused task column. Prose uses
+  system sans; code and measured evidence use mono. Technical detail folds into
+  disclosures. Neutral Graphite surfaces and sage focus replace decorative chrome.
 - Motion stays on active work and the identity: the photon on the loop track,
   the φ density wave and receipt entrance. Idle status does not pulse.
   Reduced motion freezes decorative animation.

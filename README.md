@@ -100,6 +100,10 @@ an existing stable installation, native platform signing, consumer Windows,
 macOS/Linux installed behavior or updater installation; retain those release
 gates until their own evidence exists. The separately built MSI package is not
 installed by the NSIS acceptance job and still requires its own acceptance.
+For this beta, Windows MSI metadata uses `0.4.0.1`; the app and release assets
+retain `0.4.0-beta.1`. Release preflight checks that mapping before compiling.
+Windows Installer ignores the fourth version field when comparing upgrades,
+so this numeric mapping does not establish beta-to-stable upgrade behavior.
 Managed Windows runtime setup stages and verifies the downloaded archive and
 extracted Ollama file tree before publishing either. Retrying after an
 interrupted Phonton-owned stage recovers automatically; an unknown stage or
@@ -428,7 +432,7 @@ the plan names files, exact checks, model and budget before Run. A verified
 receipt is still a review, and Apply remains a separate explicit action.
 
 This candidate pins public CLI commit
-`1b860b1637c893ce6d77518e1a841e37f64ab6c3` (0.22.0) in `engine-source.json`.
+`157c2893136266f3a29473b89aa10355fa251e54` (0.22.0) in `engine-source.json`.
 Local Preview packaging uses an explicitly chosen local CLI source and embeds
 its version and SHA-256. That package does not enable updater downloads or
 replace the stable app identity. Installed-app and signing/platform acceptance
@@ -436,6 +440,17 @@ remain separate from the source pin.
 
 The separate [Windows Preview acceptance workflow](scripts/windows-acceptance/README.md)
 builds and installs an unsigned Preview on a fresh cloud Windows runner. It
-checks native plan review, bundled-engine ownership, reconnect, normal close and
-workspace persistence. Model inference, native folder selection, signing and
-consumer Windows acceptance remain separate gates.
+checks native plan review, bundled-engine ownership, reconnect, normal close,
+workspace persistence, settings navigation and draft recovery. Explicit full mode
+also tests one calibrated model through inference, Apply, reopen and rollback.
+Native folder selection, signing and consumer Windows remain separate gates.
+
+### Focused workspace candidate
+
+The workbench keeps goal drafts while Settings or optional account setup is open.
+Navigation keeps both local and online views mounted; project changes synchronize
+across those views and invalidate local plans and execution consent. Recent runs
+remain accessible below the workbench on narrow windows. Graphite is the default
+appearance, with the existing Light and High contrast options preserved.
+Automatic online update prompts stop when that workspace is hidden. Setup's
+welcome screen checks for updates only when requested.

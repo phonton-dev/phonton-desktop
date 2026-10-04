@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSidecar } from "@/hooks/useSidecar";
-import { isTauri } from "@/lib/sidecar";
-import { getActiveProject, setActiveProject } from "@/lib/projects";
-import { memorySize, modelStatus, type ModelStatus } from "@/lib/local-models";
+import { sidecarProcessAlive, isTauri } from "@/lib/sidecar";
+import { getActiveProject, setActiveProject, subscribeActiveProject } from "@/lib/projects";
+import { memorySize, modelStatus, modelOperation, type ModelStatus } from "@/lib/local-models";
 import { applyLocalRun, rollbackLocalRun, cancelLocalRun, localRunApplyStatus, localRunHasEvidence, localRunList, localRunRead, localRunRepositoryMatch, localRunStatus, previewLocalRun, startLocalRun, type CheckEvidence, type LocalApplyReceipt, type LocalReceipt, type LocalPlan, type LocalRunAttempt, type LocalRunList } from "@/lib/local-run";
 import { createPendingLocalStart } from "@/lib/local-run-start";
 import { localPlanBudgetSummary } from "@/lib/local-plan-budget";
@@ -15,8 +15,9 @@ import { sameInstalledModel } from "@/lib/model-download-availability";
 import { localApplyEligibility, localMutationConfirmed, localMutationNeedsRecheck, localRollbackEligibility, localRunRepositorySelection } from "@/lib/local-run-apply";
 import { localEngineErrorMessage, RpcRemoteError } from "@/lib/serve";
 import { LocalModelsPage } from "@/pages/LocalModelsPage";
-import { rpc } from "@/lib/serve";
-import { Gauge, LoopTrack, Phi, Receipt, Spinner, type Track, type Verdict } from "@/components/ink/Ink";
+import { projectSwitchBlockReason } from "@/lib/project-switch";
+import { goalActive, rpc } from "@/lib/serve";
+import { Gauge, LoopTrack, Receipt, Spinner, type Track, type Verdict } from "@/components/ink/Ink";
 import "./local-workbench.css";
 
 const RUN_KEY = "phonton.local.lastRun";
@@ -258,9 +259,23 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
       if (typeof path === "string" && path.trim()) selectRepository(path);
     } catch (e) { reportError(e); }
   };
-  const selectRepository = (path: string) => {
-    if (!path.trim()) return;
-    setRepository(path.trim()); setActiveProject(path.trim()); setRepositoryEntry(false); invalidatePlan(); setHostApproved(false);
+  useEffect(() => subscribeActiveProject(() => {
+    const next = getActiveProject() ?? "";
+    setRepository(next); setRepositoryDraft(next); invalidatePlan();
+    setFiles(""); setNewFile(""); setEditableExisting(""); setCheckText("");
+    setMachineRefresh(value => value + 1);
+  }), []);
+  const selectRepository = async (path: string) => {
+    const next = path.trim();
+    if (!next || busy || applying || checkingReadiness) return;
+    if (next === repository) { setRepositoryEntry(false); return; }
+    try {
+      if (isTauri()) {
+        const reason = await projectSwitchBlockReason({ modelPageOpen: modelsOpen, sessions: [] }, modelOperation, goalActive, localRunStatus, sidecarProcessAlive);
+        if (reason) { setError(reason); return; }
+      }
+      setActiveProject(next); setRepositoryEntry(false);
+    } catch (e) { reportError(e); }
   };
   const scope = files.split(/[\n,]/).map(s => s.trim().replaceAll("\\", "/")).filter(Boolean);
   const existingEdits = editableExisting.split(/[\n,]/).map(s => s.trim().replaceAll("\\", "/")).filter(Boolean);
@@ -431,22 +446,35 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
     <header className="lw-header"><span className="lw-wordmark"><b aria-hidden="true">φ</b>phonton</span>
       <span className="lw-engine">{connected ? `engine ${engine.version}` : label(engine.status)}</span>
       {record && <span className="lw-record" title={`${record.verified_runs} of ${record.runs} finished runs verified · best streak ${record.best_streak}`}><b>{record.verified_runs.toLocaleString()}</b> verified · streak <b data-hot={record.streak > 0 || undefined}>{record.streak}</b></span>}
-      <nav aria-label="Workspace"><button onClick={openModels}>Local models</button><button onClick={onSettings}>Settings</button></nav>
+      <span className="lw-header-note">Your code stays under your control.</span>
     </header>
-    <main className={`lw-main ${receipt || busy || restoring ? "has-run" : ""}`}>
-      {!receipt && !busy && !restoring && <div className="lw-intro">
-        <div className="lw-intro-heading"><Phi /><div><p className="lw-eyebrow">YOUR LOCAL WORKSPACE</p>
-        <h1>{repositoryName(repository) ? <>Let’s work on <span className="lw-repo-name">{repositoryName(repository)}</span>.</> : "A small change. Real proof."}</h1>
-        <p className="lw-intro-copy">Start with a goal. Review the plan. Keep the final say.</p></div></div>
-        <LoopTrack track={{ kind: "idle" }} />
-        <details className="lw-machine-details"><summary>This machine <span>{selectedModelReady ? machine?.active_model : "Choose a local model"}{gpu ? ` · ${memorySize(gpu.available_bytes)} VRAM free` : ""}</span></summary>
+    <div className="lw-layout">
+      <aside className="lw-sidebar" aria-label="Workspace navigation">
+        <div className="lw-sidebar-project"><span className="lw-eyebrow">WORKSPACE</span><strong title={repository}>{repositoryName(repository) || "No repository open"}</strong><button disabled={busy || restoring || applying} onClick={() => void chooseRepository()}>Change folder ↗</button></div>
+        <nav aria-label="Workspace"><span className="lw-nav-current" aria-current="page"><span aria-hidden="true">▱</span> Workbench</span><button aria-label="Local models" onClick={openModels}><span aria-hidden="true">◈</span> Local models</button><button aria-label="Settings" onClick={onSettings}><span aria-hidden="true">⚙</span> Settings</button></nav>
+        {!receipt && !busy && !restoring && <div className="lw-sidebar-history">        <section className="lw-recent" aria-label="Recent saved runs">
+          <div className="lw-recent-heading"><h2>Recent runs</h2><button disabled={!connected} onClick={() => setRecentRunsRefresh(value => value + 1)}>Refresh</button></div>
+          {recentRuns?.runs.length ? <ul id="recent-runs">{(showAllRuns ? recentRuns.runs : recentRuns.runs.slice(0, 3)).map(run => <li key={run.id}><button disabled={!connected} onClick={() => openSavedRunId(run.id)} title={run.goal}><span className="lw-recent-goal">{run.goal}</span><span className="lw-recent-meta">{run.model} · {run.recorded_at_unix_ms ? new Date(run.recorded_at_unix_ms).toLocaleString() : run.id.slice(0, 8)} · Open →</span></button></li>)}</ul> : <p>{recentRunsError ? `Saved runs unavailable: ${recentRunsError}` : recentRuns ? "No saved runs yet. Your first receipt will appear here." : connected ? "Loading saved runs…" : "Connect the engine to show saved runs."}</p>}
+          {recentRuns && recentRuns.runs.length > 3 && <button className="lw-show-runs" aria-expanded={showAllRuns} aria-controls="recent-runs" onClick={() => setShowAllRuns(value => !value)}>{showAllRuns ? "Show fewer runs ↑" : `Show ${recentRuns.runs.length - 3} more runs ↓`}</button>}
+          {showAllRuns && recentRuns?.limited && <p>Showing the latest saved runs. Open older evidence by run ID below.</p>}
+        </section>
+        <details className="lw-saved"><summary>Open by run ID</summary><label htmlFor="saved-run-id">Run ID from a previous receipt</label><div><input id="saved-run-id" value={savedRunId} onChange={e => setSavedRunId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /><button disabled={!connected || !savedRunId.trim()} onClick={openSavedRun}>Open evidence →</button></div></details></div>}
+        <div className="lw-sidebar-machine">        <details className="lw-machine-details"><summary>This machine <span>{selectedModelReady ? machine?.active_model : "Choose a local model"}{gpu ? ` · ${memorySize(gpu.available_bytes)} VRAM free` : ""}</span></summary>
         <dl className="lw-machine" aria-label="This machine">
           <div><dt>model</dt><dd>{selectedModelReady ? <>{machine?.active_model}{activeModel?.profile && <span> · {activeModel.profile.context_tokens.toLocaleString()} ctx · {activeModel.profile.protocol ? label(activeModel.profile.protocol) : "no edit format"}</span>}</> : <button onClick={openModels}>choose a local model →</button>}</dd></div>
           {gpu && <div><dt>vram</dt><dd><Gauge frac={gpu.total_bytes ? 1 - gpu.available_bytes / gpu.total_bytes : 0} /> {memorySize(gpu.available_bytes)} free of {memorySize(gpu.total_bytes)}</dd></div>}
           {machine && <div><dt>ram</dt><dd><Gauge frac={machine.hardware.ram_total_bytes ? 1 - (machine.hardware.ram_available_bytes ?? 0) / machine.hardware.ram_total_bytes : 0} /> {memorySize(machine.hardware.ram_available_bytes)} free of {memorySize(machine.hardware.ram_total_bytes)}</dd></div>}
           <div><dt>inference</dt><dd>{runtimeGate.blocked ? "Runtime needs recovery" : machine?.model_store?.status === "verified_managed" ? "Managed local model · no API charges" : runtimeGate.requiresConsent ? "External loopback runtime · API cost not established" : "Checking runtime"}</dd></div>
         </dl>
-        </details>
+        </details></div>
+      </aside>
+    <main className={`lw-main ${receipt || busy || restoring ? "has-run" : ""}`}>
+      {!receipt && !busy && !restoring && <div className="lw-intro">
+        <div className="lw-intro-heading"><div><p className="lw-eyebrow">NEW GOAL</p>
+        <h1>{repositoryName(repository) ? <>What’s next for <span className="lw-repo-name">{repositoryName(repository)}</span>?</> : "What would you like to build?"}</h1>
+        <p className="lw-intro-copy">Start with a goal. Review the plan. Keep the final say.</p></div></div>
+
+
       </div>}
       {(receipt || busy || restoring) && <section className="lw-run" aria-label="Local goal progress">
         <div className="lw-run-heading"><span>{busy ? <Spinner /> : restoring && restoreError ? "×" : receipt?.selected_candidate ? "◇" : "·"} {receipt ? label(receipt.state) : restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped" : "Recovery needs attention" : "Restoring saved goal" : "Preparing local goal"}</span>
@@ -520,7 +548,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
         </>}
       </section>}
       {error && <div className="lw-error" role="alert"><p>{error}</p>{connectionError && <button onClick={() => { setError(null); void refresh(); }}>Reconnect engine</button>}</div>}
-      {!connected && <div className="lw-offline" role="status"><p>{engine.status === "offline" || engine.status === "upgrade_required" ? engine.error : "Connecting to the local engine…"}</p>{engine.status === "offline" && <code>phonton serve</code>}<button onClick={() => void refresh()}>Reconnect</button></div>}
+      {!connected && <div className="lw-offline" role="status"><div><strong>{engine.status === "offline" ? "Connect your local engine" : engine.status === "upgrade_required" ? "Your engine needs an update" : "Connecting to the local engine…"}</strong><p>Your draft stays here while you connect.</p>{(engine.status === "offline" || engine.status === "upgrade_required") && <details><summary>Connection details</summary><p>{engine.error}</p>{engine.status === "offline" && <code>phonton serve</code>}</details>}</div><button onClick={() => void refresh()}>Reconnect ↗</button></div>}
       {!receipt && !busy && !restoring && <section className="lw-compose" aria-label="New local goal">
         <div className="lw-context"><button onClick={() => void chooseRepository()}>{repository ? `⌑ ${repository.split(/[\\/]/).pop()}` : "⌑ Open repository"}</button><span data-tone={runtimePresentation.tone}>{runtimePresentation.label}</span><span className="lw-path" title={repository}>{repository}</span></div>
         {activeModel?.profile && activeModel.context_error && <p className="lw-creation-note" role="status">Current model metadata: {activeModel.context_error} A goal checks it again before sending repository context.</p>}
@@ -562,15 +590,10 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
             <button disabled={planning || checkingReadiness || !connected} onClick={() => void review()}>{planning ? "Inspecting repository…" : "Review plan again"}</button></div>
           </div>}
         {!plan && <div className="lw-submit"><span>{!repository ? "Choose a repository to get started." : !goal.trim() ? "Describe the change you want to make." : machine?.runtime_error ? `Model inventory unavailable: ${machine.runtime_error}` : "Review the scope before anything runs."}</span><button className="lw-primary" disabled={planning || !connected || !repository || !goal.trim()} onClick={() => void review()}>{planning ? "Inspecting repository…" : "Review plan →"}</button></div>}
-        <section className="lw-recent" aria-label="Recent saved runs">
-          <div className="lw-recent-heading"><h2>Recent runs</h2><button disabled={!connected} onClick={() => setRecentRunsRefresh(value => value + 1)}>Refresh</button></div>
-          {recentRuns?.runs.length ? <ul id="recent-runs">{(showAllRuns ? recentRuns.runs : recentRuns.runs.slice(0, 3)).map(run => <li key={run.id}><button disabled={!connected} onClick={() => openSavedRunId(run.id)} title={run.goal}><span className="lw-recent-goal">{run.goal}</span><span className="lw-recent-meta">{run.model} · {run.recorded_at_unix_ms ? new Date(run.recorded_at_unix_ms).toLocaleString() : run.id.slice(0, 8)} · Open →</span></button></li>)}</ul> : <p>{recentRunsError ? `Saved runs unavailable: ${recentRunsError}` : recentRuns ? "No saved runs yet. Your first receipt will appear here." : connected ? "Loading saved runs…" : "Connect the engine to show saved runs."}</p>}
-          {recentRuns && recentRuns.runs.length > 3 && <button className="lw-show-runs" aria-expanded={showAllRuns} aria-controls="recent-runs" onClick={() => setShowAllRuns(value => !value)}>{showAllRuns ? "Show fewer runs ↑" : `Show ${recentRuns.runs.length - 3} more runs ↓`}</button>}
-          {showAllRuns && recentRuns?.limited && <p>Showing the latest saved runs. Open older evidence by run ID below.</p>}
-        </section>
-        <details className="lw-saved"><summary>Open by run ID</summary><label htmlFor="saved-run-id">Run ID from a previous receipt</label><div><input id="saved-run-id" value={savedRunId} onChange={e => setSavedRunId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /><button disabled={!connected || !savedRunId.trim()} onClick={openSavedRun}>Open evidence →</button></div></details>
+
       </section>}
     </main>
+    </div>
     <footer className="lw-footer"><span>{runtimePresentation.footer} · explicit execution · inspectable evidence</span><span>phonton</span></footer>
   </div>;
 }

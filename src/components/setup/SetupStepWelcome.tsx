@@ -58,14 +58,6 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
     }
   };
 
-  useEffect(() => {
-    if (!isTauri()) return;
-    const timer = window.setTimeout(() => {
-      void handleCheckUpdates();
-    }, 800);
-    return () => window.clearTimeout(timer);
-  }, []);
-
   return (
     <div className="setup-welcome">
       <img src="/phonton-logo.png" alt="Phonton" className="setup-logo" />

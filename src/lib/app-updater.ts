@@ -25,13 +25,15 @@ function progressPercent(event: DownloadEvent, state: { total: number; downloade
 }
 
 export async function checkForAppUpdate(
-  options: { install?: boolean; onProgress?: (pct: number) => void } = {},
+  options: { install?: boolean; onProgress?: (pct: number) => void; signal?: AbortSignal } = {},
 ): Promise<UpdateCheckResult> {
-  if (!isTauri()) return { status: "skipped" };
+  if (options.signal?.aborted || !isTauri()) return { status: "skipped" };
 
   try {
     if (await getName() === "Phonton Preview") return { status: "skipped" };
+    if (options.signal?.aborted) return { status: "skipped" };
     const update = await check();
+    if (options.signal?.aborted) return { status: "skipped" };
     if (!update) return { status: "current" };
 
     if (!options.install) {
@@ -55,8 +57,9 @@ export async function checkForAppUpdate(
 }
 
 /** Silent check on launch; prompts only when a newer signed build exists. */
-export async function checkForAppUpdateOnLaunch(): Promise<void> {
-  const result = await checkForAppUpdate();
+export async function checkForAppUpdateOnLaunch(signal?: AbortSignal): Promise<void> {
+  const result = await checkForAppUpdate({ signal });
+  if (signal?.aborted) return;
   if (result.status === "error") {
     console.warn("Update check failed:", result.message);
     return;
@@ -66,7 +69,7 @@ export async function checkForAppUpdateOnLaunch(): Promise<void> {
   const install = window.confirm(
     `Phonton ${result.version} is available. Download and install now? The app will restart.`,
   );
-  if (!install) return;
+  if (!install || signal?.aborted) return;
 
-  await checkForAppUpdate({ install: true });
+  await checkForAppUpdate({ install: true, signal });
 }

@@ -17,10 +17,12 @@ import {
   getRecentProjects,
   projectLabel,
   setActiveProject,
+  subscribeActiveProject,
 } from "@/lib/projects";
 import { isTauri, restartSidecar, setSidecarWorkspace, sidecarProcessAlive } from "@/lib/sidecar";
 import { modelOperation } from "@/lib/local-models";
 import { projectSwitchBlockReason } from "@/lib/project-switch";
+import { workspacePathMatches } from "@/lib/workspace-identity";
 import { goalActive } from "@/lib/serve";
 import { localRunStatus } from "@/lib/local-run";
 
@@ -59,12 +61,20 @@ export function MainShell({ onOpenSettings }: Props) {
   const [recentProjects, setRecentProjects] = useState(() => getRecentProjects());
   const [history, setHistory] = useState<TaskSummary[]>([]);
   const [config, setConfig] = useState<PhontonConfig | null>(null);
+  const [engineWorkspace, setEngineWorkspace] = useState<string | null>(null);
   const [workspaceTrusted, setWorkspaceTrusted] = useState<boolean | null>(null);
   const [trustError, setTrustError] = useState<string | null>(null);
   const [projectSwitchError, setProjectSwitchError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(loadSidebarTab);
   const { state: sidecar, refresh: refreshSidecar } = useSidecar();
   const sessionsApi = useSessions();
+
+  useEffect(() => subscribeActiveProject(() => {
+    setProjectPath(getActiveProject());
+    setEngineWorkspace(null);
+    setRecentProjects(getRecentProjects());
+    setWorkspaceTrusted(null); setTrustError(null);
+  }), []);
 
   const refreshRecent = useCallback(() => {
     setRecentProjects(getRecentProjects());
@@ -101,18 +111,32 @@ export function MainShell({ onOpenSettings }: Props) {
   useEffect(() => {
     let cancelled = false;
     if (!projectPath || sidecar.status !== "ready") {
-      setWorkspaceTrusted(null);
+      setWorkspaceTrusted(null); setEngineWorkspace(null);
       return;
     }
     void workspaceInfo()
       .then((info) => {
-        if (!cancelled) setWorkspaceTrusted(info.trusted);
+        if (!cancelled) { setWorkspaceTrusted(workspacePathMatches(projectPath, info.path) ? info.trusted : null); setEngineWorkspace(info.path); }
       })
       .catch(() => {
-        if (!cancelled) setWorkspaceTrusted(null);
+        if (!cancelled) { setWorkspaceTrusted(null); setEngineWorkspace(null); }
       });
     return () => { cancelled = true; };
   }, [projectPath, sidecar.status]);
+
+  const confirmEngineWorkspace = async () => {
+    try {
+      const info = await workspaceInfo();
+      setEngineWorkspace(info.path);
+      if (workspacePathMatches(projectPath, info.path) && workspacePathMatches(getActiveProject(), projectPath)) return true;
+      setWorkspaceTrusted(null);
+      setProjectSwitchError(`The engine is connected to ${info.path}. Select that folder before hosted work.`);
+    } catch {
+      setEngineWorkspace(null); setWorkspaceTrusted(null);
+      setProjectSwitchError("The engine workspace could not be confirmed. Reconnect before hosted work.");
+    }
+    return false;
+  };
 
   const handleSidebarTabChange = useCallback((tab: SidebarTab) => {
     setSidebarTab(tab);
@@ -136,13 +160,13 @@ export function MainShell({ onOpenSettings }: Props) {
         if (reason) { setProjectSwitchError(reason); return; }
       }
       setProjectSwitchError(null);
-      setActiveProject(selected);
       setProjectPath(selected);
       setWorkspaceTrusted(null);
       setTrustError(null);
       refreshRecent();
       setSidecarWorkspace(selected);
       await restartSidecar(selected);
+      setActiveProject(selected);
       await refreshSidecar();
       await refreshHistory();
       await refreshConfig();
@@ -192,6 +216,7 @@ export function MainShell({ onOpenSettings }: Props) {
   }, []);
 
   const hasProject = Boolean(projectPath);
+  const workspaceMatches = workspacePathMatches(projectPath, engineWorkspace);
 
   return (
     <SidebarProvider defaultOpen>
@@ -232,6 +257,8 @@ export function MainShell({ onOpenSettings }: Props) {
                 onOpenRecent={(path) => void openProjectPath(path)}
                 onSidecarAction={() => void handleSidecarAction()}
               />
+            ) : !workspaceMatches ? (
+              <section className="workspace-identity-note"><h1>Confirm the engine workspace</h1><p>The selected folder and the connected engine must agree before hosted work can run.</p><p>Selected: <code>{projectPath}</code></p><p>Engine: <code>{engineWorkspace ?? "not connected"}</code></p>{engineWorkspace && <button onClick={() => setActiveProject(engineWorkspace)}>Use the engine’s current folder →</button>}<p>Your local-model workspace can use its explicitly selected repository without restarting the model runtime.</p></section>
             ) : (
               <ResizablePanelGroup orientation="horizontal" className="h-full min-h-0">
                 <ResizablePanel defaultSize={62} minSize={40}>
@@ -244,8 +271,8 @@ export function MainShell({ onOpenSettings }: Props) {
                     trustError={trustError}
                     onTrustProject={() => void trustProject()}
                     onGoalChange={sessionsApi.setGoal}
-                    onPreviewPlan={() => void sessionsApi.previewPlan()}
-                    onRunGoal={() => void sessionsApi.runGoal()}
+                    onPreviewPlan={() => void confirmEngineWorkspace().then(ok => { if (ok) void sessionsApi.previewPlan(); })}
+                    onRunGoal={() => void confirmEngineWorkspace().then(ok => { if (ok) void sessionsApi.runGoal(); })}
                     onRetrySidecar={() => void refreshSidecar()}
                     onUpgradeSidecar={() => void handleSidecarAction()}
                   />

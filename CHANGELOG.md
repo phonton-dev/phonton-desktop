@@ -4,6 +4,22 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [changed] Add a focused workbench, persistent workspace navigation, and a
+  shared Graphite appearance across local models and settings.
+- [fixed] Preserve drafts and sessions across navigation, synchronize selected
+  repositories, and refuse hosted or workspace-configuration actions when the
+  engine directory does not match the selection.
+- [fixed] Make offline settings recoverable, keep history reachable in narrow
+  windows, and distinguish a saved cloud token from an active sync connection.
+- [fixed] Use explicit navigation labels in installed acceptance; cover all settings
+  sections, theme propagation and draft/plan recovery across optional online setup.
+- [fixed] Stop automatic update checks and discard late prompts when the online
+  workspace is hidden; welcome-screen update checks are now explicitly requested.
+
+- [fixed] Give the Windows MSI its required numeric version `0.4.0.1` while
+  retaining `0.4.0-beta.1` in the app and release assets; preflight rejects stale
+  MSI metadata and out-of-range versions before platform compilation.
+
 - [added] Manual release-candidate builds for all platforms without creating a
   tag or release; the standard Windows NSIS package runs the full installed journey.
 - [fixed] Release publication requires installed Windows NSIS acceptance and

@@ -1,6 +1,13 @@
 const RECENT_KEY = "phonton.projects.recent";
 const ACTIVE_KEY = "phonton.projects.active";
 const MAX_RECENT = 12;
+const PROJECT_CHANGED = "phonton-project-changed";
+
+/** Keep retained workspace views aligned with the shared project selection. */
+export function subscribeActiveProject(listener: () => void): () => void {
+  window.addEventListener(PROJECT_CHANGED, listener);
+  return () => window.removeEventListener(PROJECT_CHANGED, listener);
+}
 
 export function getActiveProject(): string | null {
   return localStorage.getItem(ACTIVE_KEY);
@@ -9,10 +16,12 @@ export function getActiveProject(): string | null {
 export function setActiveProject(path: string): void {
   localStorage.setItem(ACTIVE_KEY, path);
   addRecentProject(path);
+  window.dispatchEvent(new Event(PROJECT_CHANGED));
 }
 
 export function clearActiveProject(): void {
   localStorage.removeItem(ACTIVE_KEY);
+  window.dispatchEvent(new Event(PROJECT_CHANGED));
 }
 
 export function getRecentProjects(): string[] {
