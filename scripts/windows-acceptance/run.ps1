@@ -2,12 +2,15 @@ $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') { throw 'Disposable Windows Actions runner required' }
 New-Item -ItemType Directory -Force acceptance-evidence | Out-Null
 $candidate = Get-Content acceptance-candidate/candidate.json -Raw | ConvertFrom-Json
-if ($candidate.schema -ne 1 -or $candidate.identifier -ne 'dev.phonton.desktop.preview' -or $candidate.profile -ne 'unsigned-preview') { throw 'Unexpected candidate' }
+$acceptanceKind = if ($env:PHONTON_ACCEPTANCE_KIND) { $env:PHONTON_ACCEPTANCE_KIND } else { 'preview' }
+node scripts/windows-acceptance/candidate-profile.mjs acceptance-candidate/candidate.json $acceptanceKind $env:GITHUB_SHA
+if ($LASTEXITCODE -ne 0) { throw 'Unexpected candidate' }
+if ($acceptanceKind -eq 'release' -and $env:PHONTON_ACCEPTANCE_FULL_JOURNEY -ne 'true') { throw 'Release acceptance requires the full journey' }
 if ([IO.Path]::GetFileName($candidate.installer.name) -ne $candidate.installer.name) { throw 'Invalid installer filename' }
 if ($candidate.desktopCommit -ne $env:GITHUB_SHA) { throw 'Candidate source is not this workflow commit' }
 $installer = Join-Path (Resolve-Path acceptance-candidate) $candidate.installer.name
 if ((Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant() -ne $candidate.installer.sha256) { throw 'Installer hash mismatch' }
-$installDir = Join-Path $env:RUNNER_TEMP 'Phonton Preview acceptance'
+$installDir = Join-Path $env:RUNNER_TEMP "Phonton $acceptanceKind acceptance"
 if (Test-Path -LiteralPath $installDir) { throw 'Installation directory must be fresh' }
 if (Get-NetTCPConnection -State Listen -LocalPort 47831 -ErrorAction SilentlyContinue) { throw 'Engine port already occupied' }
 $install = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -PassThru -WindowStyle Hidden
@@ -23,7 +26,7 @@ $installedEngineHash = (Get-FileHash -LiteralPath $engine).Hash.ToLowerInvariant
 if ($installedDesktopHash -ne $candidate.desktopSha256) { throw 'Installed Desktop hash mismatch' }
 if ($installedEngineHash -ne $candidate.engine.sha256 -or $manifest.sha256 -ne $candidate.engine.sha256 -or $manifest.profile -ne 'release' -or $manifest.version -ne $candidate.engine.version) { throw 'Installed engine mismatch' }
 $env:PHONTON_ACCEPTANCE_APP = $app
-$env:PHONTON_ACCEPTANCE_PROFILE = Join-Path $env:RUNNER_TEMP 'phonton-preview-webview-profile'
+$env:PHONTON_ACCEPTANCE_PROFILE = Join-Path $env:RUNNER_TEMP "phonton-$acceptanceKind-webview-profile"
 $env:PHONTON_ACCEPTANCE_FIXTURE = Join-Path $env:RUNNER_TEMP 'phonton acceptance fixture'
 if ((Test-Path $env:PHONTON_ACCEPTANCE_PROFILE) -or (Test-Path $env:PHONTON_ACCEPTANCE_FIXTURE)) { throw 'Test profile and fixture must be fresh' }
 if ($env:PHONTON_ACCEPTANCE_FULL_JOURNEY -eq 'true') {

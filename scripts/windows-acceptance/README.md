@@ -1,5 +1,11 @@
 # Installed Windows Preview smoke
 
+The same harness also supports the explicitly selected `release` profile used
+by `Release Desktop`. Profile assertions are strict: standard `Phonton` /
+`dev.phonton.desktop` cannot stand in for isolated `Phonton Preview` /
+`dev.phonton.desktop.preview`, or vice versa. The installed native app reports
+its own name, identifier and version, which must match the candidate manifest.
+
 The separate `Windows Preview acceptance` workflow builds an unsigned, isolated
 Preview and tests the installed executable on a fresh Windows Server 2022 runner.
 It never creates tags, GitHub releases, updater assets, or website deployments.
@@ -78,6 +84,28 @@ identities, independent check output and six additional native screenshots.
 Only disposable fixture and runner data are uploaded; model weights are not.
 This establishes one model/fixture journey on Windows Server, not general model
 quality, native folder-picker coverage, consumer Windows or signed updates.
+
+## Standard release candidate
+
+Manual dispatch of `Release Desktop` builds the standard configurations on
+Windows, macOS and Linux, uses the configured updater signing keys, and retains
+the bundles as temporary Actions artifacts without creating a release. Windows
+uses the pinned engine and its platform configuration, with the standard identity,
+deep-link scheme and stable updater endpoint. It is not built with the Preview
+override. The full installed journey is mandatory for this profile.
+
+A tag-triggered release runs the same installed Windows NSIS acceptance. The publish
+job depends on that result as well as all platform builds and checksums. Before
+publishing, the downloaded draft NSIS installer must match the candidate SHA-256.
+A rebuilt or substituted installer cannot inherit the earlier test result.
+
+This gate covers a fresh installation on Windows Server and the existing full
+model journey. It does not prove stable-to-beta data migration, the native folder
+picker, Authenticode/notarization, macOS/Linux installed journeys or actual signed
+update installation. Updater signatures and native OS publisher signatures are
+different. The separately built MSI package is not accepted by this NSIS job;
+its installation and extracted identity remain separate gates. Beta builds
+still stay out of the stable update feed.
 
 Primary references:
 

@@ -1,6 +1,7 @@
 name: Release Desktop
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -20,13 +21,20 @@ jobs:
       engine_sha: ${{ steps.engine.outputs.sha }}
       engine_version: ${{ steps.engine.outputs.version }}
       prerelease: ${{ steps.metadata.outputs.prerelease }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
     steps:
       - name: Checkout tagged Desktop source
         uses: actions/checkout@v4
 
       - name: Check tag matches every package version
         id: metadata
-        run: node scripts/release-metadata.mjs "$GITHUB_REF_NAME"
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            tag="v$(node -p 'require("./package.json").version')"
+          fi
+          node scripts/release-metadata.mjs "$tag"
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Read pinned CLI source
         id: engine
@@ -45,6 +53,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Refuse to reuse an existing release
+        if: github.event_name == 'push'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,6 +110,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check desktop contracts
+        run: node --test scripts/*.test.mjs
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -131,7 +143,7 @@ jobs:
         id: notes
         shell: bash
         run: |
-          NOTES_FILE="release-notes/${GITHUB_REF_NAME}.md"
+          NOTES_FILE="release-notes/${{ needs.preflight.outputs.release_tag }}.md"
           if [ -f "$NOTES_FILE" ]; then
             {
               echo 'body<<EOF'
@@ -143,6 +155,7 @@ jobs:
           fi
 
       - name: Build and release
+        if: github.event_name == 'push'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,15 +171,90 @@ jobs:
           prerelease: ${{ needs.preflight.outputs.prerelease == 'true' }}
           includeUpdaterJson: ${{ needs.preflight.outputs.prerelease != 'true' }}
           updaterJsonPreferNsis: true
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} -- --locked
+
+      - name: Build release candidate without publishing
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/phonton-dev
+          PHONTON_ENGINE_EXPECTED_VERSION: ${{ needs.preflight.outputs.engine_version }}
+        run: npx tauri build ${{ matrix.args }} -- --locked
+
+      - name: Record exact Windows release candidate
+        if: matrix.platform == 'windows-latest'
+        env:
+          PHONTON_ACCEPTANCE_KIND: release
+          PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/phonton-dev
+        run: node scripts/windows-acceptance/package-candidate.mjs
+
+      - name: Retain Windows candidate for installed acceptance
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-candidate
+          path: acceptance-candidate/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Retain platform candidate bundles
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-${{ matrix.platform }}
+          path: src-tauri/target/release/bundle/
+          if-no-files-found: error
+          retention-days: 7
+
+  installed-windows:
+    name: Accept the installed Windows NSIS release candidate
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 100
+    permissions:
+      contents: read
+    env:
+      PHONTON_ACCEPTANCE_KIND: release
+      PHONTON_ACCEPTANCE_FULL_JOURNEY: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release-candidate
+          path: acceptance-candidate
+      - name: Install WebDriver
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Match EdgeDriver to installed WebView2
+        run: ./scripts/windows-acceptance/prepare-driver.ps1
+      - name: Install and test exact release bytes
+        run: ./scripts/windows-acceptance/run.ps1
+      - name: Retain installed acceptance evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-native-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7
 
   checksums:
     name: Add checksums to draft
     needs: build
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release-candidate
+          path: acceptance-candidate
 
       - name: Download release assets
         env:
@@ -184,6 +272,9 @@ jobs:
             --pattern '*.tar.gz' \
             --pattern '*.sig' \
             --pattern '*.json'
+
+      - name: Match draft installer to installed acceptance candidate
+        run: node scripts/windows-acceptance/candidate-profile.mjs acceptance-candidate/candidate.json release "$GITHUB_SHA" dist
 
       - name: Write SHA256SUMS
         working-directory: dist
@@ -208,7 +299,8 @@ jobs:
 
   publish:
     name: Publish complete release
-    needs: [build, checksums]
+    needs: [build, checksums, installed-windows]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Publish verified draft

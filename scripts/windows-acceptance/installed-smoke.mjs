@@ -16,11 +16,11 @@ assert.ok(app && profile && fixture);
 const candidate = JSON.parse(readFileSync('acceptance-candidate/candidate.json', 'utf8'));
 const evidence = path.resolve('acceptance-evidence');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
-const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', checks: [], limitations: [
+const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', candidateProfile: candidate.profile, checks: [], limitations: [
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
   'Workspace selection is seeded in localStorage; native folder picker is not exercised.',
   ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),
-  'Unsigned Windows Server runner candidate; consumer Windows, signing and updater checks remain open.',
+  'Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.',
 ] };
 let session;
 const save = () => writeFileSync(path.join(evidence, 'result.json'), JSON.stringify(report, null, 2) + '\n');
@@ -90,6 +90,14 @@ async function start() {
   assert.ok(session, 'WebDriver session ID missing');
   await command('POST', '/timeouts', { implicit: 0, pageLoad: 180000, script: 180000 });
   await ready();
+  const identity = await command('POST', '/execute/async', { script: `
+    const done = arguments[arguments.length - 1];
+    Promise.all(['name','identifier','version'].map(key => window.__TAURI_INTERNALS__.invoke('plugin:app|' + key)))
+      .then(([productName, identifier, version]) => done({productName, identifier, version}))
+      .catch(error => done({error: String(error)}));
+  `, args: [] });
+  assert.deepEqual(identity, {productName: candidate.productName, identifier: candidate.identifier, version: candidate.version}, 'Installed application identity must match the tested profile');
+  record('native application name, identifier and version', identity);
 }
 async function closeNormally(name) {
   // Keep both WebDrivers alive until the app's own cleanup has been observed.

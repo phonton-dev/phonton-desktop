@@ -4,6 +4,11 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Manual release-candidate builds for all platforms without creating a
+  tag or release; the standard Windows NSIS package runs the full installed journey.
+- [fixed] Release publication requires installed Windows NSIS acceptance and
+  checks that the draft NSIS installer is byte-identical to the tested candidate.
+
 - [fixed] Refresh compatible Rust dependencies for published advisories in
   Rustls, Quinn, Anyhow and Event Listener; update plist to use patched Quick XML.
 - [fixed] Windows acceptance compares installed Desktop bytes with the NSIS
