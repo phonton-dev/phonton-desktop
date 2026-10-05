@@ -27,6 +27,10 @@ jobs:
           sw_vers
           xcodebuild -version
           clang --version
+      - name: Compile independent native process identity helper
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror scripts/macos-acceptance/process-identity.c -o "$RUNNER_TEMP/phonton-process-identity"
+          "$RUNNER_TEMP/phonton-process-identity" "$$"
       - name: Verify exact accepted macOS artifact
         id: source
         env:
@@ -42,7 +46,10 @@ jobs:
         with:
           workspaces: phonton-dev
           shared-key: macos-installed-cli
+          cache-on-failure: true
       - name: Check source contracts
+        env:
+          PHONTON_TEST_MACOS_IDENTITY: '1'
         run: node --test scripts/macos-acceptance.test.mjs
       - name: Build exact external CLI
         run: cargo build --manifest-path phonton-dev/Cargo.toml --release --locked -p phonton-cli -j 2

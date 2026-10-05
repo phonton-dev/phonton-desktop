@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import path from 'node:path';
 import { verifyMacCandidate } from './macos-acceptance/contract.mjs';
+import { assertSameProcess, parseProcessIdentity } from './macos-acceptance/process-identity.mjs';
 const pin = JSON.parse(readFileSync(new URL('./macos-acceptance/source.json', import.meta.url), 'utf8'));
 function fixture() {
   const run = { id: pin.runId, repository: { full_name: pin.repository }, head_sha: pin.commit,
@@ -28,4 +32,56 @@ test('macOS artifact binding rejects substituted source, build or package identi
     values => { values[0].dmg.name = 'Phonton_other.dmg'; },
   ];
   for (const mutate of mutations) { const values = fixture(); mutate(values); assert.throws(() => verifyMacCandidate(...values)); }
+});
+
+const identity = { status: 'present', pid: 29305, ppid: 29093, startSeconds: 1791243436, startMicroseconds: 74302,
+  exe: '/Users/runner/work/_temp/phonton-macos-cli/phonton' };
+const helperResult = (value, status = 0) => ({ status, signal: null, stdout: JSON.stringify(value), stderr: '' });
+
+test('macOS process proof requires native absolute identity and rejects PID, parent, path or lifetime changes', () => {
+  assert.deepEqual(parseProcessIdentity(helperResult(identity), identity.pid), identity);
+  assertSameProcess(identity, { ...identity });
+  for (const [key, value] of [['pid', 29306], ['ppid', 1], ['startSeconds', identity.startSeconds + 1],
+    ['startMicroseconds', 74303], ['exe', '/another/phonton']]) {
+    assert.throws(() => assertSameProcess(identity, { ...identity, [key]: value }));
+  }
+  for (const mutate of [value => { value.exe = 'phonton'; }, value => { value.pid++; },
+    value => { value.startMicroseconds = 1000000; }, value => { delete value.startSeconds; }]) {
+    const value = { ...identity }; mutate(value);
+    assert.throws(() => parseProcessIdentity(helperResult(value), identity.pid));
+  }
+});
+
+test('macOS missing or unreadable process evidence stays unavailable and cannot satisfy identity proof', () => {
+  for (const errno of [1, 3, 13]) {
+    const unavailable = { status: 'unavailable', stage: 'bsd-before', errno };
+    assert.deepEqual(parseProcessIdentity(helperResult(unavailable, 1), identity.pid), { ...unavailable, pid: identity.pid });
+    assert.throws(() => assertSameProcess(identity, unavailable));
+    assert.throws(() => parseProcessIdentity(helperResult(unavailable, 0), identity.pid));
+  }
+  assert.throws(() => parseProcessIdentity({ ...helperResult(identity), status: 1 }, identity.pid));
+  assert.throws(() => parseProcessIdentity({ ...helperResult(identity), stdout: '{' }, identity.pid));
+  assert.throws(() => parseProcessIdentity({ ...helperResult(identity), signal: 'SIGTERM' }, identity.pid));
+});
+
+test('native helper resolves a short argv0 to the actual executable and preserves exited PID errors', {
+  skip: process.env.PHONTON_TEST_MACOS_IDENTITY !== '1',
+}, async () => {
+  assert.equal(process.platform, 'darwin');
+  assert.equal(process.env.GITHUB_ACTIONS, 'true');
+  const helper = path.join(process.env.RUNNER_TEMP, 'phonton-process-identity');
+  const observe = pid => parseProcessIdentity(spawnSync(helper, [String(pid)], { encoding: 'utf8', timeout: 10000 }), pid);
+  const child = spawn('/bin/sleep', ['2'], { argv0: 'phonton', stdio: 'ignore' });
+  const completed = once(child, 'exit');
+  await once(child, 'spawn');
+  try {
+    const value = observe(child.pid);
+    assert.equal(value.status, 'present');
+    assert.equal(value.ppid, process.pid);
+    assert.equal(realpathSync(value.exe), realpathSync('/bin/sleep'));
+    assertSameProcess(value, observe(child.pid));
+  } finally { await completed; }
+  const exited = observe(child.pid);
+  assert.equal(exited.status, 'unavailable');
+  assert.equal(exited.errno, 3, 'ESRCH must remain an observed native error');
 });

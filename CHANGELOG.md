@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Identify macOS acceptance processes through native executable paths and
+  kernel start times; retain independent file, mapping, ownership and Quit checks.
+
 - [added] Separate cloud probe for unchanged ARM64 DMG installation, native
   accessibility and normal Quit, with explicit limits on full journey/signing claims.
 
