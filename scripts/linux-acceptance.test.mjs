@@ -8,7 +8,7 @@ function fixture() {
   const pin = { schema: 1, repository: 'phonton-dev/phonton-desktop', commit, runId: 10, buildJobId: 20,
     desktopSha256: digest, artifact: { id: 30, name: 'release-candidate-ubuntu-22.04', sha256: digest },
     deb: { name: 'Phonton_0.4.0-beta.1_amd64.deb', sha256: digest },
-    appImage: { name: 'Phonton_0.4.0-beta.1_amd64.AppImage', sha256: digest } };
+    appImage: { name: 'Phonton_0.4.0-beta.1_amd64.AppImage', sha256: digest, payloadSha256: digest, appRunSha256: digest } };
   const run = { id: 10, repository: { full_name: pin.repository }, head_sha: commit, path: '.github/workflows/release-desktop.yml', event: 'workflow_dispatch', status: 'completed', conclusion: 'success' };
   const jobs = [{ id: 20, run_id: 10, name: 'Build (ubuntu-22.04)', head_sha: commit, status: 'completed', conclusion: 'success', steps: ['Check desktop contracts', 'Build release candidate without publishing', 'Check native Desktop contracts', 'Retain platform candidate bundles'].map(name => ({ name, conclusion: 'success' })) }];
   const artifact = { id: 30, name: pin.artifact.name, expired: false, workflow_run: { id: 10, head_sha: commit }, digest: `sha256:${digest}` };

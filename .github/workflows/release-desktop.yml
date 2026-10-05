@@ -9,10 +9,18 @@ on:
         type: string
         default: ''
       linux_installed_acceptance:
-        description: Run only the pinned installed Linux Debian acceptance journey
+        description: Run only the pinned native Linux acceptance journey
         required: false
         type: boolean
         default: false
+      linux_package:
+        description: Linux package to launch through the native full journey
+        required: false
+        type: choice
+        options:
+          - debian
+          - appimage
+        default: debian
   push:
     tags:
       - 'v*'
@@ -44,6 +52,8 @@ jobs:
       contents: read
       actions: read
     uses: ./.github/workflows/linux-installed-acceptance.yml
+    with:
+      package: ${{ inputs.linux_package || 'debian' }}
 
   controlled-updater:
     if: github.event_name == 'workflow_dispatch' && inputs.updater_candidate_pin != '' && inputs.linux_installed_acceptance != true

@@ -1,7 +1,13 @@
-name: Accept installed Linux Debian candidate
+name: Accept native Linux package candidate
 
 on:
   workflow_call:
+    inputs:
+      package:
+        description: Debian installation or mounted AppImage
+        type: string
+        required: false
+        default: debian
 
 permissions:
   contents: read
@@ -13,9 +19,11 @@ concurrency:
 
 jobs:
   debian:
-    name: Check installed Debian app and external local runtime
+    name: Check native ${{ inputs.package }} app and external local runtime
     runs-on: ubuntu-22.04
     timeout-minutes: 130
+    env:
+      PHONTON_ACCEPTANCE_PACKAGE: ${{ inputs.package }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,7 +73,7 @@ jobs:
           C
           cargo build --manifest-path phonton-dev/Cargo.toml --release --locked -p phonton-cli -j 2
           cargo install tauri-driver --version 2.1.0 --locked
-      - name: Install exact Debian package and external runtime
+      - name: Prepare exact package and external runtime
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/linux-acceptance/prepare-environment.mjs
@@ -78,7 +86,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: linux-installed-debian-evidence
+          name: linux-installed-${{ inputs.package }}-evidence
           path: acceptance-evidence/
           if-no-files-found: warn
           retention-days: 7

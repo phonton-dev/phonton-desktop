@@ -16,7 +16,9 @@
   },
   "appImage": {
     "name": "Phonton_0.4.0-beta.1_amd64.AppImage",
-    "sha256": "a80f75b5a576c3710981bb86aff10bacf3bf871a2e8edb5ce8dbb3a9106ff642"
+    "sha256": "a80f75b5a576c3710981bb86aff10bacf3bf871a2e8edb5ce8dbb3a9106ff642",
+    "payloadSha256": "b95ff90f2b17ca9abc5e663109fd536732163b8bad8a04e01512a1dcf4100c69",
+    "appRunSha256": "eb0b254ac0dae6543e6dd7cd02e1baf40a060de95b927313122d6b46323c00aa"
   },
   "engine": {
     "repository": "phonton-dev/phonton-cli",

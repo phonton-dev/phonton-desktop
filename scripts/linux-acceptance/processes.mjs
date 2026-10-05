@@ -57,11 +57,10 @@ export function isDescendant(pid, parentPid, processes) {
 }
 
 /** Read actual executable paths, kernel start times and socket ownership on the cloud runner. */
-export function linuxSnapshot({ app, engine, runtime }) {
+export function linuxProcessSnapshot() {
   assert.equal(process.platform, 'linux');
   assert.equal(process.env.GITHUB_ACTIONS, 'true');
   assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted');
-  const expected = Object.fromEntries(Object.entries({ app, engine, runtime }).map(([key, value]) => [key, realpathSync(value)]));
   const processes = [], inaccessible = [], unstable = [], sockets = new Map();
   for (const name of readdirSync('/proc').filter(value => /^\d+$/.test(value))) {
     const root = `/proc/${name}`;
@@ -92,7 +91,15 @@ export function linuxSnapshot({ app, engine, runtime }) {
   }
   const listeners = [['tcp', 'ipv4'], ['tcp6', 'ipv6']].flatMap(([file, family]) => parseListeners(readFileSync(`/proc/net/${file}`, 'utf8'), family))
     .map(listener => ({ ...listener, pids: [...(sockets.get(listener.inode) ?? [])] }));
-  return { schema: 1, at: new Date().toISOString(), expected, processes, inaccessible, unstable, listeners,
+  return { schema: 1, at: new Date().toISOString(), processes, inaccessible, unstable, listeners };
+}
+
+/** Match installed files; unlike an AppImage mount these paths remain after close. */
+export function linuxSnapshot({ app, engine, runtime }) {
+  const expected = Object.fromEntries(Object.entries({ app, engine, runtime }).map(([key, value]) => [key, realpathSync(value)]));
+  const snapshot = linuxProcessSnapshot();
+  const { processes } = snapshot;
+  return { ...snapshot, expected,
     apps: processes.filter(row => row.exe === expected.app), engines: processes.filter(row => row.exe === expected.engine),
     runtimes: processes.filter(row => row.exe === expected.runtime) };
 }

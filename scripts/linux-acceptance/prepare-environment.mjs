@@ -10,6 +10,8 @@ assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted');
 const read = file => JSON.parse(readFileSync(file, 'utf8'));
 const pin = read('scripts/linux-acceptance/source.json');
 const download = read('acceptance-evidence/download.json');
+const packageKind = process.env.PHONTON_ACCEPTANCE_PACKAGE;
+assert.ok(['debian', 'appimage'].includes(packageKind));
 assert.equal(download.candidateCommit, pin.commit);
 const temporary = realpathSync(process.env.RUNNER_TEMP);
 const output = (command, args) => execFileSync(command, args, { encoding: 'utf8', timeout: 120000 }).trim();
@@ -24,10 +26,17 @@ assert.equal(output('dpkg-deb', ['-f', download.payloads.deb, 'Version']), '0.4.
 assert.equal(output('dpkg-deb', ['-f', download.payloads.deb, 'Architecture']), 'amd64');
 const prior = spawnSync('dpkg-query', ['-W', '-f=${Status}', 'phonton'], { encoding: 'utf8' });
 assert.notEqual(prior.status, 0, 'Do not overwrite an existing Desktop installation');
-execFileSync('sudo', ['apt-get', 'install', '-y', download.payloads.deb], { stdio: 'inherit', timeout: 600000 });
-assert.equal(output('dpkg-query', ['-W', '-f=${Status}', 'phonton']), 'install ok installed');
-const app = '/usr/bin/phonton-desktop';
-assert.equal(realpathSync(app), app); assert.equal(await hash(app), pin.desktopSha256);
+let app = null;
+if (packageKind === 'debian') {
+  execFileSync('sudo', ['apt-get', 'install', '-y', download.payloads.deb], { stdio: 'inherit', timeout: 600000 });
+  assert.equal(output('dpkg-query', ['-W', '-f=${Status}', 'phonton']), 'install ok installed');
+  app = '/usr/bin/phonton-desktop';
+  assert.equal(realpathSync(app), app); assert.equal(await hash(app), pin.desktopSha256);
+} else {
+  assert.equal(existsSync('/usr/bin/phonton-desktop'), false, 'AppImage acceptance must not use a Debian installation');
+  for (const key of ['APPIMAGE_EXTRACT_AND_RUN', 'APPIMAGE_EXTRACT_AND_RUN_NO_CLEANUP', 'TARGET_APPIMAGE']) assert.ok(!process.env[key], 'Reject nonstandard AppImage launch override');
+  for (const suffix of ['.home', '.config']) assert.equal(existsSync(download.payloads.appImage + suffix), false);
+}
 assert.equal(output('git', ['-C', 'phonton-dev', 'rev-parse', 'HEAD']), pin.engine.commit);
 const engineSource = path.resolve('phonton-dev/target/release/phonton');
 assert.match(output(engineSource, ['version']), /^phonton 0\.22\.0(?:\s|$)/);
@@ -50,10 +59,12 @@ execFileSync('tar', ['--zstd', '-xf', archive, '-C', runtimeDirectory], { stdio:
 const runtime = realpathSync(path.join(runtimeDirectory, 'bin/ollama'));
 assert.ok(runtime.startsWith(runtimeDirectory + path.sep));
 chmodSync(download.payloads.appImage, 0o755);
-const report = { schema: 1, candidateCommit: pin.commit, package: { name: 'phonton', version: '0.4.0-beta.1', architecture: 'amd64', sha256: pin.deb.sha256 },
-  app, desktopSha256: await hash(app), engine, engineSha256: await hash(engine), engineCommit: pin.engine.commit,
+const report = { schema: 1, candidateCommit: pin.commit, packageKind,
+  package: { name: 'phonton', version: '0.4.0-beta.1', architecture: 'amd64', sha256: packageKind === 'debian' ? pin.deb.sha256 : pin.appImage.sha256 },
+  app, launchApplication: packageKind === 'debian' ? app : realpathSync(download.payloads.appImage),
+  desktopSha256: app ? await hash(app) : null, engine, engineSha256: await hash(engine), engineCommit: pin.engine.commit,
   runtime, runtimeSha256: await hash(runtime), runtimeArchiveSha256: pin.ollama.sha256,
   appImage: download.payloads.appImage, appImageSha256: pin.appImage.sha256,
-  scope: 'Exact Debian installation and separately installed pinned CLI/Ollama; native behavior is still untested' };
+  scope: 'Verified package with separately installed pinned CLI/Ollama; AppImage mounted payload still requires live verification; native behavior untested' };
 writeFileSync('acceptance-evidence/install.json', JSON.stringify(report, null, 2) + '\n', { flag: 'wx' });
-console.log('Installed bytes and independent external CLI/runtime identities recorded.');
+console.log('Package bytes and independent external CLI/runtime identities recorded.');

@@ -10,6 +10,8 @@ export function verifyLinuxCandidate(pin, run, jobs, artifact, buildLog) {
   assert.ok(Number.isSafeInteger(pin.runId) && pin.runId > 0);
   assert.ok(Number.isSafeInteger(pin.buildJobId) && pin.buildJobId > 0);
   sha256(pin.desktopSha256);
+  sha256(pin.appImage.payloadSha256);
+  sha256(pin.appImage.appRunSha256);
   assert.equal(run.id, pin.runId);
   assert.equal(run.repository.full_name, pin.repository);
   assert.equal(run.head_sha, pin.commit);
@@ -74,7 +76,12 @@ export function verifyExternalModel(status, expected) {
 
 /** PID reuse is not retention; executable and kernel start time also must match. */
 export function sameLinuxProcess(before, after) {
-  return !!before && !!after && before.pid > 0 && before.pid === after.pid &&
-    typeof before.startTime === 'string' && /^\d+$/.test(before.startTime) && before.startTime === after.startTime &&
+  return sameLinuxLifetime(before, after) &&
     typeof before.exe === 'string' && before.exe.startsWith('/') && before.exe === after.exe;
+}
+
+/** Changing executable is not process exit; kernel start time distinguishes PID reuse. */
+export function sameLinuxLifetime(before, after) {
+  return !!before && !!after && before.pid > 0 && before.pid === after.pid &&
+    typeof before.startTime === 'string' && /^\d+$/.test(before.startTime) && before.startTime === after.startTime;
 }

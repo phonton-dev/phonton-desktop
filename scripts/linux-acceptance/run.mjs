@@ -5,6 +5,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { linuxSnapshot } from './processes.mjs';
 import { sameLinuxProcess } from './contract.mjs';
+import { appImageClosed, appImageSnapshot } from './appimage.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.equal(process.env.GITHUB_ACTIONS, 'true');
@@ -13,14 +14,17 @@ assert.ok(process.env.DISPLAY && process.env.DBUS_SESSION_BUS_ADDRESS);
 const read = file => JSON.parse(readFileSync(file, 'utf8'));
 const installed = read('acceptance-evidence/install.json');
 const pin = read('scripts/linux-acceptance/source.json');
+assert.ok(['debian', 'appimage'].includes(installed.packageKind));
 const expected = { app: installed.app, engine: installed.engine, runtime: installed.runtime };
 const temporary = realpathSync(process.env.RUNNER_TEMP);
 const space = statfsSync(temporary);
 assert.ok(space.bavail * space.bsize >= 12 * 1024 ** 3, 'Need 12 GiB available after dependencies/builds');
 const availableKiB = Number(/^MemAvailable:\s+(\d+) kB$/m.exec(readFileSync('/proc/meminfo', 'utf8'))?.[1]);
 assert.ok(availableKiB * 1024 >= 6 * 1024 ** 3, 'Need 6 GiB available for real model work');
-const before = linuxSnapshot(expected);
+const snapshot = observation => installed.packageKind === 'appimage' ? appImageSnapshot(observation, expected) : linuxSnapshot(expected);
+const before = snapshot(null);
 assert.deepEqual(before.apps, []); assert.deepEqual(before.engines, []); assert.deepEqual(before.runtimes, []);
+assert.ok(!before.processes.some(row => path.basename(row.exe) === 'phonton-desktop' || row.exe === installed.launchApplication));
 assert.deepEqual(before.listeners, [], 'Do not occupy an existing app/model listener');
 const profile = path.join(process.env.XDG_DATA_HOME || path.join(process.env.HOME, '.local/share'), 'dev.phonton.desktop');
 assert.equal(existsSync(profile), false, 'Native default profile must be fresh; never erase it');
@@ -57,22 +61,34 @@ try {
     catch (error) { if (error.cause?.code === 'ECONNREFUSED' || error.name === 'TimeoutError') return false; throw error; }
   }, 'external Ollama startup');
   assert.equal(version.version, pin.ollama.version);
-  const snapshot = linuxSnapshot(expected);
-  assert.equal(snapshot.runtimes.length, 1); assert.equal(snapshot.runtimes[0].pid, runtime.pid);
-  assert.deepEqual(snapshot.listeners.map(listener => ({ port: listener.port, loopback: listener.loopback, pids: listener.pids })),
+  const started = snapshot(null);
+  assert.equal(started.runtimes.length, 1); assert.equal(started.runtimes[0].pid, runtime.pid);
+  assert.deepEqual(started.listeners.map(listener => ({ port: listener.port, loopback: listener.loopback, pids: listener.pids })),
     [{ port: 11434, loopback: true, pids: [runtime.pid] }]);
-  writeFileSync('acceptance-evidence/external-runtime.json', JSON.stringify({ version, process: snapshot.runtimes[0], snapshot }, null, 2) + '\n');
+  writeFileSync('acceptance-evidence/external-runtime.json', JSON.stringify({ version, process: started.runtimes[0], snapshot: started }, null, 2) + '\n');
   const driver = launch('tauri-driver', ['--native-driver', '/usr/bin/WebKitWebDriver'], 'tauri-driver');
+  await wait(async () => {
+    if (driver.exitCode !== null) throw new Error('WebDriver exited before readiness');
+    try {
+      const response = await fetch('http://127.0.0.1:4444/status', { signal: AbortSignal.timeout(2000) });
+      assert.equal(response.ok, true);
+      const value = await response.json(); assert.equal(typeof value.value?.ready, 'boolean'); return value.value.ready;
+    } catch (error) { if (error.cause?.code === 'ECONNREFUSED' || error.name === 'TimeoutError') return false; throw error; }
+  }, 'native WebDriver startup');
   const journey = launch(process.execPath, ['scripts/linux-acceptance/journey.mjs'], 'journey', 70 * 60000);
   const outcome = await journey.done;
   assert.equal(outcome.code, 0, 'Native journey failed; preserve failure evidence');
-  assert.equal(read('acceptance-evidence/result.json').status, 'passed');
-  const after = linuxSnapshot(expected);
+  const result = read('acceptance-evidence/result.json');
+  assert.equal(result.status, 'passed'); assert.equal(result.packageKind, installed.packageKind);
+  const image = result.appImageLaunches?.at(-1);
+  if (installed.packageKind === 'appimage') assert.equal(result.appImageLaunches.length, 2);
+  const after = snapshot(image);
   assert.deepEqual(after.apps, []); assert.deepEqual(after.engines, []);
-  assert.equal(sameLinuxProcess(snapshot.runtimes[0], after.runtimes.find(row => row.pid === runtime.pid)), true);
+  if (image) assert.equal(appImageClosed(image, after, after.mounts), true);
+  assert.equal(sameLinuxProcess(started.runtimes[0], after.runtimes.find(row => row.pid === runtime.pid)), true);
   assert.equal(driver.exitCode, null, 'Driver teardown must not substitute for normal app cleanup');
   writeFileSync('acceptance-evidence/environment-result.json', JSON.stringify({ status: 'passed', before, after,
-    scope: 'Installed Debian journey complete; AppImage and other Linux distributions remain separate gates' }, null, 2) + '\n');
+    packageKind: installed.packageKind, scope: 'Named Linux package journey only; other package/platform gates require their own results' }, null, 2) + '\n');
 } finally {
   // Stop only processes this disposable orchestrator launched, after preserving assertions.
   for (const child of children.toReversed()) {

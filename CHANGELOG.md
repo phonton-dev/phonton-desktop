@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Separate full native acceptance through the exact AppImage, with its
+  own packaged executable hash, read-only FUSE mount and daemon identity, normal
+  unmount on close, and retained default profile after a fresh launch.
+
 - [added] Cloud acceptance for the exact installed Debian candidate with an
   external local runtime: native repository selection, explicit context consent,
   calibration, verified changes, Apply, retained receipt and exact rollback.

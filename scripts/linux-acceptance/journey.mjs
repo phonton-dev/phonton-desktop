@@ -7,8 +7,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests } from '../windows-acceptance/full-journey.mjs';
 import { interfaceJourney } from '../windows-acceptance/interface-journey.mjs';
 import { settledPickerState } from '../windows-acceptance/picker-journey.mjs';
-import { verifyExternalModel, sameLinuxProcess } from './contract.mjs';
+import { verifyExternalModel, sameLinuxProcess, sameLinuxLifetime } from './contract.mjs';
 import { linuxSnapshot, isDescendant } from './processes.mjs';
+import { appImageClosed, appImageSnapshot, observeAppImage, profileEnvironmentKeys } from './appimage.mjs';
 
 assert.equal(process.platform, 'linux');
 assert.equal(process.env.GITHUB_ACTIONS, 'true');
@@ -16,7 +17,11 @@ assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted');
 const read = file => JSON.parse(readFileSync(file, 'utf8'));
 const pin = read('scripts/linux-acceptance/source.json');
 const installed = read('acceptance-evidence/install.json');
+const packageKind = installed.packageKind;
+assert.ok(['debian', 'appimage'].includes(packageKind));
 const expected = { app: installed.app, engine: installed.engine, runtime: installed.runtime };
+const originalProfileEnvironment = Object.fromEntries(profileEnvironmentKeys.map(key => [key, process.env[key] ?? null]));
+let currentImage = null;
 const fixture = path.join(process.env.RUNNER_TEMP, 'phonton acceptance fixture');
 const evidence = path.resolve('acceptance-evidence');
 const stateDirectory = path.dirname(process.env.PHONTON_LOCAL_STATE);
@@ -24,7 +29,7 @@ const model = { model: 'qwen2.5-coder:3b', digest: 'f72c60cabf6237b07f6e632b2c48
 const CHECK = ['python3', '-m', 'unittest', 'discover'];
 const save = (name, data) => writeFileSync(path.join(evidence, name + '.json'), JSON.stringify(data, null, 2) + '\n');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
-const report = { schema: 1, status: 'running', harnessCommit: process.env.GITHUB_SHA, candidateCommit: pin.commit,
+const report = { schema: 1, status: 'running', packageKind, harnessCommit: process.env.GITHUB_SHA, candidateCommit: pin.commit,
   checks: [], limitations: ['Ubuntu22.04/Xvfb and one pinned model/existing-file fixture only.', 'External Ollama origin remains unverified in the product.', 'No trusted signing, public updates or other Linux distributions are implied.'] };
 const record = (name, detail = true) => { report.checks.push({ name, detail }); save('result', report); console.log('PASS ' + name); };
 let session;
@@ -65,7 +70,7 @@ async function button(text, scope = '//') {
   await command('POST', `/element/${id}/click`, {});
 }
 const screenshot = async name => writeFileSync(path.join(evidence, name + '.png'), Buffer.from(await command('GET', '/screenshot'), 'base64'));
-const native = () => linuxSnapshot(expected);
+const native = () => packageKind === 'appimage' ? appImageSnapshot(currentImage, expected) : linuxSnapshot(expected);
 const readRpc = async (method, params = {}) => {
   assert.ok(['models.status', 'models.operation', 'local.run.status', 'local.run.read'].includes(method));
   const response = await fetch('http://127.0.0.1:47831/rpc', { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -83,6 +88,7 @@ async function ownedEngine() {
   return until(() => {
     const snapshot = native(); runtimeRetained(snapshot);
     if (snapshot.apps.length !== 1 || snapshot.engines.length !== 1) return false;
+    if (currentImage) assert.equal(sameLinuxProcess(currentImage.process, snapshot.apps[0]), true, 'Mounted Desktop process was replaced');
     assert.equal(isDescendant(snapshot.engines[0].pid, snapshot.apps[0].pid, snapshot.processes), true, 'Desktop must own the external CLI child');
     const listeners = snapshot.listeners.filter(row => row.port === 47831);
     if (!listeners.length) return false;
@@ -92,10 +98,16 @@ async function ownedEngine() {
   }, 'installed Desktop owns pinned CLI and loopback listener');
 }
 async function start() {
-  const value = await request('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: expected.app } } } });
+  const value = await request('POST', '/session', { capabilities: { alwaysMatch: { 'tauri:options': { application: installed.launchApplication } } } });
   session = value.sessionId; assert.ok(session);
   report.sessions ??= []; report.sessions.push(value.capabilities); save('result', report);
   await command('POST', '/timeouts', { implicit: 0, pageLoad: 180000, script: 180000 });
+  if (packageKind === 'appimage') {
+    const observed = await until(() => observeAppImage(installed.launchApplication, pin, originalProfileEnvironment), 'mounted AppImage and exact live payload');
+    if (currentImage) assert.equal(sameLinuxProcess(currentImage.process, observed.process), false, 'Reopen must create a fresh app process');
+    currentImage = observed;
+    report.appImageLaunches ??= []; report.appImageLaunches.push(observed); save('result', report);
+  }
   await until(() => execute('return document.querySelector(".lw-engine")?.textContent === "engine 0.22.0"'), 'real installed engine ready');
   const identity = await command('POST', '/execute/async', { script: `const done=arguments[arguments.length-1];Promise.all(['name','identifier','version'].map(key=>window.__TAURI_INTERNALS__.invoke('plugin:app|'+key))).then(([productName,identifier,version])=>done({productName,identifier,version})).catch(e=>done({error:String(e)}));`, args: [] });
   assert.deepEqual(identity, { productName: 'Phonton', identifier: 'dev.phonton.desktop', version: '0.4.0-beta.1' });
@@ -111,11 +123,12 @@ async function closeNormally(label) {
   const after = await until(() => {
     const observed = native(); runtimeRetained(observed);
     return !observed.apps.length && !observed.engines.length && !observed.listeners.some(row => row.port === 47831) &&
+      (!currentImage || appImageClosed(currentImage, observed, observed.mounts)) &&
       !owned.some(prior => observed.inaccessible.includes(prior.pid) || observed.unstable.includes(prior.pid)) &&
-      !owned.some(prior => observed.processes.some(current => sameLinuxProcess(prior, current))) ? observed : false;
+      !owned.some(prior => observed.processes.some(current => sameLinuxLifetime(prior, current))) ? observed : false;
   }, 'normal close removes owned children and preserves external Ollama', 30000);
   assert.equal(typeof (await request('GET', '/status')).ready, 'boolean');
-  record(label, { before, after, owned });
+  record(label, { before, after, owned, ...(currentImage ? { appImage: currentImage } : {}) });
   try { await command('DELETE', ''); } catch (error) { if (!/invalid session id|no such window/i.test(error.message)) throw error; }
   session = undefined;
 }
