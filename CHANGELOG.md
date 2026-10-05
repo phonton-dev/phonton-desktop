@@ -8,6 +8,7 @@ All notable changes to Phonton Desktop are documented here.
   external local runtime: native repository selection, explicit context consent,
   calibration, verified changes, Apply, retained receipt and exact rollback.
   Keep AppImage and other platforms as separate acceptance gates.
+  Read candidate build evidence through GitHub CLI's sanitized log command.
 
 - [fixed] Check rendered diagnostic visibility during native recovery acceptance;
   closed disclosures may retain nonzero layout dimensions. Keep separate checks

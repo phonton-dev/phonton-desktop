@@ -19,7 +19,10 @@ const run = JSON.parse(api(`actions/runs/${pin.runId}`));
 const jobs = JSON.parse(api(`actions/runs/${pin.runId}/jobs?per_page=100`));
 assert.equal(jobs.jobs.length, jobs.total_count, 'Do not silently truncate build-job evidence');
 const artifact = JSON.parse(api(`actions/artifacts/${pin.artifact.id}`));
-const buildLog = api(`actions/jobs/${pin.buildJobId}/logs`).toString('utf8');
+// The typed log command safely strips terminal controls. Raw gh api text is
+// intentionally rejected by current CLI versions when build logs contain ANSI.
+const buildLog = execFileSync('gh', ['run', 'view', String(pin.runId), '--job', String(pin.buildJobId),
+  '--repo', pin.repository, '--log'], { timeout: 120000, maxBuffer: 32 * 1024 ** 2 }).toString('utf8');
 verifyLinuxCandidate(pin, run, jobs.jobs, artifact, buildLog);
 // The test harness may advance; application and all build inputs stay identical.
 execFileSync('git', ['diff', '--exit-code', pin.commit, 'HEAD', '--', 'src', 'src-tauri', 'public', 'index.html',
