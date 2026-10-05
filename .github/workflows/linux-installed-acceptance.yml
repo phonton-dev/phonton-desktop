@@ -1,0 +1,74 @@
+name: Accept installed Linux Debian candidate
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: linux-installed-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  debian:
+    name: Check installed Debian app and external local runtime
+    runs-on: ubuntu-22.04
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - run: npm ci
+      - name: Verify exact accepted Linux artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/linux-acceptance/prepare-source.mjs
+      - uses: actions/checkout@v4
+        with:
+          repository: phonton-dev/phonton-cli
+          ref: ${{ steps.source.outputs.engine_sha }}
+          path: phonton-dev
+          persist-credentials: false
+      - name: Check acceptance contracts
+        run: |
+          node --test scripts/*.test.mjs
+          python3 -c "import ast,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path('scripts/linux-acceptance').glob('*.py')]"
+      - name: Install native cloud desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-0 webkit2gtk-driver libgtk-3-0 libssl-dev pkg-config \
+            xvfb xauth openbox dbus-x11 at-spi2-core libatk-adaptor python3-gi gir1.2-atspi-2.0 \
+            xdotool wmctrl imagemagick libfuse2 zstd
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: phonton-dev
+          shared-key: linux-installed-cli
+      - name: Build exact external CLI and pinned WebDriver
+        run: |
+          cargo build --manifest-path phonton-dev/Cargo.toml --release --locked -p phonton-cli -j 2
+          cargo install tauri-driver --version 2.1.0 --locked
+      - name: Install exact Debian package and external runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/linux-acceptance/prepare-environment.mjs
+      - name: Exercise installed native app, consent, Apply, reopen and rollback
+        env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1440x1000x24' dbus-run-session -- node scripts/linux-acceptance/run.mjs
+      - name: Retain bounded native evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installed-debian-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7

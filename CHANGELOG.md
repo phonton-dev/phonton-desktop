@@ -4,6 +4,11 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Cloud acceptance for the exact installed Debian candidate with an
+  external local runtime: native repository selection, explicit context consent,
+  calibration, verified changes, Apply, retained receipt and exact rollback.
+  Keep AppImage and other platforms as separate acceptance gates.
+
 - [fixed] Check rendered diagnostic visibility during native recovery acceptance;
   closed disclosures may retain nonzero layout dimensions. Keep separate checks
   for expanded text, compact viewport clipping and closing the disclosure again.
