@@ -30,7 +30,7 @@ const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', ca
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
   'Workspace selection is seeded in localStorage; native folder picker is not exercised.',
   ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),
-  ...(upgrade ? ['Windows Server MSI forward upgrade with named fixture preferences only; consumer Windows, authenticated account migration, NSIS/cross-installer migration, native signing and updater installation remain untested.'] : ['Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.']),
+  ...(upgrade ? [`Windows Server ${candidate.installer.kind.toUpperCase()} forward upgrade with named fixture preferences only; consumer Windows, authenticated account migration, cross-installer migration, native signing and updater installation remain untested.`] : ['Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.']),
 ] };
 if (upgrade) report.upgrade = { from: '0.3.4', storage: 'default-webview', harnessCommit: process.env.GITHUB_SHA, candidateCommit: candidate.desktopCommit };
 let session;
@@ -150,7 +150,7 @@ try {
     assert.equal(await execute('return document.documentElement.dataset.theme'), 'light', 'Retained theme must be rendered');
     assert.ok((await execute('return document.querySelector(".lw-intro h1").textContent')).includes(path.basename(fixture)), 'Retained repository must be active in the native workbench');
     await screenshot('upgrade-02-retained-workbench');
-    record('MSI upgrade retains default-profile theme, active and recent repository before any reseed', { observed, nativeProfile, page, stableDesktopSha256: upgrade.stableDesktopSha256 });
+    record(`${candidate.installer.kind.toUpperCase()} upgrade retains default-profile theme, active and recent repository before any reseed`, { observed, nativeProfile, page, stableDesktopSha256: upgrade.stableDesktopSha256 });
   } else {
     await execute('localStorage.setItem("phonton.projects.active",arguments[0]);localStorage.setItem("phonton.projects.recent",JSON.stringify([arguments[0]]));', fixture);
   }

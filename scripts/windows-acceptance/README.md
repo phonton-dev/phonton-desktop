@@ -130,7 +130,33 @@ MSI installed acceptance. Stable-to-beta, beta-to-stable and cross-installer
 migration are separate from these fresh installs. Beta builds still stay out of
 the stable update feed.
 
-Primary references:
+## Forward NSIS upgrade
+
+`Accept Windows NSIS upgrade` is separate from the MSI and fresh-install jobs.
+It pins public 0.3.4 and the accepted candidate artifact in
+`nsis-upgrade-source.json`, checking the downloaded manifest and installer hashes.
+Stable installs silently into a fresh path with spaces. The candidate is invoked
+with `/S` only: it must discover the saved directory without an injected `/D`.
+Both installers require no running Phonton process before they start.
+
+Read-only observations cover both registry views in HKCU and HKLM. The current-user
+Phonton registration must update its version and retain the same install location;
+conflicting registrations fail. Identical HKCU records across shared views represent
+one registration. The saved manufacturer/product directory must also agree.
+
+The real stable app seeds named non-secret preferences, closes normally, and
+reopens to prove persistence before replacement. The candidate must retain those
+values in the same default native WebView profile before any reseed, then pass the
+existing full model/Apply/reopen/rollback journey. This is same-installer forward
+replacement on Windows Server, not automatic updater or cross-installer proof.
+No authenticated, provider-secret or existing-model-state migration is covered.
+The job reuses accepted application bytes and has no release-write permission.
+
+- [Pinned Tauri NSIS template](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.2/crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi)
+- [NSIS command-line rules](https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage)
+- [Microsoft shared registry views](https://learn.microsoft.com/en-us/windows/win32/winprog64/shared-registry-keys)
+
+## Primary references
 
 - [Tauri Windows WebDriver CI](https://v2.tauri.app/develop/tests/webdriver/ci/)
 - [Exact driver capability mapping](https://github.com/tauri-apps/tauri/blob/tauri-driver-v2.1.0/crates/tauri-driver/src/server.rs)
