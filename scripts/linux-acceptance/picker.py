@@ -89,9 +89,20 @@ try:
     # xdotool only opens the real GTK location-entry UI. The path itself is set
     # through that visible entry's accessibility interface, never app storage.
     if action == 'select':
-        windows = subprocess.check_output(['xdotool', 'search', '--onlyvisible', '--pid', str(pid), '--name', '^Open repository$'], text=True, timeout=10).split()
-        assert len(windows) == 1
-        subprocess.run(['xdotool', 'windowactivate', '--sync', windows[0]], check=True, timeout=10)
+        # xdotool defaults to OR: require both the owned PID and exact title.
+        windows = subprocess.check_output(['xdotool', 'search', '--all', '--onlyvisible', '--pid', str(pid), '--name', '^Open repository$'], text=True, timeout=10).split()
+        report['matchingWindows'] = windows
+        save()
+        assert len(windows) == 1, f'Expected one owned visible chooser, found {windows}'
+        window = windows[0]
+        window_pid = int(subprocess.check_output(['xdotool', 'getwindowpid', window], text=True, timeout=10).strip())
+        window_name = subprocess.check_output(['xdotool', 'getwindowname', window], text=True, timeout=10).strip()
+        assert window_pid == pid and window_name == 'Open repository', 'Native window ownership/title changed'
+        report['nativeWindow'] = {'id': window, 'pid': window_pid, 'name': window_name}
+        save()
+        subprocess.run(['xdotool', 'windowactivate', '--sync', window], check=True, timeout=10)
+        active = subprocess.check_output(['xdotool', 'getactivewindow'], text=True, timeout=10).strip()
+        assert active == window, 'Repository chooser did not retain keyboard focus'
         subprocess.run(['xdotool', 'key', '--clearmodifiers', 'ctrl+l'], check=True, timeout=10)
         def entries():
             return [node for node in walk(dialog) if showing(node) and node.is_editable_text()]

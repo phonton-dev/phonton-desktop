@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Require both chooser PID and title during Linux native acceptance;
+  record and recheck window ownership and focus before keyboard input.
+
 - [added] Separate full native acceptance through the exact AppImage, with its
   own packaged executable hash, read-only FUSE mount and daemon identity, normal
   unmount on close, and retained default profile after a fresh launch.
