@@ -248,6 +248,9 @@ jobs:
       PHONTON_ACCEPTANCE_KIND: release
       PHONTON_ACCEPTANCE_BUNDLE: ${{ matrix.bundle }}
       PHONTON_ACCEPTANCE_FULL_JOURNEY: 'true'
+      PHONTON_ACCEPTANCE_NATIVE_PICKER: 'true'
+      PHONTON_ACCEPTANCE_RUNTIME_RECOVERY: 'true'
+      PHONTON_ACCEPTANCE_RECOVERY_PRESENTATION: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

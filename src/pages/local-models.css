@@ -38,6 +38,12 @@ main.local-models .model-page-heading button { border: 0; background: transparen
 .machine-readings dt { color: var(--ink-dim); }
 .machine-readings dd { margin: 0; overflow-wrap: anywhere; }
 .runtime-install { margin-top: 18px; }
+.runtime-recovery { padding: 18px 20px; border: 1px solid var(--ink-rule); border-radius: 6px; background: var(--ink-panel); }
+.runtime-recovery-description { color: var(--ink-muted); }
+.runtime-recovery .model-actions { margin: 16px 0 0; }
+.runtime-recovery-details { padding-top: 12px; border-top: 1px solid var(--ink-line); font-size: 13px; }
+.runtime-recovery-details summary { display: list-item; }
+.runtime-recovery-details p { white-space: pre-wrap; color: var(--ink-dim); }
 .managed-storage-choice { margin: 16px 0; }
 .model-error { margin: 18px 0; border: 1px solid #5a2a2a; background: #1a0f0f; padding: 12px 14px; color: #ffb4a8; }
 .model-error p { white-space: pre-wrap; }

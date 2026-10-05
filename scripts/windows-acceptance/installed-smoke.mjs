@@ -101,6 +101,11 @@ async function start() {
   } } });
   session = value.sessionId;
   assert.ok(session, 'WebDriver session ID missing');
+  report.driverSessions ??= [];
+  report.driverSessions.push({ browserName: value.capabilities?.browserName,
+    browserVersion: value.capabilities?.browserVersion, platformName: value.capabilities?.platformName,
+    setWindowRect: value.capabilities?.setWindowRect ?? null });
+  save();
   await command('POST', '/timeouts', { implicit: 0, pageLoad: 180000, script: 180000 });
   await ready();
   const identity = await command('POST', '/execute/async', { script: `

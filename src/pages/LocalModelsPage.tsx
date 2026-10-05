@@ -7,6 +7,7 @@ import { calibrationOutcome } from "@/lib/model-calibration-outcome";
 import { localEngineErrorMessage } from "@/lib/serve";
 import { isTauri } from "@/lib/sidecar";
 import { Gauge, Phi } from "@/components/ink/Ink";
+import { ManagedRuntimeRecovery } from "./ManagedRuntimeRecovery";
 import "./local-models.css";
 
 type Props = { connected: boolean; connectionIssue?: string; onBack: () => void; onReconnect: () => Promise<void> };
@@ -250,18 +251,9 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
       </div>}
       {freshRuntimeStorageShortfall && !managedRecovery && <div className="runtime-install" role="status"><p>Runtime setup needs {memorySize(status?.managed_storage?.runtime_setup_min_free_bytes)} free on its drive; this folder has {memorySize(status?.managed_storage?.available_bytes)} free. {status?.managed_storage?.changeable && status.storage_control ? "Free space or choose an empty storage folder on a roomier drive, then refresh readings." : "If setup was interrupted, retry it: Phonton retires only its own incomplete download stages before rechecking space. If space is still low, free space on this drive and refresh. This used location cannot be switched automatically."} Model weights need additional space.</p></div>}
       {!freshRuntimeStorageShortfall && status?.managed_storage && status.managed_storage.available_bytes != null && status.managed_storage.available_bytes < 6 * 1024 ** 3 && <p className="model-note" role="status">This drive has less than 6 GiB free. Model downloads or coding runs may need more space.</p>}
-      {managedRecovery && status && <div className="runtime-install" role="alert">
-          <p>Managed setup needs recovery: {status.model_store?.reason ?? "The saved managed launch could not be verified."}</p>
-          {managedRecovery === "retryable"
-            ? <p className="model-note">Phonton cannot verify the previous managed launch. {status.runtime_version ? "Stop the service using 127.0.0.1:11434, then refresh." : "Ollama is offline."} When the port is free, retry runtime setup to check the saved files and start a managed service.</p>
-            : status.managed_storage?.changeable
-            ? <p className="model-note">The selected folder was not used for managed files and can be changed. Choose another empty storage folder, then refresh. Downloads to this default endpoint remain blocked until its storage identity is valid.</p>
-            : status.runtime_version
-            ? <p className="model-note">Phonton cannot verify the service currently using 127.0.0.1:11434 as its saved managed launch. Managed downloads and verified-local goals are blocked. Stop that process, reconnect the original storage folder if it moved, then refresh. When the port is free and the warning clears, use Download and start runtime. Phonton will not stop an unverified process or discard its receipt automatically.</p>
-            : <p className="model-note">The saved managed runtime or storage identity could not be verified while Ollama is offline. Reconnect the original storage folder if it moved, then refresh. This used location cannot be switched automatically. When the recovery warning clears, use Download and start runtime. Phonton will not discard its receipt automatically.</p>}
-          {managedRecovery === "retryable" && !status.runtime_version && managedRuntimeSupported && <button className="model-primary" disabled={busy || catalogLoading || !canStartManagedRuntimeSetup(status)} onClick={() => void start("setup")}>Retry runtime setup</button>}
-          <button onClick={() => void refresh()} disabled={busy}>Refresh status</button>
-        </div>}
+      {managedRecovery && status && <ManagedRuntimeRecovery status={status} recovery={managedRecovery}
+        retryDisabled={busy || catalogLoading || !canStartManagedRuntimeSetup(status)} refreshDisabled={busy}
+        onRetry={() => void start("setup")} onRefresh={() => void refresh()} />}
       {status?.runtime_version && !managedRecovery && (status.model_store?.status === "verified_managed"
         ? <p className="model-note">Phonton verified its managed Ollama process and model store. {memorySize(status.model_store.available_bytes)} is currently free for model downloads; available space can change during a download.</p>
         : <p className="model-note">Model store unverified: {status.model_store?.reason ?? "This engine did not report a managed-store binding."} Phonton sends requests to this loopback endpoint, but a separately running Ollama service may use its own model store, cloud settings and resource limits.</p>)}

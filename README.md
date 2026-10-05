@@ -78,8 +78,10 @@ If a saved managed runtime or storage identity cannot be verified, Local models
 shows recovery steps even while Ollama is offline. A blocked folder identity
 withholds setup until the warning clears: reconnect the original folder if it
 moved, then refresh. If the folder is valid and a missing or stale regular
-launch receipt is eligible for replacement, Desktop offers **Retry runtime setup**
-once the managed port is free. Phonton does not stop an unverified process;
+launch receipt is eligible for replacement, Desktop offers **Start runtime**
+for an installed runtime, or **Retry runtime setup** for incomplete setup, once
+the managed port is free. The recovery panel leads with the next action and
+keeps the exact diagnostic under **Technical details**. Phonton does not stop an unverified process;
 setup rechecks the saved root and path safety, plus model-store identity when
 a valid receipt still records it. Managed
 downloads remain unavailable during recovery. An

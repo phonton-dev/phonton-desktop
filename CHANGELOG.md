@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [changed] Lead local-runtime recovery with a clear action and readable guidance.
+  Keep the exact diagnostic in expandable Technical details; blocked storage and
+  unverified-service checks keep their existing gates.
+
 - [added] Separate cloud acceptance for restarting a saved managed runtime through
   the native recovery control and completing a second verified coding session.
 

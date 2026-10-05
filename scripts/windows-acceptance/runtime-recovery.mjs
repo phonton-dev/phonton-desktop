@@ -30,7 +30,7 @@ export function validateRecoveredModel(previous, current) {
 // Called after the first app closes normally, a new process reopens its receipt,
 // and rollback restores the fixture. All mutations use visible UI controls.
 export async function recoveryJourney(api) {
-  const { execute, click, type, screenshot, hash, record, fixture, evidence,
+  const { command, execute, click, type, screenshot, hash, record, fixture, evidence,
     readRpc, wait, button, unchanged, python, jsonIfPresent, save, stateDirectory,
     selected, runId: firstId, receiptPath: firstReceipt, receiptHash: firstReceiptHash,
     journalPath: firstJournal, native } = api;
@@ -54,10 +54,49 @@ export async function recoveryJourney(api) {
   unchanged(); preserveFirst();
 
   await click('nav[aria-label=Workspace] button[aria-label="Local models"]');
-  await wait(() => execute('return [...document.querySelectorAll("button")].some(b => b.textContent === "Retry runtime setup" && !b.disabled)'), 'visible retryable managed runtime recovery');
+  const action = await wait(() => execute('const buttons=[...document.querySelectorAll("button")].filter(b => ["Start runtime","Retry runtime setup"].includes(b.textContent) && !b.disabled);return buttons.length===1 ? buttons[0].textContent : false'), 'one visible retryable managed runtime action');
   await screenshot('recovery-01-retryable');
+  if (process.env.PHONTON_ACCEPTANCE_RECOVERY_PRESENTATION === 'true') {
+    assert.equal(action, 'Start runtime', 'New candidate must expose the clear installed-runtime action');
+    const readPanel = () => execute(`const panel=document.querySelector('.runtime-recovery');const details=panel?.querySelector('details');const reason=details?.querySelector('p');const box=panel?.getBoundingClientRect();const r=reason?.getBoundingClientRect();const clip=reason?.closest('.model-content')?.getBoundingClientRect();return {
+      title:panel?.querySelector('h3')?.textContent,description:panel?.querySelector('.runtime-recovery-description')?.textContent,
+      open:details?.open,reason:reason?.textContent,reasonVisible:!!(reason&&(reason.offsetWidth||reason.offsetHeight||reason.getClientRects().length)),
+      reasonInView:!!r&&r.height>0&&r.top>=Math.max(0,clip?.top??0)-1&&r.bottom<=Math.min(innerHeight,clip?.bottom??innerHeight)+1&&r.left>=Math.max(0,clip?.left??0)-1&&r.right<=Math.min(innerWidth,clip?.right??innerWidth)+1,
+      width:innerWidth,panelFits:!!box&&box.left>=0&&box.right<=innerWidth+1,scrollWidth:document.documentElement.scrollWidth
+    }`);
+    const closed = await readPanel();
+    assert.equal(closed.title, 'Start your local runtime');
+    assert.equal(closed.open, false); assert.equal(closed.reasonVisible, false);
+    assert.equal(closed.reason, before.model_store.reason);
+    assert.ok(!closed.description.includes(before.model_store.reason));
+    assert.ok(closed.panelFits && closed.scrollWidth <= closed.width + 1);
+    await click('.runtime-recovery-details > summary');
+    await execute('document.querySelector(".runtime-recovery-details p").scrollIntoView({block:"nearest"});');
+    const expanded = await readPanel();
+    assert.equal(expanded.open, true); assert.equal(expanded.reasonVisible, true);
+    assert.equal(expanded.reasonInView, true);
+    assert.equal(expanded.reason, closed.reason);
+    await screenshot('recovery-01a-technical-details');
+    const rect = await command('GET', '/window/rect');
+    let compact;
+    try {
+      await command('POST', '/window/rect', { width: 580, height: 700 });
+      compact = await wait(async () => { const value = await readPanel(); return value.width <= 600 && value.width >= 400 ? value : false; }, 'resized native compact viewport');
+      await execute('document.querySelector(".runtime-recovery-details p").scrollIntoView({block:"nearest"});');
+      compact = await readPanel();
+      assert.ok(compact.width <= 600 && compact.width >= 400, 'Actual compact native viewport required');
+      assert.ok(compact.panelFits && compact.scrollWidth <= compact.width + 1);
+      assert.equal(compact.open, true); assert.equal(compact.reasonVisible, true);
+      assert.equal(compact.reasonInView, true);
+      await screenshot('recovery-01b-compact-details');
+    } finally { await command('POST', '/window/rect', rect); }
+    await wait(async () => Math.abs((await readPanel()).width - closed.width) <= 1, 'restored desktop viewport');
+    await click('.runtime-recovery-details > summary');
+    assert.equal((await readPanel()).open, false);
+    record('native recovery presentation keeps diagnostics inspectable at desktop and compact widths', { closed, expanded, compact });
+  }
   const priorOperation = await readRpc('models.operation');
-  await button('Retry runtime setup');
+  await button(action);
   const operationId = await wait(async () => {
     const id = await execute('return sessionStorage.getItem("phonton.models.ownedOperationId")');
     return id && id !== priorOperation.id ? id : false;

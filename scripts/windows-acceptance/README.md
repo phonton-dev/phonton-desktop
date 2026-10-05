@@ -203,6 +203,14 @@ establish recovery and a second coding session after restarting the app.
 
 ## Managed runtime recovery after app restart
 
+Release Desktop candidates now run native folder selection and the two-session
+recovery journey for both NSIS and MSI. They also require the new recovery panel:
+clear Start runtime action, closed diagnostic disclosure, exact reason on expand,
+and readable diagnostic bounds after requesting a 580-pixel outer window width.
+The actual CSS viewport must be 400–600 pixels, with no horizontal overflow.
+The original desktop window is restored before continuing. Driver resize support
+is recorded; unsupported operations fail this check rather than skipping it.
+
 `Accept Windows runtime recovery` reuses the same pinned NSIS candidate and
 native-picker journey, then extends the reopened app after the first rollback.
 It requires the actual stopped-runtime recovery state and invokes the visible
