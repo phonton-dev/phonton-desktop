@@ -1,41 +1,49 @@
-# Release signing and updater secrets
+# Release signing and beta publication
 
-Configure these GitHub Actions secrets on `phonton-dev/phonton-desktop` before tagging a release.
+Public beta requires trusted Windows Authenticode and macOS Developer ID signing
+with notarization. Signing setup is currently deferred; do not publish these
+unsigned candidates as the public beta.
 
-## Required for auto-updater manifests
+`release-policy.json` and `scripts/publication-hold.mjs` enforce a publication hold
+for the current source. The Release Desktop workflow permits manual candidate
+builds but rejects tag publication. Changing a policy value does not enable a
+release: the signing, signed-byte provenance and installed platform/update gates
+need a reviewed implementation and passing evidence. Older commits are outside
+this source-level hold.
 
-| Secret | Value |
-|--------|--------|
-| `TAURI_SIGNING_PRIVATE_KEY` | Contents of `src-tauri/.tauri-signing.key` (generate locally; never commit) |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password used with `tauri signer generate` |
+## Updater signatures
 
-Generate a new keypair (only if rotating keys):
+The candidate workflow uses `TAURI_SIGNING_PRIVATE_KEY` and
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` to create updater artifact signatures. The
+matching public key lives in `src-tauri/tauri.conf.json`. Preserve this keypair;
+rotation is a separate operational change and is not part of beta UI work.
 
-```bash
-cd phonton-desktop
-npx tauri signer generate --ci -w src-tauri/.tauri-signing.key -f -p "your-password"
-```
+Updater signatures authenticate update payloads to the app. They do not establish
+Windows publisher trust, macOS notarization, successful updater installation, or
+that every signed artifact has passed installed acceptance.
 
-The public key in `src-tauri/tauri.conf.json` must match the private key.
+## OS signing remains unconfigured
 
-## Optional — OS code signing (recommended before broad launch)
+The current workflow does not wire Windows certificate or Apple Developer ID /
+notarization credentials into a trusted signing pipeline. Adding secret names
+alone would not implement or verify that pipeline. Do not infer signing from a
+successful build or updater signature.
 
-| Secret | Purpose |
-|--------|---------|
-| `WINDOWS_CERTIFICATE` | Base64 `.pfx` for Authenticode |
-| `WINDOWS_CERTIFICATE_PASSWORD` | PFX password |
-| `APPLE_CERTIFICATE` | Base64 `.p12` for Developer ID |
-| `APPLE_CERTIFICATE_PASSWORD` | P12 password |
-| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Your Name (TEAMID)` |
-| `APPLE_ID` | Apple ID email for notarization |
-| `APPLE_PASSWORD` | App-specific password |
-| `APPLE_TEAM_ID` | Apple Developer team ID |
+When signing setup is authorized, implementation must verify the actual shipped
+Windows signature and macOS signing/notarization results, bind them to exact
+artifact hashes, then rerun installed platform and update acceptance on those
+signed bytes. Existing unsigned installer results are useful candidate evidence,
+not acceptance of a later rebuilt or signed payload.
 
-Without OS signing secrets, CI still produces unsigned installers and signed updater JSON.
+Enter credentials through the account's secure secret-management flow. Never
+place private keys, passwords or certificates in source, command arguments,
+conversation, logs, screenshots, or release artifacts.
 
-## Set secrets via GitHub CLI
+## Candidate evidence
 
-```bash
-gh secret set TAURI_SIGNING_PRIVATE_KEY --repo phonton-dev/phonton-desktop < src-tauri/.tauri-signing.key
-gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo phonton-dev/phonton-desktop --body "your-password"
-```
+Windows fresh-install and forward-upgrade journeys are described in
+[`scripts/windows-acceptance/README.md`](../scripts/windows-acceptance/README.md)
+and [`docs/WINDOWS_UPGRADE_ACCEPTANCE.md`](WINDOWS_UPGRADE_ACCEPTANCE.md). Their
+Windows Server, silent-install and fixture limitations remain in force. Native
+macOS/Linux, consumer Windows, automatic updater and other unverified journeys
+must be assessed separately before widening release claims.
