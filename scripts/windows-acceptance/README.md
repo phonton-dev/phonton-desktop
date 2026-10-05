@@ -174,6 +174,9 @@ Git index and owned engine are checked before the usual full native journey.
 The PowerShell helper explicitly registers the framework's managed Win32
 client-side providers; otherwise native buttons/edits may appear as patternless
 panes. Control types and Invoke/Value requirements remain mandatory.
+A non-inlined compiled caller avoids the framework's default-proxy stack walk
+crashing on PowerShell dynamic frames. This registration repair is separately
+reproducible without enumerating or interacting with any application window.
 
 Passive runtime snapshots after model return, receipt completion and receipt
 reopen record elapsed time, visibility, focus and visible labels. One fresh

@@ -13,23 +13,31 @@ if (![IO.Path]::GetFullPath($ReportPath).StartsWith($evidencePrefix, [StringComp
 $report = @{ schema = 1; action = $Action; status = 'running'; app = $app; fixture = $fixture }
 function SaveReport { $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $ReportPath -Encoding UTF8 }
 try {
-    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, UIAutomationClientsideProviders, System.Drawing
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, UIAutomationClientsideProviders, WindowsBase, System.Drawing
     # Windows PowerShell can expose legacy HWND controls as patternless panes
     # unless its managed Win32 providers are explicitly registered. Keep the
     # Button/Edit and Invoke/Value assertions; load the documented providers.
     $providers = @([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'UIAutomationClientsideProviders' })
     if ($providers.Count -ne 1) { throw 'Expected one framework client-side provider assembly' }
-    [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].GetName())
     $report.clientSideProviders = $providers[0].FullName
     $report.clientSideProviderLocation = $providers[0].Location
     $report.clientSideProviderClasses = @([UIAutomationClientsideProviders.UIAutomationClientSideProviders]::ClientSideProviderDescriptionTable | Where-Object { $_.ClassName -in @('Button', 'Edit') } | ForEach-Object ClassName)
     if ('Button' -notin $report.clientSideProviderClasses -or 'Edit' -notin $report.clientSideProviderClasses) { throw 'Expected framework button and edit providers' }
-    Add-Type -TypeDefinition @'
+    $references = @([System.Windows.Automation.ClientSettings].Assembly.Location, $providers[0].Location, [System.Windows.Automation.ControlType].Assembly.Location, [System.Windows.Rect].Assembly.Location)
+    Add-Type -ReferencedAssemblies $references -TypeDefinition @'
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Windows.Automation;
 public static class PickerWindows {
+  // Framework proxy discovery inspects caller types. PowerShell's dynamic call
+  // frames have no ReflectedType; give it a non-inlined managed caller instead.
+  [MethodImpl(MethodImplOptions.NoInlining)]
+  public static void RegisterProviders() {
+    ClientSettings.RegisterClientSideProviders(UIAutomationClientsideProviders.UIAutomationClientSideProviders.ClientSideProviderDescriptionTable);
+  }
   public delegate bool EnumProc(IntPtr hwnd, IntPtr data);
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr data);
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
@@ -49,6 +57,8 @@ public static class PickerWindows {
   public static string Title(IntPtr hwnd) { var text = new StringBuilder(512); GetWindowText(hwnd, text, text.Capacity); return text.ToString(); }
 }
 '@
+    [PickerWindows]::RegisterProviders()
+    $report.providerRegistration = 'compiled-noinline'
     $owned = @(Get-CimInstance Win32_Process -Filter "Name='phonton-desktop.exe'" | Where-Object ExecutablePath -EQ $app)
     if ($owned.Count -ne 1) { throw 'Exactly one app at the accepted installed path required' }
     $appId = [uint32]$owned[0].ProcessId
@@ -117,6 +127,7 @@ public static class PickerWindows {
 } catch {
     $report.status = 'failed'
     $report.error = $_.Exception.Message
+    $report.errorStack = $_.Exception.GetBaseException().StackTrace
     throw
 } finally {
     if ($report.status -eq 'failed' -and $null -ne $dialog -and $null -ne $element -and [PickerWindows]::IsWindow($dialog) -and [PickerWindows]::GetAncestor($dialog, 3) -eq $main) {
