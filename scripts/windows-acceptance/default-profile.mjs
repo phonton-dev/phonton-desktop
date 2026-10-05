@@ -41,6 +41,16 @@ export async function launchAndAttachDefaultProfile(request) {
     stdio: 'ignore', windowsHide: true, timeout: 30000,
   });
   const launched = JSON.parse(readFileSync(launchRecord, 'utf8').replace(/^\uFEFF/, ''));
+  return attachDefaultProfile(request, launched.processId);
+}
+
+/** Attach to an independently observed app; this helper never launches it. */
+export async function attachDefaultProfile(request, expectedProcessId) {
+  assert.equal(process.env.GITHUB_ACTIONS, 'true');
+  assert.equal(process.platform, 'win32');
+  assert.equal(process.env.PHONTON_ACCEPTANCE_PROFILE, undefined);
+  assert.equal(process.env.WEBVIEW2_USER_DATA_FOLDER, undefined);
+  assert.ok(Number.isSafeInteger(expectedProcessId) && expectedProcessId > 0);
   const deadline = Date.now() + 60000;
   let ready = false;
   while (Date.now() < deadline) {
@@ -52,7 +62,7 @@ export async function launchAndAttachDefaultProfile(request) {
   }
   assert.ok(ready, 'Native debugging endpoint did not start');
   const profile = observeDefaultProfile();
-  assert.equal(profile.appProcessId, launched.processId);
+  assert.equal(profile.appProcessId, expectedProcessId);
   const session = await request('POST', '/session', { capabilities: { alwaysMatch: {
     browserName: 'webview2', 'ms:edgeChromium': true,
     'ms:edgeOptions': { debuggerAddress: '127.0.0.1:9222' },

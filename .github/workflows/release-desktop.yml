@@ -2,6 +2,12 @@ name: Release Desktop
 
 on:
   workflow_dispatch:
+    inputs:
+      updater_candidate_pin:
+        description: Optional accepted-candidate JSON pin; run controlled updater acceptance instead of rebuilding all platforms
+        required: false
+        type: string
+        default: ''
   push:
     tags:
       - 'v*'
@@ -14,8 +20,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  controlled-updater:
+    if: github.event_name == 'workflow_dispatch' && inputs.updater_candidate_pin != ''
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/windows-updater-acceptance.yml
+    with:
+      candidate_pin: ${{ inputs.updater_candidate_pin }}
+
   preflight:
     name: Check pinned engine and release state
+    if: github.event_name != 'workflow_dispatch' || inputs.updater_candidate_pin == ''
     runs-on: ubuntu-latest
     outputs:
       engine_sha: ${{ steps.engine.outputs.sha }}

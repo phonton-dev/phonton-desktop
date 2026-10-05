@@ -1,0 +1,92 @@
+name: Accept Windows controlled updater
+
+on:
+  workflow_call:
+    inputs:
+      candidate_pin:
+        description: Exact accepted candidate run, artifacts and SHA256 pins as JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: windows-updater-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  updater:
+    name: Check signed update, restart and retained profile
+    runs-on: windows-2022
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - name: Verify accepted candidate source and artifact pins
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PHONTON_UPDATER_PIN: ${{ inputs.candidate_pin }}
+        run: node scripts/windows-acceptance/prepare-updater-source.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run_id }}
+          artifact-ids: ${{ steps.source.outputs.candidate_id }}
+          merge-multiple: true
+          path: acceptance-candidate
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run_id }}
+          artifact-ids: ${{ steps.source.outputs.bundle_id }}
+          merge-multiple: true
+          path: updater-bundles
+      - uses: actions/checkout@v4
+        with:
+          repository: phonton-dev/phonton-cli
+          ref: ${{ steps.source.outputs.engine_sha }}
+          path: phonton-dev
+          persist-credentials: false
+      - run: npm ci
+      - run: node --test scripts/*.test.mjs
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Build labelled bootstrap with original updater public key
+        env:
+          PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/phonton-dev
+          PHONTON_ENGINE_EXPECTED_VERSION: ${{ steps.source.outputs.engine_version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $config = Join-Path $env:RUNNER_TEMP 'phonton-updater-bootstrap.json'
+          node scripts/windows-acceptance/updater-bootstrap.mjs $config
+          if ($LASTEXITCODE -ne 0) { throw 'Bootstrap config rejected' }
+          npx tauri build --config $config -- --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Bootstrap build failed' }
+      - name: Install WebDriver
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Match EdgeDriver to installed WebView2
+        run: ./scripts/windows-acceptance/prepare-driver.ps1
+      - name: Exercise actual updater and full retained-profile journey
+        run: ./scripts/windows-acceptance/run-updater.ps1
+      - name: Remove exact runner-only TLS certificate and key
+        if: always()
+        run: ./scripts/windows-acceptance/updater-tls.ps1 -Action cleanup
+      - name: Retain bounded updater evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-controlled-updater-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7

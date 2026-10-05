@@ -1,8 +1,9 @@
-param([ValidateSet('observe', 'close')][string]$Action = 'observe')
+param([ValidateSet('observe', 'close')][string]$Action = 'observe', [switch]$AllowMissingApp)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') { throw 'Disposable Windows Actions runner required' }
 $appPath = $env:PHONTON_ACCEPTANCE_APP
-if (!$appPath -or !(Test-Path -LiteralPath $appPath)) { throw 'Installed application path missing' }
+if ($AllowMissingApp -and ($Action -ne 'observe' -or $env:PHONTON_ACCEPTANCE_CONTROLLED_UPDATER -ne 'true')) { throw 'Missing app is allowed only for updater transition observation' }
+if (!$appPath -or (![IO.Path]::IsPathFullyQualified($appPath)) -or (!(Test-Path -LiteralPath $appPath) -and !$AllowMissingApp)) { throw 'Installed application path missing' }
 $enginePath = Join-Path (Split-Path $appPath) 'local-engine/phonton.exe'
 $apps = @(Get-CimInstance Win32_Process -Filter "Name='phonton-desktop.exe'" | Where-Object ExecutablePath -EQ $appPath)
 $engines = @(Get-CimInstance Win32_Process -Filter "Name='phonton.exe'" | Where-Object ExecutablePath -EQ $enginePath)

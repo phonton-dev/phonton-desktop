@@ -251,8 +251,43 @@ signature to explicit digest pins. Its ordered phases cover no update, a withdra
 offer, altered installer bytes and the exact candidate. The runner must supply a
 short-lived localhost certificate and trust only its public certificate locally.
 The transport tests use synthetic bytes; they do not prove native signature
-rejection, installation, restart or preference retention. Native orchestration
-and that acceptance evidence remain pending.
+rejection, installation, restart or preference retention.
+
+The controlled native flow is implemented in `run-updater.ps1` and
+`updater-journey.mjs`, but has not yet passed cloud acceptance. Dispatch the
+existing **Release Desktop** workflow on the reviewed branch with its optional
+`updater_candidate_pin` JSON input. Empty input keeps normal candidate builds;
+nonempty input runs only the reusable controlled-updater workflow. That workflow
+has read-only repository/actions permissions and receives no signing secrets.
+
+The pin contains `schema: 1`, the Desktop repository, accepted build `runId`,
+source `commit`, `manifestSha256`, `installerSha256`, `signatureSha256`, and
+`candidateArtifact` / `bundleArtifact` objects with `id`, `name`, and ZIP `sha256`.
+Artifact names must be `windows-release-candidate` and
+`release-candidate-windows-latest`. Populate these from collected, accepted
+artifacts; no placeholder pin is supplied. The preflight checks the successful
+manual build's identity, both artifact digests and unchanged application/build
+inputs before building the bootstrap. The candidate itself is never rebuilt.
+
+On a fresh Windows runner, the test installs the labelled bootstrap, seeds only
+named fixture preferences, and proves same-binary close/reopen retention. It
+then uses visible Settings controls for current, withdrawn, altered-payload
+payload and valid update cases. The negative case requires an actual signature
+error after the complete altered response, unchanged bootstrap bytes/process
+and usable controls. The positive case independently observes replacement before
+attaching through a separate driver; a lost click reply cannot substitute for
+restart proof. Exact candidate bytes, native identity, NSIS registration, engine
+paths, origin, default profile and preferences must agree before any reseed.
+A normal close is followed by the existing full model/Apply/reopen/rollback
+journey in a separate controlled-updater mode, preserving direct-upgrade labels.
+
+`updater-tls.ps1` generates a three-hour localhost certificate only on a manual
+GitHub-hosted Windows runner. Only its public certificate enters that runner's
+CurrentUser Root store. Cleanup removes the matching thumbprint and exact temp
+files; private key bytes are never copied to evidence or artifacts. Normal and
+failure evidence use the `windows-controlled-updater-evidence` artifact. This
+tests controlled bootstrap delivery, not the public feed, public 0.3.4 updater
+migration, consumer Windows or publisher signing.
 
 Release Desktop now executes the native Rust library contracts after building,
 before packaging the candidate for installed acceptance. Frontend updater tests

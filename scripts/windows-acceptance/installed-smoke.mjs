@@ -8,6 +8,7 @@ import { fullFixtureTests, fullJourney } from './full-journey.mjs';
 import { interfaceJourney } from './interface-journey.mjs';
 import { pickerJourney, nativePicker, settledPickerState } from './picker-journey.mjs';
 import { verifyRetainedPreferences } from './upgrade-contract.mjs';
+import { verifyUpdaterPreferences } from './updater-contract.mjs';
 import { launchAndAttachDefaultProfile, observeDefaultProfile } from './default-profile.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Disposable Actions runner required');
@@ -19,8 +20,12 @@ const full = process.env.PHONTON_ACCEPTANCE_FULL_JOURNEY === 'true';
 const picker = process.env.PHONTON_ACCEPTANCE_NATIVE_PICKER === 'true';
 const upgrade = process.env.PHONTON_ACCEPTANCE_UPGRADE_RECORD
   ? JSON.parse(readFileSync(process.env.PHONTON_ACCEPTANCE_UPGRADE_RECORD, 'utf8')) : null;
-assert.ok(app && fixture && (profile || upgrade));
-if (upgrade) {
+const updater = process.env.PHONTON_ACCEPTANCE_UPDATER_RECORD
+  ? JSON.parse(readFileSync(process.env.PHONTON_ACCEPTANCE_UPDATER_RECORD, 'utf8')) : null;
+assert.ok(!(upgrade && updater), 'Direct stable upgrade and controlled updater are separate modes');
+const retained = upgrade || updater;
+assert.ok(app && fixture && (profile || retained));
+if (retained) {
   assert.equal(full, true);
   assert.equal(profile, undefined, 'Upgrade must use the default WebView profile');
   assert.equal(process.env.WEBVIEW2_USER_DATA_FOLDER, undefined);
@@ -32,9 +37,10 @@ const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', ca
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
   ...(picker ? ['Native folder picker covers the owned English Windows Server dialog and one disposable fixture only.'] : ['Workspace selection is seeded in localStorage; native folder picker is not exercised.']),
   ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),
-  ...(upgrade ? [`Windows Server ${candidate.installer.kind.toUpperCase()} forward upgrade with named fixture preferences only; consumer Windows, authenticated account migration, cross-installer migration, native signing and updater installation remain untested.`] : ['Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.']),
+  ...(updater ? ['Full journey after controlled bootstrap updater acceptance; public-feed migration, authenticated accounts, consumer Windows and native publisher signing remain untested.'] : upgrade ? [`Windows Server ${candidate.installer.kind.toUpperCase()} forward upgrade with named fixture preferences only; consumer Windows, authenticated account migration, cross-installer migration, native signing and updater installation remain untested.`] : ['Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.']),
 ] };
 if (upgrade) report.upgrade = { from: '0.3.4', storage: 'default-webview', harnessCommit: process.env.GITHUB_SHA, candidateCommit: candidate.desktopCommit };
+if (updater) report.updater = { from: updater.bootstrapIdentity.version, kind: 'controlled-bootstrap', storage: 'default-webview', harnessCommit: process.env.GITHUB_SHA, candidateCommit: candidate.desktopCommit };
 let session;
 const save = () => writeFileSync(path.join(evidence, 'result.json'), JSON.stringify(report, null, 2) + '\n');
 const record = (name, detail = true) => { report.checks.push({ name, detail }); save(); console.log(`PASS ${name}`); };
@@ -96,8 +102,8 @@ async function ready() {
   await until(() => execute('return document.querySelector(".lw-engine")?.textContent === arguments[0]', `engine ${candidate.engine.version}`), 'real engine ready in native workbench');
 }
 async function start() {
-  const value = upgrade ? await launchAndAttachDefaultProfile(request) : await request('POST', '/session', { capabilities: { alwaysMatch: {
-    'tauri:options': { application: app, ...(upgrade ? {} : { webviewOptions: { userDataFolder: profile } }) },
+  const value = retained ? await launchAndAttachDefaultProfile(request) : await request('POST', '/session', { capabilities: { alwaysMatch: {
+    'tauri:options': { application: app, webviewOptions: { userDataFolder: profile } },
   } } });
   session = value.sessionId;
   assert.ok(session, 'WebDriver session ID missing');
@@ -120,7 +126,7 @@ async function start() {
 async function closeNormally(name) {
   // Keep both WebDrivers alive until the app's own cleanup has been observed.
   native('close');
-  await until(() => { const s = native(); return !s.apps.length && !s.engines.length && !s.listeners.length && (!upgrade || !s.debugListeners.length) && (!full || (!s.runtimes.length && !s.runtimeListeners.length)); }, 'normal close releases engine and owned runtime listeners', 30000);
+  await until(() => { const s = native(); return !s.apps.length && !s.engines.length && !s.listeners.length && (!retained || !s.debugListeners.length) && (!full || (!s.runtimes.length && !s.runtimeListeners.length)); }, 'normal close releases engine and owned runtime listeners', 30000);
   const driverStatus = await request('GET', '/status');
   assert.equal(typeof driverStatus?.ready, 'boolean', 'Both WebDrivers must still respond after app cleanup');
   record(name);
@@ -129,10 +135,10 @@ async function closeNormally(name) {
 }
 
 try {
-  if (upgrade) {
-    assert.equal(fixture, upgrade.fixture);
-    for (const [file, digest] of upgrade.sourceHashes) assert.equal(hash(path.join(fixture, file)), digest, 'Upgrade changed the retained fixture');
-    assert.deepEqual(upgrade.sourceHashes.map(([file]) => file), ['port.py', 'test_port.py', '.git/index']);
+  if (retained) {
+    assert.equal(fixture, retained.fixture);
+    for (const [file, digest] of retained.sourceHashes) assert.equal(hash(path.join(fixture, file)), digest, 'Upgrade changed the retained fixture');
+    assert.deepEqual(retained.sourceHashes.map(([file]) => file), ['port.py', 'test_port.py', '.git/index']);
   } else {
   mkdirSync(fixture);
   writeFileSync(path.join(fixture, 'port.py'), 'def parse_port(value):\n    return int(value)\n');
@@ -147,19 +153,20 @@ try {
   record('installed engine ownership and health', first);
   await screenshot('01-first-launch');
 
-  if (upgrade) {
-    const observed = await execute('return Object.fromEntries(arguments[0].map(key => [key, localStorage.getItem(key)]))', Object.keys(upgrade.preferences));
+  if (retained) {
+    const observed = await execute('return Object.fromEntries(arguments[0].map(key => [key, localStorage.getItem(key)]))', Object.keys(retained.preferences));
     const nativeProfile = observeDefaultProfile();
     const page = await execute('return {href:location.href,origin:location.origin}');
-    assert.deepEqual(nativeProfile.userDataDirectories, upgrade.firstSession.userDataDirectories, 'Upgraded app must discover the same native profile');
-    assert.deepEqual(page, upgrade.firstSession.page, 'Upgraded app must retain the same origin');
-    verifyRetainedPreferences(upgrade, observed, candidate);
+    assert.deepEqual(nativeProfile.userDataDirectories, retained.firstSession.userDataDirectories, 'Upgraded app must discover the same native profile');
+    assert.deepEqual(page, retained.firstSession.page, 'Upgraded app must retain the same origin');
+    if (updater) verifyUpdaterPreferences(updater, observed, candidate);
+    else verifyRetainedPreferences(upgrade, observed, candidate);
     assert.equal(await execute('return document.documentElement.dataset.theme'), 'light', 'Retained theme must be rendered');
     assert.ok((await execute('return document.querySelector(".lw-intro h1").textContent')).includes(path.basename(fixture)), 'Retained repository must be active in the native workbench');
-    await screenshot('upgrade-02-retained-workbench');
-    record(`${candidate.installer.kind.toUpperCase()} upgrade retains default-profile theme, active and recent repository before any reseed`, { observed, nativeProfile, page, stableDesktopSha256: upgrade.stableDesktopSha256 });
+    await screenshot(updater ? 'updater-08-retained-full-journey' : 'upgrade-02-retained-workbench');
+    record(`${updater ? 'Controlled updater' : candidate.installer.kind.toUpperCase() + ' upgrade'} retains default-profile theme, active and recent repository before any reseed`, { observed, nativeProfile, page, ...(updater ? { bootstrapDesktopSha256: updater.bootstrapDesktopSha256 } : { stableDesktopSha256: upgrade.stableDesktopSha256 }) });
   } else if (picker) {
-    assert.equal(upgrade, null, 'Native picker mode is separate from retained-profile upgrade');
+    assert.equal(retained, null, 'Native picker mode is separate from retained-profile upgrade');
     await pickerJourney({ execute, click, type, until, screenshot, record, fixture, evidence, identities, hash, ownedEngine });
   } else {
     await execute('localStorage.setItem("phonton.projects.active",arguments[0]);localStorage.setItem("phonton.projects.recent",JSON.stringify([arguments[0]]));', fixture);
