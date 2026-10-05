@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Navigate the native Linux chooser out of Recent before selecting a
+  repository; verify entry caret and focus, then wait for its enabled Open action.
+
 - [fixed] Query supported AT-SPI interfaces for the native GTK location entry,
   record its identity, and check API availability before cloud compilation.
   Retain compiler caches when later native acceptance fails.
