@@ -102,7 +102,7 @@ body { font-family: var(--ink-ui); }
 .model-hero .model-phi { font-size: 6px; opacity: .9; }
 .model-page-heading { font-size: 13px; }
 .model-card { border-radius: 9px; background: var(--ph-bg-elevated); }
-.settings-page { font-family: var(--ink-ui); }
+.settings-page { font-family: var(--ink-ui); color: var(--foreground); }
 .settings-page>header { height: 60px; min-height: 60px; padding: 0 24px; background: var(--ph-rail); }
 .settings-page>header h1 { font-size: 17px; font-weight: 500; }
 .settings-nav { width: 234px; padding: 24px 18px; background: var(--ph-rail); }

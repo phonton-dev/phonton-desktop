@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Give Settings an explicit theme foreground so Light appearance keeps
+  titles, navigation and theme labels readable. Installed acceptance now checks
+  these text colors as well as navigation and draft preservation.
+
 - [fixed] Keep the Local models return bar outside the scrolling content so
   scrolling to model actions cannot place them underneath the navigation.
 

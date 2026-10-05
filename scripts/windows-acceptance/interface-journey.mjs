@@ -51,6 +51,23 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
   await section('Appearance');
   await settingsButton('Light');
   await until(() => execute('return document.documentElement.dataset.theme === "light"'), 'Light appearance');
+  // A visible element can still be unreadable. Check the inherited labels that
+  // previously kept the dark theme's near-white foreground in installed WebView.
+  const lightSettings = await until(async () => {
+    const appearance = await execute(`return {
+    bodyColor: getComputedStyle(document.body).color,
+    background: getComputedStyle(document.querySelector('.settings-page')).backgroundColor,
+    labels: [...document.querySelectorAll('.settings-page h1, .settings-page h2, .settings-page > header button, .settings-nav button, .settings-page section button span.text-sm')]
+      .map(element => ({ text: element.textContent.trim(), color: getComputedStyle(element).color }))
+    }`);
+    return appearance.background === 'rgb(246, 247, 251)' && appearance.labels.length === 18 &&
+      appearance.labels.every(label => label.color === 'rgb(20, 24, 40)') ? appearance : false;
+  }, 'readable Light Settings labels');
+  assert.equal(lightSettings.background, 'rgb(246, 247, 251)');
+  assert.equal(lightSettings.labels.length, 18, 'Inspect both titles, Back, eleven sections and four theme labels');
+  for (const label of lightSettings.labels) {
+    assert.equal(label.color, 'rgb(20, 24, 40)', `Light Settings label must have a readable foreground: ${label.text}`);
+  }
   await screenshot('ui-01-light-settings');
   await settingsButton('Back');
   assert.deepEqual(await draftState(), original, 'Appearance navigation must preserve goal, scope, checks, plan and unapproved consent');
@@ -71,5 +88,5 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
   assert.equal(await execute('return document.documentElement.dataset.theme'), 'nebula');
   assert.ok(await execute('return document.querySelector("#local-goal").getBoundingClientRect().height > 0'), 'Returning must reveal the workbench');
   await screenshot('ui-04-restored-local-plan');
-  record('Light and Graphite themes plus settings and online round trips preserve the unapproved local plan', { light, fields: ['goal', 'files', 'check', 'plan', 'approved', 'repository'] });
+  record('Light and Graphite themes plus settings and online round trips preserve the unapproved local plan', { light, lightSettings, fields: ['goal', 'files', 'check', 'plan', 'approved', 'repository'] });
 }

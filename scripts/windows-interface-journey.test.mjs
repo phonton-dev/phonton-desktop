@@ -5,11 +5,14 @@ import { interfaceJourney } from './windows-acceptance/interface-journey.mjs';
 
 // This models asynchronous DOM metadata for the acceptance harness itself.
 // It is not native product/runtime evidence; the installed cloud journey supplies that.
-function harness({ changeConsent = false, neverReady = false } = {}) {
+function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false } = {}) {
   const state = { view: 'workbench', section: 'Account', theme: 'nebula', ready: false, approved: false };
   const records = [];
   let metadataWaits = 0;
+  let appearanceWaits = 0;
+  let colorsReady = !settlingTheme;
   const document = {
+    body: {},
     documentElement: { get dataset() { return { theme: state.theme }; }, scrollWidth: 1280 },
     querySelector(selector) {
       const fields = {
@@ -27,13 +30,20 @@ function harness({ changeConsent = false, neverReady = false } = {}) {
       return fields[selector];
     },
     querySelectorAll(selector) {
-      assert.equal(selector, '.settings-page h2');
-      return [{ textContent: ({ MCP: 'MCP servers', Updates: 'App updates' })[state.section] || state.section }];
+      if (selector === '.settings-page h2') {
+        return [{ textContent: ({ MCP: 'MCP servers', Updates: 'App updates' })[state.section] || state.section }];
+      }
+      assert.equal(selector, '.settings-page h1, .settings-page h2, .settings-page > header button, .settings-nav button, .settings-page section button span.text-sm');
+      return ['Settings', 'Appearance', 'Back', 'Account', 'Appearance', 'Provider', 'Budget', 'Index', 'Permissions', 'General', 'Steering', 'MCP', 'Doctor', 'Updates', 'Graphite', 'Cursor Dark', 'Light', 'High contrast']
+        .map(textContent => ({ textContent }));
     },
   };
   const context = vm.createContext({ document, innerWidth: 1280,
     localStorage: { getItem: () => 'C:\\fixture' },
-    getComputedStyle: () => ({ color: 'rgb(20, 22, 22)', backgroundColor: state.theme === 'light' ? 'rgb(246, 247, 251)' : 'rgb(20, 22, 22)' }),
+    getComputedStyle: element => ({
+      color: state.theme === 'light' && (!colorsReady || element.textContent === unreadableLabel) ? 'rgb(238, 238, 232)' : 'rgb(20, 24, 40)',
+      backgroundColor: state.theme === 'light' ? 'rgb(246, 247, 251)' : 'rgb(20, 22, 22)',
+    }),
   });
   const execute = async (script, ...args) => {
     const result = vm.runInContext(`(function(){${script}})`, context)(...args);
@@ -46,6 +56,10 @@ function harness({ changeConsent = false, neverReady = false } = {}) {
       if (description === 'machine evidence directory in the plan') {
         metadataWaits++;
         if (!neverReady) state.ready = true; // The asynchronous probe completes.
+      }
+      if (description === 'readable Light Settings labels') {
+        appearanceWaits++;
+        colorsReady = true; // Color transitions finish; an unreadableLabel stays wrong.
       }
     }
     throw new Error(`Timed out: ${description}`);
@@ -74,7 +88,7 @@ function harness({ changeConsent = false, neverReady = false } = {}) {
       click: async selector => { assert.match(selector, /Settings/); state.view = 'settings'; },
       screenshot: async () => {}, record: (...args) => records.push(args),
     }),
-    records, waits: () => metadataWaits,
+    records, waits: () => metadataWaits, appearanceWaits: () => appearanceWaits,
   };
 }
 
@@ -96,4 +110,21 @@ test('missing machine metadata fails rather than comparing incomplete plan text'
   const app = harness({ neverReady: true });
   await assert.rejects(app.run(), /Timed out: machine evidence directory/);
   assert.equal(app.records.length, 0);
+});
+
+test('installed appearance acceptance rejects unreadable inherited Settings labels', async () => {
+  for (const unreadableLabel of ['Settings', 'Appearance', 'Back', 'Account', 'Graphite']) {
+    const app = harness({ unreadableLabel });
+    await assert.rejects(app.run(), /Timed out: readable Light Settings labels/);
+    assert.equal(app.records.length, 1, 'Unreadable labels must not produce a successful appearance record');
+  }
+});
+
+test('installed appearance acceptance waits for theme transitions before checking readable labels', async () => {
+  const app = harness({ settlingTheme: true });
+  await app.run();
+  assert.equal(app.appearanceWaits(), 1);
+  assert.equal(app.records.length, 2);
+  assert.equal(app.records[1][1].lightSettings.labels.length, 18);
+  assert.ok(app.records[1][1].lightSettings.labels.every(label => label.color === 'rgb(20, 24, 40)'));
 });
