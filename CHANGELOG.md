@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Query supported AT-SPI interfaces for the native GTK location entry,
+  record its identity, and check API availability before cloud compilation.
+  Retain compiler caches when later native acceptance fails.
+
 - [fixed] Bind native AppImage mount type and source to the actual packaged
   runtime basename, preserving read-only mount, executable hash and daemon checks.
 

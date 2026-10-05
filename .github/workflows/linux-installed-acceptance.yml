@@ -55,10 +55,25 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-0 webkit2gtk-driver libgtk-3-0 libssl-dev pkg-config \
             xvfb xauth openbox dbus-x11 at-spi2-core libatk-adaptor python3-gi gir1.2-atspi-2.0 \
             xdotool wmctrl imagemagick libfuse2 zstd gcc-12 g++-12
+      - name: Verify native accessibility API before compilation
+        run: |
+          python3 - <<'PY'
+          import gi
+          gi.require_version('Atspi', '2.0')
+          from gi.repository import Atspi
+          for method in ['get_interfaces', 'get_editable_text_iface', 'get_text_iface', 'get_action_iface', 'get_process_id', 'get_state_set', 'get_child_at_index', 'get_child_count', 'get_name', 'get_role']:
+              assert hasattr(Atspi.Accessible, method), method
+          assert hasattr(Atspi.EditableText, 'set_text_contents')
+          assert hasattr(Atspi.Text, 'get_text')
+          for method in ['get_action_name', 'get_n_actions', 'do_action']:
+              assert hasattr(Atspi.Action, method), method
+          print('Required native AT-SPI APIs are available; UI behavior remains untested.')
+          PY
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: phonton-dev
           shared-key: linux-installed-cli
+          cache-on-failure: true
       - name: Build exact external CLI and pinned WebDriver
         env:
           CC: gcc-12

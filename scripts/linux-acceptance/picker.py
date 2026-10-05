@@ -105,10 +105,12 @@ try:
         assert active == window, 'Repository chooser did not retain keyboard focus'
         subprocess.run(['xdotool', 'key', '--clearmodifiers', 'ctrl+l'], check=True, timeout=10)
         def entries():
-            return [node for node in walk(dialog) if showing(node) and node.is_editable_text()]
+            return [node for node in walk(dialog) if showing(node) and 'EditableText' in node.get_interfaces()]
         editors = wait(entries, 'GTK location entry')
         assert len(editors) == 1, 'Ambiguous editable location entry'
         assert editors[0].get_process_id() == pid
+        report['locationEntry'] = {'name': editors[0].get_name(), 'role': editors[0].get_role_name(), 'interfaces': list(editors[0].get_interfaces()), 'pid': pid}
+        save()
         assert editors[0].get_editable_text_iface().set_text_contents(str(fixture))
         report['enteredDirectory'] = editors[0].get_text_iface().get_text(0, -1)
         assert report['enteredDirectory'] == str(fixture)
