@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Bind native AppImage mount type and source to the actual packaged
+  runtime basename, preserving read-only mount, executable hash and daemon checks.
+
 - [fixed] Wait through an empty loopback proxy connection during Linux native
   driver startup while retaining strict HTTP/JSON checks and a bounded deadline.
 

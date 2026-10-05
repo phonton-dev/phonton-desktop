@@ -36,7 +36,11 @@ export function verifyAppImageObservation(value, pin, launcher, expectedProfile)
   assert.equal(value.appRunSha256, pin.appImage.appRunSha256);
   for (const key of profileEnvironmentKeys) assert.equal(value.environment[key] ?? null, expectedProfile[key] ?? null, key + ' changed');
   assert.equal(value.mount.mountPoint, appDir); assert.equal(value.mount.root, '/');
-  assert.equal(value.mount.filesystem, 'fuse.squashfuse');
+  const imageName = path.posix.basename(launcher);
+  assert.equal(imageName, pin.appImage.name);
+  // The exact packaged runtime uses its executable basename for FUSE identity.
+  assert.equal(value.mount.filesystem, 'fuse.' + imageName);
+  assert.equal(value.mount.source, imageName);
   assert.ok(value.mount.options.includes('ro'), 'Require actual read-only FUSE mounting, not extracted AppRun');
   assert.equal(value.daemon.exe, launcher); assert.notEqual(value.daemon.pid, value.process.pid);
   assert.equal(value.daemonSha256, pin.appImage.sha256);

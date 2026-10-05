@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { appImageClosed, parseMountInfo, verifyAppImageObservation } from './linux-acceptance/appimage.mjs';
 
-const launcher = '/tmp/candidate/Phonton.AppImage';
-const pin = { appImage: { sha256: 'a'.repeat(64), payloadSha256: 'b'.repeat(64), appRunSha256: 'c'.repeat(64) } };
+const imageName = 'Phonton_0.4.0-beta.1_amd64.AppImage';
+const launcher = '/tmp/candidate/' + imageName;
+const pin = { appImage: { name: imageName, sha256: 'a'.repeat(64), payloadSha256: 'b'.repeat(64), appRunSha256: 'c'.repeat(64) } };
 const profile = { HOME: '/home/runner' };
 const process = { pid: 12, startTime: '111', exe: '/tmp/.mount_Phonton/usr/bin/phonton-desktop' };
 const daemon = { pid: 13, startTime: '112', exe: launcher };
-const mount = { id: '99', parentId: '1', root: '/', device: '0:66', filesystem: 'fuse.squashfuse', mountPoint: '/tmp/.mount_Phonton', options: ['ro', 'nosuid'], source: 'squashfuse' };
+const mount = { id: '99', parentId: '1', root: '/', device: '0:66', filesystem: 'fuse.' + imageName, mountPoint: '/tmp/.mount_Phonton', options: ['ro', 'nosuid'], source: imageName };
 function observation() {
   return { launcher, launcherSha256: pin.appImage.sha256, environment: { ...profile, APPIMAGE: launcher, APPDIR: mount.mountPoint },
     process, processAfter: { ...process }, daemon, daemonAfter: { ...daemon }, mount,
@@ -20,6 +21,7 @@ test('AppImage binding rejects substituted bytes, spoofed environment, portable 
     value => { value.environment.APPIMAGE = '/tmp/other.AppImage'; }, value => { value.environment.APPDIR = '/tmp/extracted'; },
     value => { value.environment.HOME = '/tmp/portable'; }, value => { value.environment.XDG_DATA_HOME = '/tmp/profile'; },
     value => { value.mount.options = ['rw']; }, value => { value.mount.filesystem = 'ext4'; },
+    value => { value.mount.filesystem = 'fuse.squashfuse'; }, value => { value.mount.source = 'other.AppImage'; },
     value => { value.processAfter.startTime = '999'; }, value => { value.daemonAfter.exe = '/tmp/other'; },
     value => { value.daemonSha256 = 'e'.repeat(64); }, value => { value.appRunSha256 = 'e'.repeat(64); },
   ]) { const value = structuredClone(observation()); mutate(value); assert.throws(() => verifyAppImageObservation(value, pin, launcher, profile)); }
