@@ -1,6 +1,7 @@
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') { throw 'Disposable Windows Actions runner required' }
 if ($env:PHONTON_ACCEPTANCE_PROFILE -or $env:WEBVIEW2_USER_DATA_FOLDER) { throw 'Default WebView profile must not be overridden' }
+$env:PHONTON_ACCEPTANCE_UPGRADE_NATIVE = 'true'
 New-Item -ItemType Directory -Force acceptance-evidence | Out-Null
 $source = Get-Content scripts/windows-acceptance/upgrade-source.json -Raw | ConvertFrom-Json
 $candidatePath = 'acceptance-candidate/candidate.json'
@@ -41,6 +42,11 @@ function RunNative([string]$Script, [string]$Label) {
         node $Script
         if ($LASTEXITCODE -ne 0) { throw "$Label native acceptance failed" }
     } finally {
+        # Attach mode owns the app separately from the driver. On failure request
+        # its normal close by exact installed path; never terminate unrelated apps.
+        if (Get-CimInstance Win32_Process -Filter "Name='phonton-desktop.exe'" | Where-Object ExecutablePath -EQ $env:PHONTON_ACCEPTANCE_APP) {
+            try { & ./scripts/windows-acceptance/native-process.ps1 -Action close } catch { Write-Warning 'Could not normally close the failed test app; disposable runner teardown will clean it up' }
+        }
         if (!$driver.HasExited) { Stop-Process -InputObject $driver }
     }
 }

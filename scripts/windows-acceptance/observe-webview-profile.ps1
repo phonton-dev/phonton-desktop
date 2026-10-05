@@ -15,4 +15,6 @@ $profiles = @($processes | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and 
     $match = [regex]::Match($_.CommandLine, '--user-data-dir=(?:"([^"]+)"|([^\s]+))')
     if ($match.Success) { if ($match.Groups[1].Success) { $match.Groups[1].Value } else { $match.Groups[2].Value } }
 } | Sort-Object -Unique)
-@{ appProcessId = $apps[0].ProcessId; userDataDirectories = $profiles } | ConvertTo-Json -Depth 4 -Compress
+$webviewIds = @($processes | Where-Object { $_.Name -eq 'msedgewebview2.exe' -and $owned.Contains([uint32]$_.ProcessId) } | ForEach-Object { [uint32]$_.ProcessId })
+$debugListeners = @(Get-NetTCPConnection -State Listen -LocalPort 9222 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess)
+@{ appProcessId = $apps[0].ProcessId; userDataDirectories = $profiles; ownedWebViewProcessIds = $webviewIds; debugListeners = $debugListeners } | ConvertTo-Json -Depth 4 -Compress

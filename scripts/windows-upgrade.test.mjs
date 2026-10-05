@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { expectedPreferences, validateUpgrade, verifyRetainedPreferences } from './windows-acceptance/upgrade-contract.mjs';
+import { validateDefaultProfile } from './windows-acceptance/default-profile.mjs';
 
 const source = JSON.parse(readFileSync(new URL('./windows-acceptance/upgrade-source.json', import.meta.url)));
 const old = { ProductName: 'Phonton', ProductVersion: '0.3.4', ProductCode: '{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}', UpgradeCode: '{23B33ADC-634B-5AE1-B75F-DB97864022D0}' };
@@ -19,6 +20,19 @@ const seed = {
   stableIdentity: { productName: 'Phonton', identifier: candidate.identifier, version: '0.3.4' },
   preferences: expectedPreferences('C:\\fixture', 'unique-fixture'),
 };
+test('default profile observation rejects driver temporary folders and foreign or exposed debug endpoints', () => {
+  const local = 'C:\\Users\\runneradmin\\AppData\\Local';
+  const observed = { userDataDirectories: [local + '\\dev.phonton.desktop\\EBWebView'], ownedWebViewProcessIds: [123], debugListeners: [{ LocalAddress: '127.0.0.1', OwningProcess: 123 }] };
+  validateDefaultProfile(observed, local);
+  for (const changed of [
+    { ...observed, userDataDirectories: ['C:\\Windows\\SystemTemp\\scoped_dir1\\EBWebView'] },
+    { ...observed, userDataDirectories: [local + '\\dev.phonton.desktop.other\\EBWebView'] },
+    { ...observed, userDataDirectories: [] },
+    { ...observed, debugListeners: [] },
+    { ...observed, debugListeners: [{ LocalAddress: '0.0.0.0', OwningProcess: 123 }] },
+    { ...observed, debugListeners: [{ LocalAddress: '127.0.0.1', OwningProcess: 456 }] },
+  ]) assert.throws(() => validateDefaultProfile(changed, local));
+});
 test('accept a pinned forward MSI upgrade and all named retained preferences', () => {
   validateUpgrade(source, candidate, old, msi);
   verifyRetainedPreferences(seed, { ...seed.preferences }, candidate);

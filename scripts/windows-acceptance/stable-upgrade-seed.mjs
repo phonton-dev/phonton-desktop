@@ -6,6 +6,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests } from './full-journey.mjs';
 import { expectedPreferences } from './upgrade-contract.mjs';
+import { launchAndAttachDefaultProfile, observeDefaultProfile } from './default-profile.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true');
 assert.equal(process.platform, 'win32');
@@ -45,7 +46,7 @@ async function screenshot(name) {
   writeFileSync(path.join(evidence, `${name}.png`), Buffer.from(await command('GET', '/screenshot'), 'base64'));
 }
 async function profileObservation(launched) {
-  const processes = JSON.parse(execFileSync('pwsh', ['-NoProfile', '-File', 'scripts/windows-acceptance/observe-webview-profile.ps1'], { encoding: 'utf8', windowsHide: true, timeout: 30000 }));
+  const processes = observeDefaultProfile();
   return { capabilities: launched.capabilities, page: await execute('return {href:location.href,origin:location.origin}'), ...processes };
 }
 try {
@@ -57,9 +58,7 @@ try {
   seed.sourceHashes = ['port.py', 'test_port.py', '.git/index'].map(file => [file, hash(path.join(fixture, file))]);
   seed.stableDesktopSha256 = hash(process.env.PHONTON_ACCEPTANCE_APP);
   await until(async () => { try { return (await request('GET', '/status'))?.ready; } catch { return false; } }, 'driver startup');
-  const launched = await request('POST', '/session', { capabilities: { alwaysMatch: {
-    'tauri:options': { application: process.env.PHONTON_ACCEPTANCE_APP },
-  } } });
+  const launched = await launchAndAttachDefaultProfile(request);
   session = launched.sessionId;
   assert.ok(session);
   await command('POST', '/timeouts', { implicit: 0, pageLoad: 180000, script: 180000 });
@@ -80,24 +79,24 @@ try {
   assert.deepEqual(await execute('return Object.fromEntries(arguments[0].map(key=>[key,localStorage.getItem(key)]))', Object.keys(seed.preferences)), seed.preferences);
   await screenshot('upgrade-01-stable-preferences');
   native('close');
-  await until(() => { const state = native(); return !state.apps.length && !state.engines.length && !state.listeners.length; }, 'stable normal close', 30000);
+  await until(() => { const state = native(); return !state.apps.length && !state.engines.length && !state.listeners.length && !state.debugListeners.length; }, 'stable normal close', 30000);
   assert.equal(typeof (await request('GET', '/status')).ready, 'boolean');
   try { await command('DELETE', ''); } catch { /* App close may end the session. */ }
   session = undefined;
   seed.firstProfilesAfterClose = seed.firstSession.userDataDirectories.map(directory => ({ directory, exists: existsSync(directory) }));
   // A same-binary restart is the control: failures here cannot be MSI data loss.
-  const reopened = await request('POST', '/session', { capabilities: { alwaysMatch: {
-    'tauri:options': { application: process.env.PHONTON_ACCEPTANCE_APP },
-  } } });
+  const reopened = await launchAndAttachDefaultProfile(request);
   session = reopened.sessionId;
   await until(() => execute('return !!window.__TAURI_INTERNALS__ && document.body.innerText.includes("Phonton")'), 'same stable binary reopened');
   seed.reopenedSession = await profileObservation(reopened);
+  assert.deepEqual(seed.reopenedSession.userDataDirectories, seed.firstSession.userDataDirectories, 'Same stable binary must discover the same default profile');
+  assert.deepEqual(seed.reopenedSession.page, seed.firstSession.page, 'Stable origin must persist');
   seed.reopenedPreferences = await execute('return Object.fromEntries(arguments[0].map(key=>[key,localStorage.getItem(key)]))', Object.keys(seed.preferences));
   save();
   assert.deepEqual(seed.reopenedPreferences, seed.preferences, 'Unchanged stable binary must retain preferences before attempting MSI upgrade');
   await screenshot('upgrade-01b-stable-reopened');
   native('close');
-  await until(() => { const state = native(); return !state.apps.length && !state.engines.length && !state.listeners.length; }, 'reopened stable normal close', 30000);
+  await until(() => { const state = native(); return !state.apps.length && !state.engines.length && !state.listeners.length && !state.debugListeners.length; }, 'reopened stable normal close', 30000);
   try { await command('DELETE', ''); } catch { /* App close may end the session. */ }
   session = undefined;
   seed.status = 'stable-closed';

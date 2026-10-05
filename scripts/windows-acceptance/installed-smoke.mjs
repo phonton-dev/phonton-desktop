@@ -7,6 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests, fullJourney } from './full-journey.mjs';
 import { interfaceJourney } from './interface-journey.mjs';
 import { verifyRetainedPreferences } from './upgrade-contract.mjs';
+import { launchAndAttachDefaultProfile, observeDefaultProfile } from './default-profile.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Disposable Actions runner required');
 assert.equal(process.platform, 'win32');
@@ -93,7 +94,7 @@ async function ready() {
   await until(() => execute('return document.querySelector(".lw-engine")?.textContent === arguments[0]', `engine ${candidate.engine.version}`), 'real engine ready in native workbench');
 }
 async function start() {
-  const value = await request('POST', '/session', { capabilities: { alwaysMatch: {
+  const value = upgrade ? await launchAndAttachDefaultProfile(request) : await request('POST', '/session', { capabilities: { alwaysMatch: {
     'tauri:options': { application: app, ...(upgrade ? {} : { webviewOptions: { userDataFolder: profile } }) },
   } } });
   session = value.sessionId;
@@ -112,7 +113,7 @@ async function start() {
 async function closeNormally(name) {
   // Keep both WebDrivers alive until the app's own cleanup has been observed.
   native('close');
-  await until(() => { const s = native(); return !s.apps.length && !s.engines.length && !s.listeners.length && (!full || (!s.runtimes.length && !s.runtimeListeners.length)); }, 'normal close releases engine and owned runtime listeners', 30000);
+  await until(() => { const s = native(); return !s.apps.length && !s.engines.length && !s.listeners.length && (!upgrade || !s.debugListeners.length) && (!full || (!s.runtimes.length && !s.runtimeListeners.length)); }, 'normal close releases engine and owned runtime listeners', 30000);
   const driverStatus = await request('GET', '/status');
   assert.equal(typeof driverStatus?.ready, 'boolean', 'Both WebDrivers must still respond after app cleanup');
   record(name);
@@ -141,11 +142,15 @@ try {
 
   if (upgrade) {
     const observed = await execute('return Object.fromEntries(arguments[0].map(key => [key, localStorage.getItem(key)]))', Object.keys(upgrade.preferences));
+    const nativeProfile = observeDefaultProfile();
+    const page = await execute('return {href:location.href,origin:location.origin}');
+    assert.deepEqual(nativeProfile.userDataDirectories, upgrade.firstSession.userDataDirectories, 'Upgraded app must discover the same native profile');
+    assert.deepEqual(page, upgrade.firstSession.page, 'Upgraded app must retain the same origin');
     verifyRetainedPreferences(upgrade, observed, candidate);
     assert.equal(await execute('return document.documentElement.dataset.theme'), 'light', 'Retained theme must be rendered');
     assert.ok((await execute('return document.querySelector(".lw-intro h1").textContent')).includes(path.basename(fixture)), 'Retained repository must be active in the native workbench');
     await screenshot('upgrade-02-retained-workbench');
-    record('MSI upgrade retains default-profile theme, active and recent repository before any reseed', { observed, stableDesktopSha256: upgrade.stableDesktopSha256 });
+    record('MSI upgrade retains default-profile theme, active and recent repository before any reseed', { observed, nativeProfile, page, stableDesktopSha256: upgrade.stableDesktopSha256 });
   } else {
     await execute('localStorage.setItem("phonton.projects.active",arguments[0]);localStorage.setItem("phonton.projects.recent",JSON.stringify([arguments[0]]));', fixture);
   }

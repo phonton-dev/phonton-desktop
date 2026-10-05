@@ -20,5 +20,9 @@ if ($Action -eq 'close') {
         $runtimes = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($runtimePrefix, [StringComparison]::OrdinalIgnoreCase) } | Select-Object ProcessId,ParentProcessId,ExecutablePath)
         $runtimeListeners = @(Get-NetTCPConnection -State Listen -LocalPort 11434 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess)
     }
-    @{ apps = @($apps | Select-Object ProcessId,ParentProcessId,ExecutablePath); engines = @($engines | Select-Object ProcessId,ParentProcessId,ExecutablePath); listeners = $listeners; runtimes = $runtimes; runtimeListeners = $runtimeListeners } | ConvertTo-Json -Depth 5 -Compress
+    $debugListeners = @()
+    if ($env:PHONTON_ACCEPTANCE_UPGRADE_NATIVE -eq 'true') {
+        $debugListeners = @(Get-NetTCPConnection -State Listen -LocalPort 9222 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess)
+    }
+    @{ apps = @($apps | Select-Object ProcessId,ParentProcessId,ExecutablePath); engines = @($engines | Select-Object ProcessId,ParentProcessId,ExecutablePath); listeners = $listeners; runtimes = $runtimes; runtimeListeners = $runtimeListeners; debugListeners = $debugListeners } | ConvertTo-Json -Depth 5 -Compress
 }

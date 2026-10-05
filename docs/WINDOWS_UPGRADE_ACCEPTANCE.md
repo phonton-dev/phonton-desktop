@@ -12,6 +12,12 @@ its default WebView storage. The theme is rendered in the real stable app; proje
 preferences are test fixture state, not evidence of an authenticated stable session.
 The app closes normally before the candidate MSI installs in place. There is no
 uninstall, profile clearing or preference reseed between the two installations.
+An unchanged stable app must first retain those preferences across a new process.
+The harness launches each app directly and attaches EdgeDriver through a
+cloud-only, loopback debug port; letting EdgeDriver launch the app was observed to
+create a different temporary profile for each session. No data-directory override
+is supplied. Owned WebView process paths must lie under the app's normal LocalAppData
+directory and match across stable restart and upgrade; page origins must match too.
 
 Acceptance requires the same UpgradeCode, distinct ProductCodes, a forward MSI
 version, removal of old registration and exact candidate app/engine bytes. The
