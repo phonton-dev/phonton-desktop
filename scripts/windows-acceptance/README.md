@@ -201,6 +201,23 @@ second apart. Reopen instead showed recovery required, matching the stopped
 managed runtime's backend state. This establishes truthful labels; it does not
 establish recovery and a second coding session after restarting the app.
 
+## Managed runtime recovery after app restart
+
+`Accept Windows runtime recovery` reuses the same pinned NSIS candidate and
+native-picker journey, then extends the reopened app after the first rollback.
+It requires the actual stopped-runtime recovery state and invokes the visible
+Retry runtime setup control. The recovered process must belong to the current
+engine, bind loopback only and preserve the selected model digest, measured
+profile and storage paths. No second model download or calibration is requested.
+
+A distinct second goal requires fresh host approval, a verified managed-model
+receipt, unchanged source and staging until Apply, independent fixture checks
+and exact rollback. The first receipt and rollback journal remain byte-identical
+throughout. Recovery artifacts have separate names; accepted first-run evidence
+is retained. All runtime changes still occur through visible app controls.
+This tests one normal-close recovery on Windows Server, not arbitrary process
+crashes, conflicting services, moved storage, automatic updates or consumer OSes.
+
 ## References
 
 - [Tauri Windows WebDriver CI](https://v2.tauri.app/develop/tests/webdriver/ci/)

@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Separate cloud acceptance for restarting a saved managed runtime through
+  the native recovery control and completing a second verified coding session.
+
 - [fixed] Load Win32 UIAutomation providers explicitly in native picker acceptance
   so real button/edit controls expose their required Invoke/Value patterns.
 

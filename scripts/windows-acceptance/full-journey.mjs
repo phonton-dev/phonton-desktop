@@ -1,4 +1,5 @@
 import { observeRuntime } from './runtime-observation.mjs';
+import { recoveryJourney } from './runtime-recovery.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -274,5 +275,9 @@ export async function fullJourney(api) {
   save('full-rollback-journal', rolledBack);
   await wait(() => execute('return document.querySelector(".lw-apply h2")?.textContent === "Original files restored"'), 'restored state in native UI');
   await screenshot('full-06-restored');
+  if (process.env.PHONTON_ACCEPTANCE_RUNTIME_RECOVERY === 'true') {
+    await recoveryJourney({ ...api, readRpc, wait, button, unchanged, python, jsonIfPresent,
+      save, stateDirectory, selected, runId, receiptPath, receiptHash, journalPath });
+  }
   await closeNormally('full journey restarted app closes cleanly');
 }
