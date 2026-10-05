@@ -46,13 +46,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-0 webkit2gtk-driver libgtk-3-0 libssl-dev pkg-config \
             xvfb xauth openbox dbus-x11 at-spi2-core libatk-adaptor python3-gi gir1.2-atspi-2.0 \
-            xdotool wmctrl imagemagick libfuse2 zstd
+            xdotool wmctrl imagemagick libfuse2 zstd gcc-12 g++-12
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: phonton-dev
           shared-key: linux-installed-cli
       - name: Build exact external CLI and pinned WebDriver
+        env:
+          CC: gcc-12
+          CXX: g++-12
         run: |
+          "$CC" --version | tee acceptance-evidence/c-compiler.log
+          "$CXX" --version | tee acceptance-evidence/cxx-compiler.log
+          # NumKong7.7 requires GCC12+; prove its FP16 target attribute before Cargo.
+          "$CC" -x c -c -o "$RUNNER_TEMP/phonton-fp16-probe.o" - <<'C'
+          #include <immintrin.h>
+          __attribute__((target("avx512fp16"))) __m512h phonton_fp16_probe(void) { return _mm512_setzero_ph(); }
+          C
           cargo build --manifest-path phonton-dev/Cargo.toml --release --locked -p phonton-cli -j 2
           cargo install tauri-driver --version 2.1.0 --locked
       - name: Install exact Debian package and external runtime

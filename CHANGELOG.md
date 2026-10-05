@@ -9,6 +9,8 @@ All notable changes to Phonton Desktop are documented here.
   calibration, verified changes, Apply, retained receipt and exact rollback.
   Keep AppImage and other platforms as separate acceptance gates.
   Read candidate build evidence through GitHub CLI's sanitized log command.
+  Select GCC12 for the pinned CLI's native dependency on Ubuntu22.04 and retain
+  compiler identity plus a compile-only FP16 capability probe in cloud evidence.
 
 - [fixed] Check rendered diagnostic visibility during native recovery acceptance;
   closed disclosures may retain nonzero layout dimensions. Keep separate checks
