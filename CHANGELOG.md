@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Keep the Local models return bar outside the scrolling content so
+  scrolling to model actions cannot place them underneath the navigation.
+
 - [fixed] Keep workspace navigation and runtime status visible while long plans
   and receipts scroll. Keep the Local models return control reachable, support
   keyboard scrolling, and start new goals and saved runs at the top of the review.
