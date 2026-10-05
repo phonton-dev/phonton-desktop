@@ -6,6 +6,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests, fullJourney } from './full-journey.mjs';
 import { interfaceJourney } from './interface-journey.mjs';
+import { pickerJourney, nativePicker, settledPickerState } from './picker-journey.mjs';
 import { verifyRetainedPreferences } from './upgrade-contract.mjs';
 import { launchAndAttachDefaultProfile, observeDefaultProfile } from './default-profile.mjs';
 
@@ -15,6 +16,7 @@ const app = process.env.PHONTON_ACCEPTANCE_APP;
 const profile = process.env.PHONTON_ACCEPTANCE_PROFILE;
 const fixture = process.env.PHONTON_ACCEPTANCE_FIXTURE;
 const full = process.env.PHONTON_ACCEPTANCE_FULL_JOURNEY === 'true';
+const picker = process.env.PHONTON_ACCEPTANCE_NATIVE_PICKER === 'true';
 const upgrade = process.env.PHONTON_ACCEPTANCE_UPGRADE_RECORD
   ? JSON.parse(readFileSync(process.env.PHONTON_ACCEPTANCE_UPGRADE_RECORD, 'utf8')) : null;
 assert.ok(app && fixture && (profile || upgrade));
@@ -28,7 +30,7 @@ const evidence = path.resolve('acceptance-evidence');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
 const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', candidateProfile: candidate.profile, installerKind: candidate.installer.kind ?? 'nsis', checks: [], limitations: [
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
-  'Workspace selection is seeded in localStorage; native folder picker is not exercised.',
+  ...(picker ? ['Native folder picker covers the owned English Windows Server dialog and one disposable fixture only.'] : ['Workspace selection is seeded in localStorage; native folder picker is not exercised.']),
   ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),
   ...(upgrade ? [`Windows Server ${candidate.installer.kind.toUpperCase()} forward upgrade with named fixture preferences only; consumer Windows, authenticated account migration, cross-installer migration, native signing and updater installation remain untested.`] : ['Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.']),
 ] };
@@ -151,6 +153,9 @@ try {
     assert.ok((await execute('return document.querySelector(".lw-intro h1").textContent')).includes(path.basename(fixture)), 'Retained repository must be active in the native workbench');
     await screenshot('upgrade-02-retained-workbench');
     record(`${candidate.installer.kind.toUpperCase()} upgrade retains default-profile theme, active and recent repository before any reseed`, { observed, nativeProfile, page, stableDesktopSha256: upgrade.stableDesktopSha256 });
+  } else if (picker) {
+    assert.equal(upgrade, null, 'Native picker mode is separate from retained-profile upgrade');
+    await pickerJourney({ execute, click, type, until, screenshot, record, fixture, evidence, identities, hash, ownedEngine });
   } else {
     await execute('localStorage.setItem("phonton.projects.active",arguments[0]);localStorage.setItem("phonton.projects.recent",JSON.stringify([arguments[0]]));', fixture);
   }
@@ -174,6 +179,14 @@ try {
   for (const [file, digest] of identities) assert.equal(hash(path.join(fixture, file)), digest, `${file} changed during review`);
   await screenshot('02-plan-review');
   record('native plan, source identity, unchanged source and index, execution gates', { sourceHashes: identities, planText });
+
+  if (picker) {
+    const snapshot = () => settledPickerState({ execute, until }, true);
+    const beforeCancel = await snapshot();
+    await nativePicker('cancel', 'picker-04-reviewed-plan-cancel', { click, evidence, fixture });
+    assert.deepEqual(await snapshot(), beforeCancel, 'Native cancel must preserve reviewed plan and unapproved consent');
+    record('native folder picker cancel preserves reviewed plan and consent');
+  }
 
   await interfaceJourney({ command, execute, click, screenshot, record, until });
   const afterNavigation = await ownedEngine();

@@ -1,3 +1,4 @@
+import { observeRuntime } from './runtime-observation.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -167,6 +168,7 @@ export async function fullJourney(api) {
 
   await button('← Workspace');
   await wait(() => execute('return !!document.querySelector("#local-goal")'), 'workbench restored');
+  if (process.env.PHONTON_ACCEPTANCE_NATIVE_PICKER === 'true') await observeRuntime('model-return', { execute, evidence, record, screenshot });
   await type('#local-goal', 'Make parse_port reject non-digit input and ports outside 1 through 65535. Keep valid ports working.');
   if (!(await execute('return document.querySelector(".lw-scope-details").open'))) await click('.lw-scope-details > summary');
   await type('#local-files', 'port.py');
@@ -235,6 +237,7 @@ export async function fullJourney(api) {
   save('full-receipt', receipt);
   const receiptHash = hash(receiptPath);
   await wait(() => execute('return !!document.querySelector(".lw-apply .lw-primary:not(:disabled)")'), 'verified candidate in native review');
+  if (process.env.PHONTON_ACCEPTANCE_NATIVE_PICKER === 'true') await observeRuntime('receipt-ready', { execute, evidence, record, screenshot });
   await screenshot('full-03-verified-candidate');
   record('verified candidate preserves original source and staging', { runId, receiptHash });
 
@@ -255,6 +258,10 @@ export async function fullJourney(api) {
   await wait(() => execute('return document.querySelector(".lw-apply h2")?.textContent === "✓ Applied"'), 'saved applied receipt in new native process');
   assert.equal(hash(receiptPath), receiptHash);
   assert.equal(jsonIfPresent(journalPath).state, 'applied');
+  if (process.env.PHONTON_ACCEPTANCE_NATIVE_PICKER === 'true') {
+    assert.equal(await execute('return localStorage.getItem("phonton.projects.active")'), fixture);
+    await observeRuntime('receipt-reopened', { execute, evidence, record, screenshot });
+  }
   await screenshot('full-05-reopened-receipt');
   record('new installed app process reopens same applied receipt', { runId });
   await button('Restore original files →');

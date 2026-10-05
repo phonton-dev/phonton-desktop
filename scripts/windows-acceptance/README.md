@@ -156,7 +156,35 @@ The job reuses accepted application bytes and has no release-write permission.
 - [NSIS command-line rules](https://nsis.sourceforge.io/Docs/Chapter3.html#installerusage)
 - [Microsoft shared registry views](https://learn.microsoft.com/en-us/windows/win32/winprog64/shared-registry-keys)
 
-## Primary references
+## Native repository picker and runtime labels
+
+`Accept native Windows folder picker` reuses the pinned accepted NSIS installer
+from `picker-source.json` on its own disposable Windows Server runner. It does
+not rebuild the app or change the accepted fresh-install/upgrade workflows.
+The exact app is installed with a fresh WebView profile and engine/model state.
+
+Picker mode replaces project-storage injection with the real workbench button.
+A bounded Windows UIAutomation helper observes the dialog's native control tree
+and captures only the owned dialog HWND. App path/PID, main window, dialog PID and
+root-owner chain must agree. It invokes the observed Cancel button, then fills
+the visible Folder edit control and invokes Select Folder. Ambiguous controls
+fail with evidence; there is no storage/RPC fallback. A second cancel after plan
+review must preserve the plan and unapproved consent. Selected project, source,
+Git index and owned engine are checked before the usual full native journey.
+
+Passive runtime snapshots after model return, receipt completion and receipt
+reopen record elapsed time, visibility, focus and visible labels. One fresh
+read-only backend status per stage uses the UI's default context. Two consistent
+resolved readings are required within65 seconds. A stopped runtime is distinct
+from the historical receipt's model; hidden/unresolved states retain diagnostic
+evidence and fail this acceptance instead of being called ready.
+
+This covers the English Windows Server dialog and a disposable repository only,
+not arbitrary-folder permissions, UNC/symlink paths, consumer Windows, native
+macOS/Linux, trusted signing or automatic updater installation. Native dialog
+captures require visual review separately from WebDriver's WebView screenshots.
+
+## References
 
 - [Tauri Windows WebDriver CI](https://v2.tauri.app/develop/tests/webdriver/ci/)
 - [Exact driver capability mapping](https://github.com/tauri-apps/tauri/blob/tauri-driver-v2.1.0/crates/tauri-driver/src/server.rs)

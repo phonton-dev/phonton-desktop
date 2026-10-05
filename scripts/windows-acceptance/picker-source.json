@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "repository": "phonton-dev/phonton-desktop",
+  "candidate": {
+    "runId": 37335132890,
+    "artifactId": 11357546912,
+    "artifactName": "windows-release-candidate",
+    "artifactSha256": "6f0c5e6674da716e53f1c32d0881d2f41173cfbf620857c3794f2db59478d852",
+    "commit": "3c9da06048532875b514c438995841a6e24cc05a",
+    "manifestSha256": "34f25f9cca53b5ef64ee50951844160f9bdce6c56686c667bc0021edf5165c7f",
+    "installerSha256": "c3daa93a1daa42e752044d8b1533b188163a21fde9109b9025af38644cc7ec9b"
+  }
+}

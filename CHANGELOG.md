@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Separate cloud acceptance for real Windows repository-dialog cancel and
+  selection, plus timed runtime-label observations through the full native journey.
+
 - [added] Separate cloud NSIS forward-upgrade acceptance, checking discovery of
   the existing install folder, current-user registration and retained preferences
   before the full native model, Apply, reopen and rollback journey.
