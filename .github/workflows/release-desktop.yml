@@ -26,6 +26,9 @@ jobs:
       - name: Checkout tagged Desktop source
         uses: actions/checkout@v4
 
+      - name: Enforce public-release hold
+        run: node scripts/publication-hold.mjs
+
       - name: Check tag matches every package version
         id: metadata
         run: |
@@ -341,7 +344,11 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
       - name: Publish verified draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false
+        run: |
+          node scripts/publication-hold.mjs
+          gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false

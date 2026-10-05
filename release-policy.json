@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "publicRelease": "blocked",
+  "requirements": [
+    "windows-authenticode",
+    "macos-developer-id-and-notarization",
+    "signed-binary-provenance",
+    "installed-platform-and-update-acceptance"
+  ]
+}

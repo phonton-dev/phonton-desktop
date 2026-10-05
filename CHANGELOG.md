@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Hold public tag releases from this source until trusted publisher signing
+  and release acceptance are implemented and verified. Manual cloud candidates
+  remain available; the hold is not a native-signature verifier.
+
 - [fixed] Stage local-engine resources with their installed filenames so MSI
   includes `phonton.exe` and `manifest.json`, matching NSIS and the runtime loader.
 - [added] Separate exact-byte MSI packaging checks and a full installed Windows

@@ -85,11 +85,20 @@ a valid receipt still records it. Managed
 downloads remain unavailable during recovery. An
 interrupted owned download stage can also retry setup. External coding-run
 evidence alone does not make a chosen folder a past managed launch.
+Public tag releases from this source are blocked by `scripts/publication-hold.mjs`
+before any draft is created, with a second check immediately before publication.
+`release-policy.json` records outstanding trusted Windows/macOS signing,
+signed-binary provenance and installed platform/update acceptance requirements.
+This is a publication hold, not a signing verifier. A policy toggle or bypass
+field cannot unlock it; a reviewed native verification implementation must replace
+the hold before public beta. Tags targeting older commits are not protected by
+this source-level check; repository-wide tag protection is a separate control.
+
 The release workflow requires a published CLI commit and matching version in
-`engine-source.json`. CI checks out that exact source for Windows, builds all
-three platforms as draft assets, then publishes only after all builds, checksums
-and both full installed Windows NSIS and MSI release journeys pass. Each draft
-installer must match the exact candidate accepted by its own journey. Each tag needs a fresh
+`engine-source.json`. CI checks out that exact source for Windows. The retained
+publication path requires all builds, checksums and both full installed Windows
+NSIS and MSI journeys. Each draft installer must match the candidate accepted by
+its own journey. Each tag needs a fresh
 release; retries cannot reuse a draft
 with old assets. Preflight rejects a missing or malformed commit pin.
 Manual dispatch of `Release Desktop` builds the same standard configuration for
