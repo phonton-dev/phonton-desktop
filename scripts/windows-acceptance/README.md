@@ -48,7 +48,8 @@ Screenshots, candidate/driver identities, process ownership and assertion result
 are uploaded as `windows-preview-native-evidence`, including partial failure data.
 Four `ui-*` captures show theme and navigation results. These are still images,
 not a recorded video or pointer-motion trace.
-The scripts refuse to run on a non-Actions machine. Syntax checks do not establish
+The installation and native-journey scripts refuse to run on a non-Actions machine;
+metadata readers support read-only local package inspection. Syntax checks do not establish
 runtime acceptance; only a completed workflow at the recorded source commit does.
 
 Deliberate limits: workspace selection is seeded through localStorage because
@@ -100,18 +101,34 @@ uses the pinned engine and its platform configuration, with the standard identit
 deep-link scheme and stable updater endpoint. It is not built with the Preview
 override. The full installed journey is mandatory for this profile.
 
-A tag-triggered release runs the same installed Windows NSIS acceptance. The publish
-job depends on that result as well as all platform builds and checksums. Before
-publishing, the downloaded draft NSIS installer must match the candidate SHA-256.
-A rebuilt or substituted installer cannot inherit the earlier test result.
+A tag-triggered release runs separate full NSIS and MSI journeys on fresh Windows
+Server runners. The publish job depends on both matrix results, all platform builds
+and checksums. Before publishing, both downloaded draft installers must match
+their own candidate SHA-256. A rebuilt or substituted installer cannot inherit
+the earlier test result. Preview remains NSIS-only.
+
+MSI has its own `windows-release-candidate-msi` manifest/payload and
+`windows-release-native-evidence-msi` evidence artifact. Its app must match the
+raw build with only Tauri's exact MSI marker applied; NSIS bytes are rejected.
+Read-only Windows Installer File/Component/Directory metadata maps CAB member IDs
+to the actual target paths. Missing, misplaced or ambiguous engine resources fail
+before installing. Stage resources using their final basenames: WiX preserves
+the source filename even when the resource map specifies a different target name.
+
+The MSI job uses a real quiet installation with `INSTALLDIR` pointing to a fresh
+path containing spaces. It disables restarts, requires exit 0, retains verbose
+`msi-install.log`, and checks the registered ProductCode, name and version before
+the same installed-byte, native app, model, Apply, reopen and rollback checks.
+An extraction or administrative install cannot substitute for this journey.
 
 This gate covers a fresh installation on Windows Server and the existing full
 model journey. It does not prove stable-to-beta data migration, the native folder
 picker, Authenticode/notarization, macOS/Linux installed journeys or actual signed
 update installation. Updater signatures and native OS publisher signatures are
-different. The separately built MSI package is not accepted by this NSIS job;
-its installation and extracted identity remain separate gates. Beta builds
-still stay out of the stable update feed.
+different. The new MSI journey must pass in a completed cloud run before claiming
+MSI installed acceptance. Stable-to-beta, beta-to-stable and cross-installer
+migration are separate from these fresh installs. Beta builds still stay out of
+the stable update feed.
 
 Primary references:
 
@@ -119,3 +136,5 @@ Primary references:
 - [Exact driver capability mapping](https://github.com/tauri-apps/tauri/blob/tauri-driver-v2.1.0/crates/tauri-driver/src/server.rs)
 - [Edge WebView profile capabilities](https://learn.microsoft.com/en-us/microsoft-edge/webdriver/capabilities-edge-options)
 - [Tauri 2.11.2 bundle marker patch and restoration](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.2/crates/tauri-bundler/src/bundle.rs)
+- [Tauri 2.11.2 MSI resource generation](https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.2/crates/tauri-bundler/src/bundle/windows/msi/mod.rs)
+- [Windows Installer command-line options](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/msiexec)

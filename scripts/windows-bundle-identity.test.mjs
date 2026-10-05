@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nsisBundleIdentity } from './windows-acceptance/bundle-identity.mjs';
+import { nsisBundleIdentity, windowsBundleIdentity } from './windows-acceptance/bundle-identity.mjs';
 
 test('NSIS identity uses delivered bytes and preserves the raw build identity', () => {
   const raw = Buffer.from('prefix__TAURI_BUNDLE_TYPE_VAR_UNKsuffix');
@@ -9,6 +9,19 @@ test('NSIS identity uses delivered bytes and preserves the raw build identity', 
   assert.notEqual(identity.desktopSha256, identity.unbundledDesktopSha256);
   assert.equal(identity.bundleMarkerOffset, 6);
   assert.equal(raw.toString(), 'prefix__TAURI_BUNDLE_TYPE_VAR_UNKsuffix');
+});
+
+test('MSI requires its own exact marker and rejects NSIS, extra changes and signed-byte substitutions', () => {
+  const raw = Buffer.from('prefix__TAURI_BUNDLE_TYPE_VAR_UNKsuffix');
+  const msi = Buffer.from('prefix__TAURI_BUNDLE_TYPE_VAR_MSIsuffix');
+  const nsis = Buffer.from('prefix__TAURI_BUNDLE_TYPE_VAR_NSSsuffix');
+  const identity = windowsBundleIdentity(raw, msi, 'msi');
+  assert.equal(identity.bundleMarkerOffset, 6);
+  assert.notEqual(identity.desktopSha256, windowsBundleIdentity(raw, nsis, 'nsis').desktopSha256);
+  for (const changed of [nsis, raw, Buffer.concat([msi, Buffer.from('certificate')]), Buffer.from('changed__TAURI_BUNDLE_TYPE_VAR_MSIsuffix')]) {
+    assert.throws(() => windowsBundleIdentity(raw, changed, 'msi'), /differs beyond/);
+  }
+  assert.throws(() => windowsBundleIdentity(raw, msi, 'wix'), /Unknown/);
 });
 
 test('NSIS identity rejects unrelated mutations, unpatched bytes and ambiguous markers', () => {

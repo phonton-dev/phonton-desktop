@@ -10,8 +10,8 @@
       }
     },
     "resources": {
-      "binaries/phonton-engine.exe": "local-engine/phonton.exe",
-      "binaries/local-engine.json": "local-engine/manifest.json"
+      "binaries/local-engine/phonton.exe": "local-engine/phonton.exe",
+      "binaries/local-engine/manifest.json": "local-engine/manifest.json"
     }
   }
 }

@@ -3,6 +3,7 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') { throw 'Di
 New-Item -ItemType Directory -Force acceptance-evidence | Out-Null
 $candidate = Get-Content acceptance-candidate/candidate.json -Raw | ConvertFrom-Json
 $acceptanceKind = if ($env:PHONTON_ACCEPTANCE_KIND) { $env:PHONTON_ACCEPTANCE_KIND } else { 'preview' }
+$bundle = if ($env:PHONTON_ACCEPTANCE_BUNDLE) { $env:PHONTON_ACCEPTANCE_BUNDLE } else { 'nsis' }
 node scripts/windows-acceptance/candidate-profile.mjs acceptance-candidate/candidate.json $acceptanceKind $env:GITHUB_SHA
 if ($LASTEXITCODE -ne 0) { throw 'Unexpected candidate' }
 if ($acceptanceKind -eq 'release' -and $env:PHONTON_ACCEPTANCE_FULL_JOURNEY -ne 'true') { throw 'Release acceptance requires the full journey' }
@@ -13,16 +14,29 @@ if ((Get-FileHash -LiteralPath $installer).Hash.ToLowerInvariant() -ne $candidat
 $installDir = Join-Path $env:RUNNER_TEMP "Phonton $acceptanceKind acceptance"
 if (Test-Path -LiteralPath $installDir) { throw 'Installation directory must be fresh' }
 if (Get-NetTCPConnection -State Listen -LocalPort 47831 -ErrorAction SilentlyContinue) { throw 'Engine port already occupied' }
-$install = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -PassThru -WindowStyle Hidden
+Copy-Item acceptance-candidate/candidate.json acceptance-evidence/candidate.json
+if ($bundle -eq 'msi') {
+    $registrationPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\$($candidate.msi.ProductCode)"
+    if (Test-Path -LiteralPath $registrationPath) { throw 'MSI product already registered; clean-install runner required' }
+    $installerLog = Join-Path (Resolve-Path acceptance-evidence) 'msi-install.log'
+    $install = Start-Process -FilePath (Join-Path $env:WINDIR 'System32/msiexec.exe') -ArgumentList @('/i', ('"' + $installer + '"'), '/qn', '/norestart', ('INSTALLDIR="' + $installDir + '"'), '/L*V', ('"' + $installerLog + '"')) -PassThru -WindowStyle Hidden
+} else {
+    $install = Start-Process -FilePath $installer -ArgumentList @('/S', "/D=$installDir") -PassThru -WindowStyle Hidden
+}
 if (!$install.WaitForExit(180000)) { throw 'Installer timed out' }
 if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
 $app = Join-Path $installDir 'phonton-desktop.exe'
 $engine = Join-Path $installDir 'local-engine/phonton.exe'
 $manifest = Get-Content (Join-Path $installDir 'local-engine/manifest.json') -Raw | ConvertFrom-Json
-Copy-Item acceptance-candidate/candidate.json acceptance-evidence/candidate.json
 $installedDesktopHash = (Get-FileHash -LiteralPath $app).Hash.ToLowerInvariant()
 $installedEngineHash = (Get-FileHash -LiteralPath $engine).Hash.ToLowerInvariant()
-@{ installed = $true; installDirectory = $installDir; installerExitCode = $install.ExitCode; desktopSha256 = $installedDesktopHash; engineSha256 = $installedEngineHash; signature = (Get-AuthenticodeSignature $app).Status.ToString() } | ConvertTo-Json | Set-Content acceptance-evidence/install.json
+$registration = $null
+if ($bundle -eq 'msi') {
+    $registered = Get-ItemProperty -LiteralPath $registrationPath
+    if ($registered.DisplayName -ne $candidate.msi.ProductName -or $registered.DisplayVersion -ne $candidate.msi.ProductVersion) { throw 'Installed MSI registration identity mismatch' }
+    $registration = @{ productCode = $candidate.msi.ProductCode; displayName = $registered.DisplayName; displayVersion = $registered.DisplayVersion; registryPath = $registrationPath }
+}
+@{ installed = $true; installerKind = $bundle; registration = $registration; installDirectory = $installDir; installerExitCode = $install.ExitCode; desktopSha256 = $installedDesktopHash; engineSha256 = $installedEngineHash; signature = (Get-AuthenticodeSignature $app).Status.ToString() } | ConvertTo-Json | Set-Content acceptance-evidence/install.json
 if ($installedDesktopHash -ne $candidate.desktopSha256) { throw 'Installed Desktop hash mismatch' }
 if ($installedEngineHash -ne $candidate.engine.sha256 -or $manifest.sha256 -ne $candidate.engine.sha256 -or $manifest.profile -ne 'release' -or $manifest.version -ne $candidate.engine.version) { throw 'Installed engine mismatch' }
 $env:PHONTON_ACCEPTANCE_APP = $app

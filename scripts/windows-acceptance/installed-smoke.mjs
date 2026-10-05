@@ -17,7 +17,7 @@ assert.ok(app && profile && fixture);
 const candidate = JSON.parse(readFileSync('acceptance-candidate/candidate.json', 'utf8'));
 const evidence = path.resolve('acceptance-evidence');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
-const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', candidateProfile: candidate.profile, checks: [], limitations: [
+const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', candidateProfile: candidate.profile, installerKind: candidate.installer.kind ?? 'nsis', checks: [], limitations: [
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
   'Workspace selection is seeded in localStorage; native folder picker is not exercised.',
   ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),

@@ -198,6 +198,23 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Record exact Windows MSI release candidate
+        if: matrix.platform == 'windows-latest'
+        env:
+          PHONTON_ACCEPTANCE_KIND: release
+          PHONTON_ACCEPTANCE_BUNDLE: msi
+          PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/phonton-dev
+        run: node scripts/windows-acceptance/package-candidate.mjs
+
+      - name: Retain MSI candidate for independent installed acceptance
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-candidate-msi
+          path: acceptance-candidate-msi/
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Retain platform candidate bundles
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -208,14 +225,25 @@ jobs:
           retention-days: 7
 
   installed-windows:
-    name: Accept the installed Windows NSIS release candidate
+    name: Accept the installed Windows ${{ matrix.bundle }} release candidate
     needs: build
     runs-on: windows-2022
     timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bundle: nsis
+            candidate: windows-release-candidate
+            evidence: windows-release-native-evidence
+          - bundle: msi
+            candidate: windows-release-candidate-msi
+            evidence: windows-release-native-evidence-msi
     permissions:
       contents: read
     env:
       PHONTON_ACCEPTANCE_KIND: release
+      PHONTON_ACCEPTANCE_BUNDLE: ${{ matrix.bundle }}
       PHONTON_ACCEPTANCE_FULL_JOURNEY: 'true'
     steps:
       - uses: actions/checkout@v4
@@ -225,7 +253,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.99.0
       - uses: actions/download-artifact@v4
         with:
-          name: windows-release-candidate
+          name: ${{ matrix.candidate }}
           path: acceptance-candidate
       - name: Install WebDriver
         run: cargo install tauri-driver --version 2.1.0 --locked
@@ -237,7 +265,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-release-native-evidence
+          name: ${{ matrix.evidence }}
           path: acceptance-evidence/
           if-no-files-found: warn
           retention-days: 7
@@ -273,8 +301,18 @@ jobs:
             --pattern '*.sig' \
             --pattern '*.json'
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release-candidate-msi
+          path: acceptance-candidate-msi
+
       - name: Match draft installer to installed acceptance candidate
         run: node scripts/windows-acceptance/candidate-profile.mjs acceptance-candidate/candidate.json release "$GITHUB_SHA" dist
+
+      - name: Match draft MSI to its separate installed acceptance candidate
+        env:
+          PHONTON_ACCEPTANCE_BUNDLE: msi
+        run: node scripts/windows-acceptance/candidate-profile.mjs acceptance-candidate-msi/candidate.json release "$GITHUB_SHA" dist
 
       - name: Write SHA256SUMS
         working-directory: dist

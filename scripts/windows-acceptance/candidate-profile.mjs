@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { validateMsiVersion } from '../release-metadata.mjs';
 
 const profiles = {
   preview: { profile: 'unsigned-preview', identifier: 'dev.phonton.desktop.preview', productName: 'Phonton Preview' },
@@ -25,19 +26,29 @@ export function validateConfiguration(kind, config) {
     'https://github.com/phonton-dev/phonton-desktop/releases/latest/download/latest.json',
   ]);
   if (kind === 'release') assert.ok(config.plugins.updater.pubkey, 'Release updater public key required');
-  assert.equal(config.bundle.resources['binaries/phonton-engine.exe'], 'local-engine/phonton.exe');
-  assert.equal(config.bundle.resources['binaries/local-engine.json'], 'local-engine/manifest.json');
+  assert.equal(config.bundle.resources['binaries/local-engine/phonton.exe'], 'local-engine/phonton.exe');
+  assert.equal(config.bundle.resources['binaries/local-engine/manifest.json'], 'local-engine/manifest.json');
   return { ...expected, version: config.version };
 }
 
-export function validateCandidate(candidate, kind, commit) {
+export function validateCandidate(candidate, kind, commit, bundle = 'nsis') {
+  assert.ok(['nsis', 'msi'].includes(bundle), 'Unknown Windows bundle type');
+  assert.equal(candidate.installer.kind ?? 'nsis', bundle, 'Candidate installer type does not match this job');
+  if (bundle === 'msi') assert.equal(kind, 'release', 'MSI acceptance requires the release profile');
   assert.equal(candidate.schema, 1);
   for (const [key, value] of Object.entries(expectedProfile(kind))) assert.equal(candidate[key], value, `Unexpected candidate ${key}`);
   assert.match(commit, /^[a-f0-9]{40}$/);
   assert.equal(candidate.desktopCommit, commit, 'Candidate source is not this workflow commit');
   assert.match(candidate.version, /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/);
   assert.equal(candidate.installer.name, path.win32.basename(candidate.installer.name), 'Invalid installer filename');
-  assert.match(candidate.installer.name, /_x64-setup\.exe$/);
+  assert.equal(candidate.installer.name, `${candidate.productName}_${candidate.version}${bundle === 'msi' ? '_x64_en-US.msi' : '_x64-setup.exe'}`, 'Unexpected installer filename');
+  if (bundle === 'msi') {
+    const guid = /^\{[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}\}$/i;
+    assert.match(candidate.msi.ProductCode, guid);
+    assert.match(candidate.msi.UpgradeCode, guid);
+    assert.equal(candidate.msi.ProductName, candidate.productName);
+    validateMsiVersion(candidate.version, candidate.msi.ProductVersion);
+  }
   for (const digest of [candidate.installer.sha256, candidate.desktopSha256, candidate.engine.sha256]) assert.match(digest, /^[a-f0-9]{64}$/);
   assert.equal(candidate.engine.profile, 'release');
   assert.equal(candidate.engine.version, candidate.engineSource.version);
@@ -51,6 +62,6 @@ export function verifyInstaller(candidate, bytes) {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const candidate = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-  validateCandidate(candidate, process.argv[3], process.argv[4]);
+  validateCandidate(candidate, process.argv[3], process.argv[4], process.env.PHONTON_ACCEPTANCE_BUNDLE || 'nsis');
   if (process.argv[5]) verifyInstaller(candidate, readFileSync(path.join(process.argv[5], candidate.installer.name)));
 }

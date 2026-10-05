@@ -88,8 +88,8 @@ evidence alone does not make a chosen folder a past managed launch.
 The release workflow requires a published CLI commit and matching version in
 `engine-source.json`. CI checks out that exact source for Windows, builds all
 three platforms as draft assets, then publishes only after all builds, checksums
-and the full installed Windows NSIS release journey pass. The draft NSIS installer
-must match the exact candidate accepted by that journey. Each tag needs a fresh
+and both full installed Windows NSIS and MSI release journeys pass. Each draft
+installer must match the exact candidate accepted by its own journey. Each tag needs a fresh
 release; retries cannot reuse a draft
 with old assets. Preflight rejects a missing or malformed commit pin.
 Manual dispatch of `Release Desktop` builds the same standard configuration for
@@ -98,8 +98,11 @@ acceptance without creating or publishing a GitHub release. This is distinct
 from isolated Preview acceptance. Neither workflow certifies an upgrade from
 an existing stable installation, native platform signing, consumer Windows,
 macOS/Linux installed behavior or updater installation; retain those release
-gates until their own evidence exists. The separately built MSI package is not
-installed by the NSIS acceptance job and still requires its own acceptance.
+gates until their own evidence exists. NSIS and MSI have separate manifests and
+fresh runners; one installer's result cannot certify the other. MSI checks its
+registered product identity as well as the installed app and engine bytes.
+Engine resources are staged with their actual installed filenames because WiX
+preserves source basenames. This keeps MSI and NSIS runtime layouts consistent.
 For this beta, Windows MSI metadata uses `0.4.0.1`; the app and release assets
 retain `0.4.0-beta.1`. Release preflight checks that mapping before compiling.
 Windows Installer ignores the fourth version field when comparing upgrades,

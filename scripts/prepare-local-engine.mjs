@@ -49,10 +49,12 @@ if (statusResult.error || statusResult.status !== 0 ||
 }
 const bytes = readFileSync(executable);
 const sha256 = createHash('sha256').update(bytes).digest('hex');
-const destination = path.join(desktop, 'src-tauri', 'binaries');
+// WiX retains resource source basenames. Stage the runtime's actual filenames
+// so both MSI and NSIS deliver the same local-engine layout.
+const destination = path.join(desktop, 'src-tauri', 'binaries', 'local-engine');
 mkdirSync(destination, { recursive: true });
-copyFileSync(executable, path.join(destination, 'phonton-engine.exe'));
-writeFileSync(path.join(destination, 'local-engine.json'), JSON.stringify({
+copyFileSync(executable, path.join(destination, 'phonton.exe'));
+writeFileSync(path.join(destination, 'manifest.json'), JSON.stringify({
   schema: 1, version, sha256, target: 'x86_64-pc-windows-msvc', profile,
 }, null, 2) + '\n');
 console.log(`Prepared ${profile} local engine ${version}; SHA-256 ${sha256}`);
