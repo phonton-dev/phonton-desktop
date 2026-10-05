@@ -190,6 +190,17 @@ not arbitrary-folder permissions, UNC/symlink paths, consumer Windows, native
 macOS/Linux, trusted signing or automatic updater installation. Native dialog
 captures require visual review separately from WebDriver's WebView screenshots.
 
+Run [37357919447](https://github.com/phonton-dev/phonton-desktop/actions/runs/37357919447)
+passed at harness `7fd5505afab7786064a293d0caf2d6a089553e07`, using the unchanged
+candidate `3c9da06048532875b514c438995841a6e24cc05a`. All 27 check records,
+52 digest-verified artifact files and 20 individually reviewed screenshots support
+this bounded acceptance. Cancel/select, reviewed-plan cancellation, model setup,
+Apply, receipt reopen and rollback passed. The first two passive runtime stages
+showed the selected model and managed connection across two readings about a
+second apart. Reopen instead showed recovery required, matching the stopped
+managed runtime's backend state. This establishes truthful labels; it does not
+establish recovery and a second coding session after restarting the app.
+
 ## References
 
 - [Tauri Windows WebDriver CI](https://v2.tauri.app/develop/tests/webdriver/ci/)
