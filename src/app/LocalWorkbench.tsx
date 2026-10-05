@@ -98,6 +98,13 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
   const [receipt, setReceipt] = useState<LocalReceipt | null>(null);
   const [attempt, setAttempt] = useState<LocalRunAttempt | null>(null);
   const [runId, setRunId] = useState(localStorage.getItem(RUN_KEY) ?? "");
+  const mainView = useRef<HTMLElement>(null);
+  const layoutView = useRef<HTMLDivElement>(null);
+  // Reset only for a different run or a new goal, never for receipt polling.
+  useEffect(() => {
+    mainView.current?.scrollTo({ top: 0 });
+    layoutView.current?.scrollTo({ top: 0 });
+  }, [runId]);
   const pendingStart = useRef<ReturnType<typeof createPendingLocalStart> | null>(null);
   const [running, setRunning] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -448,7 +455,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
       {record && <span className="lw-record" title={`${record.verified_runs} of ${record.runs} finished runs verified · best streak ${record.best_streak}`}><b>{record.verified_runs.toLocaleString()}</b> verified · streak <b data-hot={record.streak > 0 || undefined}>{record.streak}</b></span>}
       <span className="lw-header-note">Your code stays under your control.</span>
     </header>
-    <div className="lw-layout">
+    <div className="lw-layout" ref={layoutView}>
       <aside className="lw-sidebar" aria-label="Workspace navigation">
         <div className="lw-sidebar-project"><span className="lw-eyebrow">WORKSPACE</span><strong title={repository}>{repositoryName(repository) || "No repository open"}</strong><button disabled={busy || restoring || applying} onClick={() => void chooseRepository()}>Change folder ↗</button></div>
         <nav aria-label="Workspace"><span className="lw-nav-current" aria-current="page"><span aria-hidden="true">▱</span> Workbench</span><button aria-label="Local models" onClick={openModels}><span aria-hidden="true">◈</span> Local models</button><button aria-label="Settings" onClick={onSettings}><span aria-hidden="true">⚙</span> Settings</button></nav>
@@ -468,7 +475,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
         </dl>
         </details></div>
       </aside>
-    <main className={`lw-main ${receipt || busy || restoring ? "has-run" : ""}`}>
+    <main className={`lw-main ${receipt || busy || restoring ? "has-run" : ""}`} ref={mainView} tabIndex={0} aria-label="Workbench">
       {!receipt && !busy && !restoring && <div className="lw-intro">
         <div className="lw-intro-heading"><div><p className="lw-eyebrow">NEW GOAL</p>
         <h1>{repositoryName(repository) ? <>What’s next for <span className="lw-repo-name">{repositoryName(repository)}</span>?</> : "What would you like to build?"}</h1>

@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Keep workspace navigation and runtime status visible while long plans
+  and receipts scroll. Keep the Local models return control reachable, support
+  keyboard scrolling, and start new goals and saved runs at the top of the review.
+
 - [fixed] Installed full-journey acceptance waits for Run to become enabled
   before clicking once; readiness delays cannot silently discard the action.
 
