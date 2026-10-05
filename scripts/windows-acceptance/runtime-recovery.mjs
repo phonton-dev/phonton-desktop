@@ -4,6 +4,25 @@ import { observeRuntime } from './runtime-observation.mjs';
 
 export const recoveredSelectionScript = 'const rows=[...document.querySelectorAll(".model-row[data-selected=true]")];return rows.length===1 && rows[0].querySelector("h3")?.textContent===arguments[0] && rows[0].querySelector(".model-selected")?.textContent.trim()==="✓ SELECTED"';
 
+// A closed <details> can retain layout rectangles for its unrendered content.
+// Ask the browser about rendering, then independently check viewport clipping.
+// Missing checkVisibility is a harness incompatibility, never a hidden-text pass.
+export const recoveryPanelScript = `
+  const panel=document.querySelector('.runtime-recovery');
+  const details=panel?.querySelector('details');
+  const reason=details?.querySelector('p');
+  if (!reason || typeof reason.checkVisibility !== 'function') throw new Error('Recovery diagnostic requires browser checkVisibility');
+  const visible=reason.checkVisibility({visibilityProperty:true,opacityProperty:true});
+  const box=panel.getBoundingClientRect();
+  const r=reason.getBoundingClientRect();
+  const clip=reason.closest('.model-content')?.getBoundingClientRect();
+  return {
+    title:panel.querySelector('h3')?.textContent,description:panel.querySelector('.runtime-recovery-description')?.textContent,
+    open:details.open,reason:reason.textContent,reasonVisible:visible,reasonRect:r.toJSON(),
+    reasonInView:visible&&r.width>0&&r.height>0&&r.top>=Math.max(0,clip?.top??0)-1&&r.bottom<=Math.min(innerHeight,clip?.bottom??innerHeight)+1&&r.left>=Math.max(0,clip?.left??0)-1&&r.right<=Math.min(innerWidth,clip?.right??innerWidth)+1,
+    width:innerWidth,panelFits:box.left>=0&&box.right<=innerWidth+1,scrollWidth:document.documentElement.scrollWidth
+  }`;
+
 export function validateRecoveredModel(previous, current) {
   assert.equal(current.endpoint, previous.endpoint);
   assert.equal(current.runtime_version, previous.runtime_version);
@@ -58,12 +77,7 @@ export async function recoveryJourney(api) {
   await screenshot('recovery-01-retryable');
   if (process.env.PHONTON_ACCEPTANCE_RECOVERY_PRESENTATION === 'true') {
     assert.equal(action, 'Start runtime', 'New candidate must expose the clear installed-runtime action');
-    const readPanel = () => execute(`const panel=document.querySelector('.runtime-recovery');const details=panel?.querySelector('details');const reason=details?.querySelector('p');const box=panel?.getBoundingClientRect();const r=reason?.getBoundingClientRect();const clip=reason?.closest('.model-content')?.getBoundingClientRect();return {
-      title:panel?.querySelector('h3')?.textContent,description:panel?.querySelector('.runtime-recovery-description')?.textContent,
-      open:details?.open,reason:reason?.textContent,reasonVisible:!!(reason&&(reason.offsetWidth||reason.offsetHeight||reason.getClientRects().length)),
-      reasonInView:!!r&&r.height>0&&r.top>=Math.max(0,clip?.top??0)-1&&r.bottom<=Math.min(innerHeight,clip?.bottom??innerHeight)+1&&r.left>=Math.max(0,clip?.left??0)-1&&r.right<=Math.min(innerWidth,clip?.right??innerWidth)+1,
-      width:innerWidth,panelFits:!!box&&box.left>=0&&box.right<=innerWidth+1,scrollWidth:document.documentElement.scrollWidth
-    }`);
+    const readPanel = () => execute(recoveryPanelScript);
     const closed = await readPanel();
     assert.equal(closed.title, 'Start your local runtime');
     assert.equal(closed.open, false); assert.equal(closed.reasonVisible, false);
@@ -92,7 +106,8 @@ export async function recoveryJourney(api) {
     } finally { await command('POST', '/window/rect', rect); }
     await wait(async () => Math.abs((await readPanel()).width - closed.width) <= 1, 'restored desktop viewport');
     await click('.runtime-recovery-details > summary');
-    assert.equal((await readPanel()).open, false);
+    const reclosed = await readPanel();
+    assert.equal(reclosed.open, false); assert.equal(reclosed.reasonVisible, false);
     record('native recovery presentation keeps diagnostics inspectable at desktop and compact widths', { closed, expanded, compact });
   }
   const priorOperation = await readRpc('models.operation');

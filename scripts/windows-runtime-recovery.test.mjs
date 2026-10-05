@@ -1,7 +1,53 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { validateRecoveredModel, recoveredSelectionScript } from './windows-acceptance/runtime-recovery.mjs';
+import { validateRecoveredModel, recoveredSelectionScript, recoveryPanelScript } from './windows-acceptance/runtime-recovery.mjs';
+
+function readPanel({ visible = true, open = true, rect = {}, clip = {}, supported = true } = {}) {
+  const box = { width: 300, height: 20, left: 20, right: 320, top: 40, bottom: 60, ...rect };
+  const reason = { textContent: 'OS diagnostic', offsetWidth: box.width, offsetHeight: box.height,
+    getClientRects: () => [box], getBoundingClientRect: () => ({ ...box, toJSON: () => box }),
+    closest: () => ({ getBoundingClientRect: () => ({ left: 0, right: 580, top: 0, bottom: 700, ...clip }) }),
+    ...(supported ? { checkVisibility(options) {
+      assert.equal(options.visibilityProperty, true);
+      assert.equal(options.opacityProperty, true);
+      return visible;
+    } } : {}),
+  };
+  const panel = { getBoundingClientRect: () => ({ left: 0, right: 580 }),
+    querySelector: selector => selector === 'details' ? { open, querySelector: () => reason } : { textContent: 'Recovery guidance' },
+  };
+  return runInNewContext(`(function(){${recoveryPanelScript}})()`, {
+    document: { querySelector: () => panel, documentElement: { scrollWidth: 580 } }, innerWidth: 580, innerHeight: 700,
+  });
+}
+
+test('nonzero diagnostic rectangles do not imply rendered disclosure content', () => {
+  for (const open of [false, true]) {
+    const observed = readPanel({ visible: false, open });
+    assert.equal(observed.reasonRect.height, 20);
+    assert.equal(observed.reasonVisible, false);
+    assert.equal(observed.reasonInView, false);
+  }
+  assert.equal(readPanel().reasonVisible, true);
+  assert.equal(readPanel().reasonInView, true);
+});
+
+test('rendered diagnostics must still fit both the native viewport and scrolling content', () => {
+  for (const bounds of [
+    { rect: { top: -5 } }, { rect: { bottom: 710 } }, { rect: { left: -5 } }, { rect: { right: 590 } },
+    { clip: { top: 45 } }, { clip: { bottom: 55 } }, { clip: { left: 25 } }, { clip: { right: 315 } },
+    { rect: { width: 0 } }, { rect: { height: 0 } },
+  ]) {
+    const observed = readPanel(bounds);
+    assert.equal(observed.reasonVisible, true);
+    assert.equal(observed.reasonInView, false);
+  }
+});
+
+test('a browser without rendering visibility support cannot pass disclosure acceptance', () => {
+  assert.throws(() => readPanel({ supported: false }), /requires browser checkVisibility/);
+});
 
 const previous = {
   endpoint: 'http://127.0.0.1:11434', runtime_version: '0.34.2', active_model: 'qwen2.5-coder:3b',
