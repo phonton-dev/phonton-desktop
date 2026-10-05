@@ -218,6 +218,19 @@ is retained. All runtime changes still occur through visible app controls.
 This tests one normal-close recovery on Windows Server, not arbitrary process
 crashes, conflicting services, moved storage, automatic updates or consumer OSes.
 
+Run [37360046207](https://github.com/phonton-dev/phonton-desktop/actions/runs/37360046207)
+passed at harness `b357570ef6725de72bc5bea499d9a35a7d4afa02`, against unchanged
+candidate `3c9da06048532875b514c438995841a6e24cc05a`. Its 33 check records,
+68 digest-verified files and 27 individually reviewed screenshots establish the
+normal-close recovery and second-session flow above. The saved model digest,
+complete measured profile, selection and storage paths were retained. The new
+managed daemon belonged to the reopened engine; both coding sessions passed
+independent Apply checks and exact rollback. The first receipt and rollback
+journal remained byte-identical during the second session. Passive labels
+settled to the managed connection by the 1-second reading and stayed resolved
+at the 5-second reading after recovery. This remains bounded Windows Server
+acceptance, with unsigned installers and no automatic-updater installation proof.
+
 ## References
 
 - [Tauri Windows WebDriver CI](https://v2.tauri.app/develop/tests/webdriver/ci/)
