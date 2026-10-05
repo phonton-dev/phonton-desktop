@@ -239,6 +239,26 @@ settled to the managed connection by the 1-second reading and stayed resolved
 at the 5-second reading after recovery. This remains bounded Windows Server
 acceptance, with unsigned installers and no automatic-updater installation proof.
 
+## Controlled updater preparation
+
+`updater-bootstrap.mjs` generates a labelled, lower-version NSIS bootstrap override
+only on a manually dispatched disposable Windows runner. Production identity and
+the updater public key are retained; the generated endpoint is loopback HTTPS,
+with TLS verification enabled. It never changes the production configuration.
+
+`updater-fixture.mjs` binds the candidate manifest, installer and original
+signature to explicit digest pins. Its ordered phases cover no update, a withdrawn
+offer, altered installer bytes and the exact candidate. The runner must supply a
+short-lived localhost certificate and trust only its public certificate locally.
+The transport tests use synthetic bytes; they do not prove native signature
+rejection, installation, restart or preference retention. Native orchestration
+and that acceptance evidence remain pending.
+
+Release Desktop now executes the native Rust library contracts after building,
+before packaging the candidate for installed acceptance. Frontend updater tests
+also cover shared progress, duplicate installation, active and unknown engine
+work, shell-owned engines, pending mutations and lost mutation replies.
+
 ## References
 
 - [Tauri Windows WebDriver CI](https://v2.tauri.app/develop/tests/webdriver/ci/)

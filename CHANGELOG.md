@@ -4,6 +4,12 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Offer installation from Settings when an update is available, with
+  progress and retry. Setup and Settings now release their controls if a checked
+  update is withdrawn or unavailable before installation starts.
+  Keep progress across navigation and exclude installation from active or unknown
+  engine work, pending changes and new Desktop mutations.
+
 - [changed] Lead local-runtime recovery with a clear action and readable guidance.
   Keep the exact diagnostic in expandable Technical details; blocked storage and
   unverified-service checks keep their existing gates.

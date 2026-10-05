@@ -467,4 +467,14 @@ across those views and invalidate local plans and execution consent. Recent runs
 remain accessible below the workbench on narrow windows. Graphite is the default
 appearance, with the existing Light and High contrast options preserved.
 Automatic online update prompts stop when that workspace is hidden. Setup's
-welcome screen checks for updates only when requested.
+welcome screen checks for updates only when requested. Settings → Updates also
+offers an explicit **Update to v…** action after a successful check, with download
+progress and a restart notice. A failed installation can be retried; if the feed
+withdraws an update before installation, the controls return to an idle state.
+Update progress persists when navigating away and back. Installation waits until
+the owned engine reports no model or coding work; pending Desktop file changes
+and unknown state also block it. During installation, Desktop refuses new engine
+mutations, restarts and CLI installation. A lost mutation reply requires reopening
+Phonton and reviewing its saved state before updating. These guards coordinate
+this Desktop process; they are not isolation from other local clients.
+Phonton Preview remains outside the public update channel.

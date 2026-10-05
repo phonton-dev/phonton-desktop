@@ -16,7 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { getName, getVersion } from "@tauri-apps/api/app";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useState } from "react";
-import { checkForAppUpdate } from "@/lib/app-updater";
+import { useManualAppUpdate } from "@/hooks/useManualAppUpdate";
 import {
   extensionsRead,
   extensionsValidate,
@@ -93,8 +93,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
   const [tokenInput, setTokenInput] = useState(getStoredCloudToken() ?? "");
   const [appVersion, setAppVersion] = useState("");
   const [localPreview, setLocalPreview] = useState<boolean | null>(null);
-  const [updateStatus, setUpdateStatus] = useState("");
-  const [updateBusy, setUpdateBusy] = useState(false);
+  const update = useManualAppUpdate();
   const [doctorJson, setDoctorJson] = useState("{}");
   const [extScope, setExtScope] = useState<"user" | "workspace">("user");
   const [extFile, setExtFile] = useState("steering.toml");
@@ -188,17 +187,6 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
     if (section === "extensions") void loadExtensionFile("steering.toml", extScope);
     if (section === "mcp") void loadExtensionFile("mcp.toml", extScope);
   }, [section, extScope]);
-
-  const handleCheckUpdates = async () => {
-    if (!isTauri()) return;
-    setUpdateBusy(true);
-    setUpdateStatus("Checking…");
-    const result = await checkForAppUpdate();
-    if (result.status === "current") setUpdateStatus("You're on the latest version.");
-    else if (result.status === "available") setUpdateStatus(`Update ${result.version} available.`);
-    else if (result.status === "error") setUpdateStatus(result.message);
-    setUpdateBusy(false);
-  };
 
   return (
     <div className="settings-page flex h-screen flex-col bg-background">
@@ -668,12 +656,18 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 {!isTauri() && <p className="text-sm text-muted-foreground">Update checks are available in the installed Desktop app.</p>}
                 <p className="text-sm text-muted-foreground">
                   {appVersion ? `Phonton Desktop v${appVersion}` : "Phonton Desktop"}
-                  {updateStatus ? ` · ${updateStatus}` : ""}
                 </p>
+                {update.message && <p role="status" className="text-sm text-muted-foreground">{update.message}</p>}
+                {update.available && <p className="text-sm text-muted-foreground">Phonton restarts after installation.</p>}
                 {localPreview === true ? <p className="text-sm text-muted-foreground">This local preview is updated by rebuilding it.</p> : localPreview === false ?
-                  <Button disabled={updateBusy} onClick={() => void handleCheckUpdates()}>
-                    {updateBusy ? "Checking…" : "Check for updates"}
-                  </Button> : null}
+                  <div className="flex flex-wrap gap-3">
+                    {update.available && <Button disabled={update.busy !== null} onClick={update.install}>
+                      {update.busy === "install" ? "Installing…" : `Update to v${update.available}`}
+                    </Button>}
+                    <Button variant={update.available ? "outline" : "default"} disabled={update.busy !== null} onClick={update.check}>
+                      {update.busy === "check" ? "Checking…" : "Check for updates"}
+                    </Button>
+                  </div> : null}
               </section>
             ) : null}
 

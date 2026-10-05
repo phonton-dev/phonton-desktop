@@ -1,4 +1,5 @@
 import { Command } from "@tauri-apps/plugin-shell";
+import { beginDesktopWork } from "./app-update-lock";
 import { homeDir, join } from "@tauri-apps/api/path";
 import { resolveTargetCliVersion } from "./cli-version";
 import { isTauri } from "./sidecar";
@@ -708,6 +709,15 @@ export async function resolvePhontonOnPath(): Promise<string | null> {
 
 /** Detect, upgrade, and install phonton-cli to npm latest. */
 export async function ensurePhontonCli(
+  onProgress?: (message: string) => void,
+): Promise<{ ok: boolean; message: string; installed: boolean }> {
+  let finish: () => void;
+  try { finish = beginDesktopWork(); }
+  catch (error) { return { ok: false, message: error instanceof Error ? error.message : String(error), installed: false }; }
+  try { return await ensurePhontonCliUnprotected(onProgress); } finally { finish(); }
+}
+
+async function ensurePhontonCliUnprotected(
   onProgress?: (message: string) => void,
 ): Promise<{ ok: boolean; message: string; installed: boolean }> {
   if (!isTauri()) {

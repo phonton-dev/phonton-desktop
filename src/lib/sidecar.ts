@@ -12,6 +12,7 @@ import {
 import { getActiveProject } from "./projects";
 import { ensureBundledSidecar } from "./bundled-sidecar-start";
 import { spawnObservedShellChild } from "./shell-child-lifecycle";
+import { withDesktopWork } from "./app-update-lock";
 
 let sidecarWorkspace: string | null = null;
 
@@ -31,12 +32,19 @@ export function isTauri(): boolean {
 }
 
 export async function sidecarProcessAlive(): Promise<boolean> {
-  if (child) return true;
   try {
-    return await invoke<boolean>("phonton_sidecar_alive");
+    return await sidecarProcessAliveStrict();
   } catch {
     return false;
   }
+}
+
+/** Preserve unknown ownership for operations that must not interrupt engine work. */
+export async function sidecarProcessAliveStrict(): Promise<boolean> {
+  if (child) return true;
+  const alive = await invoke<boolean>("phonton_sidecar_alive");
+  if (typeof alive !== "boolean") throw new Error("Invalid engine state");
+  return alive;
 }
 
 function isWindows(): boolean {
@@ -113,6 +121,10 @@ async function verifyRustSidecar(): Promise<boolean> {
 }
 
 export async function startSidecar(): Promise<void> {
+  return withDesktopWork(startSidecarUnprotected);
+}
+
+async function startSidecarUnprotected(): Promise<void> {
   if (!isTauri()) return;
   const bundled = await invoke<{ path: string; version: string; sha256: string } | null>("bundled_phonton_engine");
   if (child) return;
@@ -183,6 +195,10 @@ export async function startSidecar(): Promise<void> {
 }
 
 export async function stopSidecar(): Promise<void> {
+  return withDesktopWork(stopSidecarUnprotected);
+}
+
+async function stopSidecarUnprotected(): Promise<void> {
   if (rustSpawned) {
     try {
       await invoke("stop_phonton_serve");
@@ -201,7 +217,9 @@ export async function stopSidecar(): Promise<void> {
 }
 
 export async function restartSidecar(workspace?: string | null): Promise<void> {
-  if (workspace !== undefined) setSidecarWorkspace(workspace);
-  await stopSidecar();
-  await startSidecar();
+  return withDesktopWork(async () => {
+    if (workspace !== undefined) setSidecarWorkspace(workspace);
+    await stopSidecarUnprotected();
+    await startSidecarUnprotected();
+  });
 }

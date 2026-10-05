@@ -13,6 +13,8 @@ function harness(overrides = {}) {
     '@tauri-apps/api/app': { getName: overrides.getName ?? (async () => 'Phonton') },
     '@tauri-apps/plugin-process': { relaunch: async () => { calls.relaunch++; } },
     './sidecar': { isTauri: () => true },
+    './app-update-lock': { beginAppUpdate: () => () => {} },
+    './app-update-safety': { ensureAppUpdateIdle: async () => {} },
   };
   const module = { exports: {} };
   const window = { confirm: () => { calls.confirm++; return overrides.confirm?.() ?? false; } };

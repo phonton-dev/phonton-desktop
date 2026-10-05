@@ -185,6 +185,9 @@ jobs:
           PHONTON_ENGINE_EXPECTED_VERSION: ${{ needs.preflight.outputs.engine_version }}
         run: npx tauri build ${{ matrix.args }} -- --locked
 
+      - name: Check native Desktop contracts
+        run: cargo test --release --locked --manifest-path src-tauri/Cargo.toml --lib
+
       - name: Record exact Windows release candidate
         if: matrix.platform == 'windows-latest'
         env:

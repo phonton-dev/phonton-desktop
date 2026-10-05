@@ -2,6 +2,8 @@ import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { getName } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { isTauri } from "./sidecar";
+import { beginAppUpdate } from "./app-update-lock";
+import { ensureAppUpdateIdle } from "./app-update-safety";
 
 export type UpdateCheckResult =
   | { status: "skipped" }
@@ -29,9 +31,15 @@ export async function checkForAppUpdate(
 ): Promise<UpdateCheckResult> {
   if (options.signal?.aborted || !isTauri()) return { status: "skipped" };
 
+  let finish: (() => void) | undefined;
   try {
     if (await getName() === "Phonton Preview") return { status: "skipped" };
     if (options.signal?.aborted) return { status: "skipped" };
+    if (options.install) {
+      finish = beginAppUpdate();
+      await ensureAppUpdateIdle();
+      if (options.signal?.aborted) return { status: "skipped" };
+    }
     const update = await check();
     if (options.signal?.aborted) return { status: "skipped" };
     if (!update) return { status: "current" };
@@ -53,7 +61,7 @@ export async function checkForAppUpdate(
       status: "error",
       message: err instanceof Error ? err.message : String(err),
     };
-  }
+  } finally { finish?.(); }
 }
 
 /** Silent check on launch; prompts only when a newer signed build exists. */

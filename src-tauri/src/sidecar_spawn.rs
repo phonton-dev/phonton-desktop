@@ -153,6 +153,20 @@ impl TrackedChild {
 
 pub struct SidecarChild(pub Mutex<Option<TrackedChild>>);
 
+impl SidecarChild {
+    fn is_alive(&self) -> Result<bool, String> {
+        let mut guard = self.0.lock().map_err(|e| e.to_string())?;
+        let Some(tracked) = guard.as_mut() else {
+            return Ok(false);
+        };
+        tracked
+            .child
+            .try_wait()
+            .map(|status| status.is_none())
+            .map_err(|e| format!("Could not inspect the owned engine: {e}"))
+    }
+}
+
 impl Drop for SidecarChild {
     fn drop(&mut self) {
         let tracked = self
@@ -293,18 +307,8 @@ pub fn spawn_phonton_serve(
 }
 
 #[tauri::command]
-pub fn phonton_sidecar_alive(state: State<'_, SidecarChild>) -> bool {
-    let Ok(mut guard) = state.0.lock() else {
-        return false;
-    };
-    let Some(tracked) = guard.as_mut() else {
-        return false;
-    };
-    match tracked.child.try_wait() {
-        Ok(Some(_)) => false,
-        Ok(None) => true,
-        Err(_) => false,
-    }
+pub fn phonton_sidecar_alive(state: State<'_, SidecarChild>) -> Result<bool, String> {
+    state.is_alive()
 }
 
 #[tauri::command]
@@ -317,6 +321,28 @@ pub fn stop_phonton_serve(state: State<'_, SidecarChild>) -> Result<(), String> 
     Ok(())
 }
 
+#[cfg(test)]
+mod liveness_tests {
+    use super::*;
+
+    #[test]
+    fn no_owned_child_is_confirmed_absent() {
+        let state = SidecarChild(Mutex::new(None));
+        assert_eq!(state.is_alive(), Ok(false));
+    }
+
+    #[test]
+    fn unreadable_owned_child_state_is_not_reported_as_absent() {
+        let state = SidecarChild(Mutex::new(None));
+        let poisoned = std::panic::catch_unwind(|| {
+            let _guard = state.0.lock().unwrap();
+            panic!("Simulate a failed ownership-state mutation");
+        });
+        assert!(poisoned.is_err());
+        assert!(state.is_alive().is_err());
+    }
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use super::*;
@@ -324,6 +350,31 @@ mod tests {
     use std::os::windows::process::CommandExt;
 
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    #[test]
+    fn owned_child_liveness_distinguishes_running_and_reaped_processes() {
+        let child = Command::new("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                "Start-Sleep -Seconds 30",
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .unwrap();
+        let state = SidecarChild(Mutex::new(Some(TrackedChild::new(child))));
+        let running = state.is_alive();
+        {
+            let mut guard = state.0.lock().unwrap();
+            let tracked = guard.as_mut().unwrap();
+            let _ = tracked.child.kill();
+            tracked.child.wait().unwrap();
+        }
+        assert_eq!(running, Ok(true));
+        assert_eq!(state.is_alive(), Ok(false));
+        assert_eq!(state.is_alive(), Ok(false));
+    }
 
     #[test]
     fn supervised_engine_stops_when_its_desktop_job_closes() {

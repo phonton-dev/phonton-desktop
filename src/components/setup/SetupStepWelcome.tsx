@@ -1,6 +1,6 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
-import { checkForAppUpdate, type UpdateCheckResult } from "../../lib/app-updater";
+import { useManualAppUpdate } from "../../hooks/useManualAppUpdate";
 import { isTauri } from "../../lib/sidecar";
 
 type Props = {
@@ -9,54 +9,12 @@ type Props = {
 
 export function SetupStepWelcome({ onGetStarted }: Props) {
   const [appVersion, setAppVersion] = useState("");
-  const [updateStatus, setUpdateStatus] = useState("");
-  const [updateBusy, setUpdateBusy] = useState(false);
-  const [updateAvailable, setUpdateAvailable] = useState<string | null>(null);
+  const update = useManualAppUpdate();
 
   useEffect(() => {
     if (!isTauri()) return;
     void getVersion().then(setAppVersion).catch(() => setAppVersion(""));
   }, []);
-
-  const handleCheckUpdates = async () => {
-    if (!isTauri()) return;
-    setUpdateBusy(true);
-    setUpdateStatus("Checking for updates…");
-    setUpdateAvailable(null);
-
-    const result: UpdateCheckResult = await checkForAppUpdate();
-    if (result.status === "current") {
-      setUpdateStatus(`You're on the latest version${appVersion ? ` (v${appVersion})` : ""}.`);
-      setUpdateBusy(false);
-      return;
-    }
-    if (result.status === "available") {
-      setUpdateAvailable(result.version);
-      setUpdateStatus(`Phonton ${result.version} is available.`);
-      setUpdateBusy(false);
-      return;
-    }
-    if (result.status === "error") {
-      setUpdateStatus(result.message);
-      setUpdateBusy(false);
-      return;
-    }
-    setUpdateStatus("");
-    setUpdateBusy(false);
-  };
-
-  const handleInstallUpdate = async () => {
-    setUpdateBusy(true);
-    setUpdateStatus("Downloading update…");
-    const result = await checkForAppUpdate({
-      install: true,
-      onProgress: (pct) => setUpdateStatus(`Downloading update… ${pct}%`),
-    });
-    if (result.status === "error") {
-      setUpdateStatus(result.message);
-      setUpdateBusy(false);
-    }
-  };
 
   return (
     <div className="setup-welcome">
@@ -74,20 +32,21 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
         <div className="setup-update-banner">
           <p>
             {appVersion ? `Installed version: v${appVersion}` : "Phonton Desktop"}
-            {updateStatus ? ` - ${updateStatus}` : null}
           </p>
+          {update.message && <p role="status">{update.message}</p>}
+          {update.available && <p>Phonton restarts after installation.</p>}
           <div className="toolbar" style={{ justifyContent: "center" }}>
             <button
               type="button"
               className="btn secondary"
-              disabled={updateBusy}
-              onClick={() => void handleCheckUpdates()}
+              disabled={update.busy !== null}
+              onClick={update.check}
             >
-              {updateBusy ? "Checking…" : "Check for updates"}
+              {update.busy === "check" ? "Checking…" : "Check for updates"}
             </button>
-            {updateAvailable ? (
-              <button type="button" className="btn" disabled={updateBusy} onClick={() => void handleInstallUpdate()}>
-                Update to v{updateAvailable}
+            {update.available ? (
+              <button type="button" className="btn" disabled={update.busy !== null} onClick={update.install}>
+                {update.busy === "install" ? "Installing…" : `Update to v${update.available}`}
               </button>
             ) : null}
           </div>

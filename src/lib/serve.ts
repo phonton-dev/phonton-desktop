@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./sidecar";
+import { beginDesktopWork, isReadOnlyEngineMethod, markDesktopWorkUncertain } from "./app-update-lock";
 
 const SERVE_URL = "http://127.0.0.1:47831/rpc";
 const SERVE_HEALTH_URL = "http://127.0.0.1:47831/health";
@@ -38,22 +39,28 @@ async function serveFetch(url: string, init?: RequestInit): Promise<Response> {
 }
 
 export async function rpc<T>(method: string, params: Record<string, unknown> = {}): Promise<T> {
-  const payload = JSON.stringify({
-    jsonrpc: "2.0",
-    id: rpcId++,
-    method,
-    params,
-  });
-  const res = await serveFetch(SERVE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: payload,
-  });
-  const body = await res.json();
-  if (body.error) {
-    throw new RpcRemoteError(body.error.message ?? "rpc error");
-  }
-  return body.result as T;
+  const finish = isReadOnlyEngineMethod(method) ? null : beginDesktopWork();
+  try {
+    const payload = JSON.stringify({
+      jsonrpc: "2.0",
+      id: rpcId++,
+      method,
+      params,
+    });
+    const res = await serveFetch(SERVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+    });
+    const body = await res.json();
+    if (body.error) {
+      throw new RpcRemoteError(body.error.message ?? "rpc error");
+    }
+    return body.result as T;
+  } catch (error) {
+    if (finish && !(error instanceof RpcRemoteError)) markDesktopWorkUncertain();
+    throw error;
+  } finally { finish?.(); }
 }
 
 export async function checkServeHealth(): Promise<boolean> {

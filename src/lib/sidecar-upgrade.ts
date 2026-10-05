@@ -3,6 +3,7 @@ import { isServeVersionSupported, MIN_SERVE_CLI_VERSION } from "./cli-version";
 import { supportsLocalHarnessCapabilities } from "./engine-capabilities";
 import { checkServeHealth, ping, waitForPing, type EnginePing } from "./serve";
 import { isTauri, restartSidecar, stopSidecar } from "./sidecar";
+import { beginDesktopWork } from "./app-update-lock";
 
 export type SidecarConnectResult =
   | { ok: true; version: string; handoffSchema: string }
@@ -50,6 +51,21 @@ export async function ensureSidecarReady(
   onProgress?: (message: string) => void,
   allowInstall = false,
   requireLocalHarness = false,
+): Promise<SidecarConnectResult> {
+  let finish: (() => void) | undefined;
+  if (allowInstall) {
+    try { finish = beginDesktopWork(); }
+    catch (error) { return { ok: false, reason: "upgrade_failed", error: error instanceof Error ? error.message : String(error) }; }
+  }
+  try { return await ensureSidecarReadyUnprotected(bootstrap, onProgress, allowInstall, requireLocalHarness); }
+  finally { finish?.(); }
+}
+
+async function ensureSidecarReadyUnprotected(
+  bootstrap: boolean,
+  onProgress: ((message: string) => void) | undefined,
+  allowInstall: boolean,
+  requireLocalHarness: boolean,
 ): Promise<SidecarConnectResult> {
   onProgress?.("Checking sidecar…");
   let info = await pingSidecar();
