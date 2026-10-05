@@ -63,11 +63,15 @@ def wait(check, label, seconds=40):
     raise AssertionError('Timed out: ' + label)
 
 
-def click_button(dialog, label):
+def enabled_button(dialog, label):
     buttons = [node for node in walk(dialog) if node.get_role() == Atspi.Role.PUSH_BUTTON
                and node.get_name().replace('_', '').lower() == label and showing(node)]
-    assert len(buttons) == 1, f'Expected one enabled {label} button'
-    button = buttons[0]
+    assert len(buttons) <= 1, f'Ambiguous enabled {label} button'
+    return buttons[0] if buttons else None
+
+
+def click_button(dialog, label):
+    button = wait(lambda: enabled_button(dialog, label), f'enabled native {label} button')
     assert button.get_process_id() == pid
     interface = button.get_action_iface()
     actions = [i for i in range(interface.get_n_actions()) if interface.get_action_name(i) in ('click', 'press', 'activate')]
@@ -103,6 +107,14 @@ try:
         subprocess.run(['xdotool', 'windowactivate', '--sync', window], check=True, timeout=10)
         active = subprocess.check_output(['xdotool', 'getactivewindow'], text=True, timeout=10).strip()
         assert active == window, 'Repository chooser did not retain keyboard focus'
+        # A fresh GTK chooser starts in Recent, which has no selected directory.
+        # Use its standard Home navigation before opening the location entry.
+        subprocess.run(['xdotool', 'key', '--clearmodifiers', 'alt+Home'], check=True, timeout=10)
+        home_button = wait(lambda: enabled_button(dialog, 'open'), 'folder navigation enables Open')
+        assert home_button.get_process_id() == pid
+        report['navigation'] = {'key': 'alt+Home', 'openEnabledBeforeLocation': True, 'pid': pid}
+        save()
+        assert subprocess.check_output(['xdotool', 'getactivewindow'], text=True, timeout=10).strip() == window
         subprocess.run(['xdotool', 'key', '--clearmodifiers', 'ctrl+l'], check=True, timeout=10)
         def entries():
             return [node for node in walk(dialog) if showing(node) and 'EditableText' in node.get_interfaces()]
@@ -112,10 +124,20 @@ try:
         report['locationEntry'] = {'name': editors[0].get_name(), 'role': editors[0].get_role_name(), 'interfaces': list(editors[0].get_interfaces()), 'pid': pid}
         save()
         assert editors[0].get_editable_text_iface().set_text_contents(str(fixture))
-        report['enteredDirectory'] = editors[0].get_text_iface().get_text(0, -1)
+        text = editors[0].get_text_iface()
+        # EditableText replacement leaves the caret at zero. GTK derives its
+        # filename completion state from the text preceding the caret.
+        assert text.set_caret_offset(len(str(fixture)))
+        report['enteredDirectory'] = text.get_text(0, -1)
         assert report['enteredDirectory'] == str(fixture)
-    report['controls'] = [{'name': node.get_name(), 'role': node.get_role_name()}
-                          for node in walk(dialog) if showing(node) and node.get_role() in (Atspi.Role.PUSH_BUTTON, Atspi.Role.ENTRY, Atspi.Role.TEXT)]
+        report['caretOffset'] = text.get_caret_offset()
+        assert report['caretOffset'] == len(str(fixture))
+        assert editors[0].get_state_set().contains(Atspi.StateType.FOCUSED), 'Location entry must retain focus'
+        wait(lambda: enabled_button(dialog, 'open'), 'Open enabled for entered directory')
+    report['controls'] = [{'name': node.get_name(), 'role': node.get_role_name(),
+                           'enabled': node.get_state_set().contains(Atspi.StateType.ENABLED)}
+                          for node in walk(dialog) if node.get_state_set().contains(Atspi.StateType.SHOWING) and
+                          node.get_role() in (Atspi.Role.PUSH_BUTTON, Atspi.Role.ENTRY, Atspi.Role.TEXT)]
     save()
     subprocess.run(['import', '-window', 'root', str(report_path.with_suffix('.png'))], check=True, timeout=15)
     click_button(dialog, 'cancel' if action == 'cancel' else 'open')

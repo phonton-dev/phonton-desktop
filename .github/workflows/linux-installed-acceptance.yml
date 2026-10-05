@@ -64,7 +64,8 @@ jobs:
           for method in ['get_interfaces', 'get_editable_text_iface', 'get_text_iface', 'get_action_iface', 'get_process_id', 'get_state_set', 'get_child_at_index', 'get_child_count', 'get_name', 'get_role']:
               assert hasattr(Atspi.Accessible, method), method
           assert hasattr(Atspi.EditableText, 'set_text_contents')
-          assert hasattr(Atspi.Text, 'get_text')
+          for method in ['get_text', 'set_caret_offset', 'get_caret_offset']:
+              assert hasattr(Atspi.Text, method), method
           for method in ['get_action_name', 'get_n_actions', 'do_action']:
               assert hasattr(Atspi.Action, method), method
           print('Required native AT-SPI APIs are available; UI behavior remains untested.')
