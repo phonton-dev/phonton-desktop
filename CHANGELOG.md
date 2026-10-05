@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Separate cloud probe for unchanged ARM64 DMG installation, native
+  accessibility and normal Quit, with explicit limits on full journey/signing claims.
+
 - [fixed] Require both chooser PID and title during Linux native acceptance;
   record and recheck window ownership and focus before keyboard input.
 
