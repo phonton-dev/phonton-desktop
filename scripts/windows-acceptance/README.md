@@ -171,6 +171,9 @@ the visible Folder edit control and invokes Select Folder. Ambiguous controls
 fail with evidence; there is no storage/RPC fallback. A second cancel after plan
 review must preserve the plan and unapproved consent. Selected project, source,
 Git index and owned engine are checked before the usual full native journey.
+The PowerShell helper explicitly registers the framework's managed Win32
+client-side providers; otherwise native buttons/edits may appear as patternless
+panes. Control types and Invoke/Value requirements remain mandatory.
 
 Passive runtime snapshots after model return, receipt completion and receipt
 reopen record elapsed time, visibility, focus and visible labels. One fresh

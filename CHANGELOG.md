@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Load Win32 UIAutomation providers explicitly in native picker acceptance
+  so real button/edit controls expose their required Invoke/Value patterns.
+
 - [added] Separate cloud acceptance for real Windows repository-dialog cancel and
   selection, plus timed runtime-label observations through the full native journey.
 

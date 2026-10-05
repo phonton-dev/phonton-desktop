@@ -13,7 +13,17 @@ if (![IO.Path]::GetFullPath($ReportPath).StartsWith($evidencePrefix, [StringComp
 $report = @{ schema = 1; action = $Action; status = 'running'; app = $app; fixture = $fixture }
 function SaveReport { $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $ReportPath -Encoding UTF8 }
 try {
-    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
+    Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, UIAutomationClientsideProviders, System.Drawing
+    # Windows PowerShell can expose legacy HWND controls as patternless panes
+    # unless its managed Win32 providers are explicitly registered. Keep the
+    # Button/Edit and Invoke/Value assertions; load the documented providers.
+    $providers = @([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'UIAutomationClientsideProviders' })
+    if ($providers.Count -ne 1) { throw 'Expected one framework client-side provider assembly' }
+    [System.Windows.Automation.ClientSettings]::RegisterClientSideProviderAssembly($providers[0].GetName())
+    $report.clientSideProviders = $providers[0].FullName
+    $report.clientSideProviderLocation = $providers[0].Location
+    $report.clientSideProviderClasses = @([UIAutomationClientsideProviders.UIAutomationClientSideProviders]::ClientSideProviderDescriptionTable | Where-Object { $_.ClassName -in @('Button', 'Edit') } | ForEach-Object ClassName)
+    if ('Button' -notin $report.clientSideProviderClasses -or 'Edit' -notin $report.clientSideProviderClasses) { throw 'Expected framework button and edit providers' }
     Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
