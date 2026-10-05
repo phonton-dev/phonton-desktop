@@ -5,6 +5,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { linuxSnapshot } from './processes.mjs';
 import { sameLinuxProcess } from './contract.mjs';
+import { waitForNativeDriver } from './driver-ready.mjs';
 import { appImageClosed, appImageSnapshot } from './appimage.mjs';
 
 assert.equal(process.platform, 'linux');
@@ -67,14 +68,7 @@ try {
     [{ port: 11434, loopback: true, pids: [runtime.pid] }]);
   writeFileSync('acceptance-evidence/external-runtime.json', JSON.stringify({ version, process: started.runtimes[0], snapshot: started }, null, 2) + '\n');
   const driver = launch('tauri-driver', ['--native-driver', '/usr/bin/WebKitWebDriver'], 'tauri-driver');
-  await wait(async () => {
-    if (driver.exitCode !== null) throw new Error('WebDriver exited before readiness');
-    try {
-      const response = await fetch('http://127.0.0.1:4444/status', { signal: AbortSignal.timeout(2000) });
-      assert.equal(response.ok, true);
-      const value = await response.json(); assert.equal(typeof value.value?.ready, 'boolean'); return value.value.ready;
-    } catch (error) { if (error.cause?.code === 'ECONNREFUSED' || error.name === 'TimeoutError') return false; throw error; }
-  }, 'native WebDriver startup');
+  await waitForNativeDriver({ isAlive: () => driver.exitCode === null && driver.signalCode === null });
   const journey = launch(process.execPath, ['scripts/linux-acceptance/journey.mjs'], 'journey', 70 * 60000);
   const outcome = await journey.done;
   assert.equal(outcome.code, 0, 'Native journey failed; preserve failure evidence');
