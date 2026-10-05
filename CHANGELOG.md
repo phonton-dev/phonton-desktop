@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Separate cloud MSI upgrade acceptance from public 0.3.4 to the exact
+  tested beta installer, with default-profile preference retention checked before
+  model setup and the full native Apply/reopen/rollback journey.
+
 - [fixed] Hold public tag releases from this source until trusted publisher signing
   and release acceptance are implemented and verified. Manual cloud candidates
   remain available; the hold is not a native-signature verifier.

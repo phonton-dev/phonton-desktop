@@ -6,6 +6,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests, fullJourney } from './full-journey.mjs';
 import { interfaceJourney } from './interface-journey.mjs';
+import { verifyRetainedPreferences } from './upgrade-contract.mjs';
 
 assert.equal(process.env.GITHUB_ACTIONS, 'true', 'Disposable Actions runner required');
 assert.equal(process.platform, 'win32');
@@ -13,7 +14,14 @@ const app = process.env.PHONTON_ACCEPTANCE_APP;
 const profile = process.env.PHONTON_ACCEPTANCE_PROFILE;
 const fixture = process.env.PHONTON_ACCEPTANCE_FIXTURE;
 const full = process.env.PHONTON_ACCEPTANCE_FULL_JOURNEY === 'true';
-assert.ok(app && profile && fixture);
+const upgrade = process.env.PHONTON_ACCEPTANCE_UPGRADE_RECORD
+  ? JSON.parse(readFileSync(process.env.PHONTON_ACCEPTANCE_UPGRADE_RECORD, 'utf8')) : null;
+assert.ok(app && fixture && (profile || upgrade));
+if (upgrade) {
+  assert.equal(full, true);
+  assert.equal(profile, undefined, 'Upgrade must use the default WebView profile');
+  assert.equal(process.env.WEBVIEW2_USER_DATA_FOLDER, undefined);
+}
 const candidate = JSON.parse(readFileSync('acceptance-candidate/candidate.json', 'utf8'));
 const evidence = path.resolve('acceptance-evidence');
 const hash = file => createHash('sha256').update(readFileSync(file)).digest('hex');
@@ -21,8 +29,9 @@ const report = { schema: 1, status: 'running', mode: full ? 'full' : 'smoke', ca
   'Silent installer: prompts, SmartScreen and standard-user permissions are not exercised.',
   'Workspace selection is seeded in localStorage; native folder picker is not exercised.',
   ...(full ? ['One pinned model and one Python fixture only; no general model-quality or language-coverage claim.'] : ['No model download, calibration, inference, Apply, receipt reopen or rollback in this smoke test.']),
-  'Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.',
+  ...(upgrade ? ['Windows Server MSI forward upgrade with named fixture preferences only; consumer Windows, authenticated account migration, NSIS/cross-installer migration, native signing and updater installation remain untested.'] : ['Windows Server runner; consumer Windows, native signing, stable-version upgrade and updater installation remain untested.']),
 ] };
+if (upgrade) report.upgrade = { from: '0.3.4', storage: 'default-webview', harnessCommit: process.env.GITHUB_SHA, candidateCommit: candidate.desktopCommit };
 let session;
 const save = () => writeFileSync(path.join(evidence, 'result.json'), JSON.stringify(report, null, 2) + '\n');
 const record = (name, detail = true) => { report.checks.push({ name, detail }); save(); console.log(`PASS ${name}`); };
@@ -85,7 +94,7 @@ async function ready() {
 }
 async function start() {
   const value = await request('POST', '/session', { capabilities: { alwaysMatch: {
-    'tauri:options': { application: app, webviewOptions: { userDataFolder: profile } },
+    'tauri:options': { application: app, ...(upgrade ? {} : { webviewOptions: { userDataFolder: profile } }) },
   } } });
   session = value.sessionId;
   assert.ok(session, 'WebDriver session ID missing');
@@ -112,11 +121,17 @@ async function closeNormally(name) {
 }
 
 try {
+  if (upgrade) {
+    assert.equal(fixture, upgrade.fixture);
+    for (const [file, digest] of upgrade.sourceHashes) assert.equal(hash(path.join(fixture, file)), digest, 'Upgrade changed the retained fixture');
+    assert.deepEqual(upgrade.sourceHashes.map(([file]) => file), ['port.py', 'test_port.py', '.git/index']);
+  } else {
   mkdirSync(fixture);
   writeFileSync(path.join(fixture, 'port.py'), 'def parse_port(value):\n    return int(value)\n');
   writeFileSync(path.join(fixture, 'test_port.py'), full ? fullFixtureTests : 'import unittest\nfrom port import parse_port\n\nclass PortTests(unittest.TestCase):\n    def test_port(self):\n        self.assertEqual(parse_port("8080"), 8080)\n');
   execFileSync('git', ['init', '--quiet', fixture]);
   execFileSync('git', ['-C', fixture, 'add', 'port.py', 'test_port.py']);
+  }
   const identities = ['port.py', 'test_port.py', '.git/index'].map(file => [file, hash(path.join(fixture, file))]);
   await until(async () => (await request('GET', '/status'))?.ready === true, 'WebDriver startup', 30000);
   await start();
@@ -124,7 +139,16 @@ try {
   record('installed engine ownership and health', first);
   await screenshot('01-first-launch');
 
-  await execute('localStorage.setItem("phonton.projects.active",arguments[0]);localStorage.setItem("phonton.projects.recent",JSON.stringify([arguments[0]]));', fixture);
+  if (upgrade) {
+    const observed = await execute('return Object.fromEntries(arguments[0].map(key => [key, localStorage.getItem(key)]))', Object.keys(upgrade.preferences));
+    verifyRetainedPreferences(upgrade, observed, candidate);
+    assert.equal(await execute('return document.documentElement.dataset.theme'), 'light', 'Retained theme must be rendered');
+    assert.ok((await execute('return document.querySelector(".lw-intro h1").textContent')).includes(path.basename(fixture)), 'Retained repository must be active in the native workbench');
+    await screenshot('upgrade-02-retained-workbench');
+    record('MSI upgrade retains default-profile theme, active and recent repository before any reseed', { observed, stableDesktopSha256: upgrade.stableDesktopSha256 });
+  } else {
+    await execute('localStorage.setItem("phonton.projects.active",arguments[0]);localStorage.setItem("phonton.projects.recent",JSON.stringify([arguments[0]]));', fixture);
+  }
   await command('POST', '/refresh', {});
   await ready();
   const refreshed = await ownedEngine();

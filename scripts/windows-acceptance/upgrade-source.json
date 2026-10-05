@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "repository": "phonton-dev/phonton-desktop",
+  "baseline": {
+    "tag": "v0.3.4",
+    "version": "0.3.4",
+    "assetId": 535295675,
+    "name": "Phonton_0.3.4_x64_en-US.msi",
+    "sha256": "708c18eac59baabe46b7ad6acb8ed0f53648f4f9a0b00177138372611a870d5f"
+  },
+  "candidate": {
+    "runId": 37335132890,
+    "artifactId": 11357487051,
+    "artifactName": "windows-release-candidate-msi",
+    "artifactSha256": "3f30561b64c340a3b5072058d447ebe3c2f403d4ea7501814e5fb2c765686136",
+    "commit": "3c9da06048532875b514c438995841a6e24cc05a",
+    "manifestSha256": "2dd41fe93f8dd575895d8a656bd9c45ed61442641b7d247fcbe84c53e18d97df",
+    "installerSha256": "8fdf8d63a385ded9d39495b1bacb31aec8b798f501850534cd40141cb0a47b43"
+  }
+}

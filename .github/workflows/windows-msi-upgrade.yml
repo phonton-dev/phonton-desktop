@@ -1,0 +1,81 @@
+name: Accept Windows MSI upgrade
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['2ntt/msi-upgrade-20261006']
+    paths:
+      - '.github/workflows/windows-msi-upgrade.yml'
+      - 'scripts/windows-acceptance/**'
+      - 'scripts/windows-upgrade.test.mjs'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: windows-msi-upgrade-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  upgrade:
+    name: Upgrade stable MSI and retain preferences
+    runs-on: windows-2022
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - name: Validate upgrade contracts
+        run: node --test scripts/windows-upgrade.test.mjs
+      - name: Verify pinned source and download stable MSI
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force acceptance-evidence,upgrade-baseline | Out-Null
+          $source = Get-Content scripts/windows-acceptance/upgrade-source.json -Raw | ConvertFrom-Json
+          $repo = $source.repository
+          if ($repo -ne $env:GITHUB_REPOSITORY) { throw 'Unexpected repository' }
+          $run = gh api "repos/$repo/actions/runs/$($source.candidate.runId)" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.head_sha -ne $source.candidate.commit -or $run.conclusion -ne 'success') { throw 'Candidate build run is not accepted' }
+          $artifact = gh api "repos/$repo/actions/artifacts/$($source.candidate.artifactId)" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $artifact.expired -or $artifact.workflow_run.id -ne $source.candidate.runId -or $artifact.name -ne $source.candidate.artifactName -or $artifact.digest -ne "sha256:$($source.candidate.artifactSha256)") { throw 'Candidate artifact identity mismatch' }
+          $release = gh api "repos/$repo/releases/tags/$($source.baseline.tag)" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $release.draft -or $release.prerelease) { throw 'Stable release unavailable' }
+          $asset = @($release.assets | Where-Object id -EQ $source.baseline.assetId)
+          if ($asset.Count -ne 1 -or $asset[0].name -ne $source.baseline.name -or $asset[0].digest -ne "sha256:$($source.baseline.sha256)") { throw 'Stable asset identity mismatch' }
+          gh release download $source.baseline.tag --repo $repo --pattern $source.baseline.name --dir upgrade-baseline
+          if ($LASTEXITCODE -ne 0) { throw 'Stable MSI download failed' }
+          $run | ConvertTo-Json -Depth 15 | Set-Content acceptance-evidence/candidate-build-run.json
+          $artifact | ConvertTo-Json -Depth 8 | Set-Content acceptance-evidence/candidate-artifact.json
+          $asset[0] | ConvertTo-Json -Depth 8 | Set-Content acceptance-evidence/stable-asset.json
+          "run_id=$($source.candidate.runId)" >> $env:GITHUB_OUTPUT
+          "artifact_id=$($source.candidate.artifactId)" >> $env:GITHUB_OUTPUT
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.source.outputs.run_id }}
+          artifact-ids: ${{ steps.source.outputs.artifact_id }}
+          merge-multiple: true
+          path: acceptance-candidate
+      - name: Install WebDriver
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Match EdgeDriver to installed WebView2
+        run: ./scripts/windows-acceptance/prepare-driver.ps1
+      - name: Upgrade exact MSI bytes and test retained default profile
+        run: ./scripts/windows-acceptance/run-upgrade.ps1
+      - name: Retain upgrade evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi-upgrade-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7
