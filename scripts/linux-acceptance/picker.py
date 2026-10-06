@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import gi
+from picker_entry import location_matches, settled_location
 
 assert sys.platform == 'linux' and os.environ.get('GITHUB_ACTIONS') == 'true'
 assert os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
@@ -93,12 +94,14 @@ def enabled_button(dialog, label):
     return buttons[0] if buttons else None
 
 
-def click_button(dialog, label):
+def click_button(dialog, label, before_action=None):
     button = wait(lambda: enabled_button(dialog, label), f'enabled native {label} button')
     assert button.get_process_id() == pid
     interface = button.get_action_iface()
     actions = [i for i in range(interface.get_n_actions()) if interface.get_action_name(i) in ('click', 'press', 'activate')]
     assert len(actions) == 1, 'Expected one native button action'
+    if before_action:
+        before_action()
     report['invokedButton'] = {'name': button.get_name(), 'pid': button.get_process_id(), 'action': interface.get_action_name(actions[0])}
     save()
     assert interface.do_action(actions[0])
@@ -174,16 +177,50 @@ try:
         assert editors[0].get_process_id() == pid
         report['locationEntry'] = {'name': editors[0].get_name(), 'role': editors[0].get_role_name(), 'interfaces': list(editors[0].get_interfaces()), 'pid': pid}
         save()
-        assert editors[0].get_editable_text_iface().set_text_contents(str(fixture))
+        # GTK completes directory names asynchronously, including their slash.
+        # Enter that exact directory spelling once, then only observe settlement.
+        location = str(fixture) + '/'
+        report['requestedLocation'] = location
+        assert editors[0].get_editable_text_iface().set_text_contents(location)
         text = editors[0].get_text_iface()
         # EditableText replacement leaves the caret at zero. GTK derives its
         # filename completion state from the text preceding the caret.
-        assert text.set_caret_offset(len(str(fixture)))
-        report['enteredDirectory'] = text.get_text(0, -1)
+        assert text.set_caret_offset(len(location))
+
+        def read_location():
+            assert app_identity() == original_app, 'App lifetime changed during location entry'
+            assert subprocess.check_output(['xdotool', 'getactivewindow'], text=True, timeout=10).strip() == window
+            current = dialogs(refresh=True)
+            assert len(current) == 1 and current[0].get_process_id() == pid, 'Owned chooser changed'
+            entries_now = [node for node in walk(current[0]) if showing(node) and 'EditableText' in node.get_interfaces()]
+            assert len(entries_now) == 1 and entries_now[0].get_process_id() == pid, 'Owned location entry changed'
+            entry = entries_now[0]
+            interface = entry.get_text_iface()
+            before_text = interface.get_text(0, -1)
+            caret = interface.get_caret_offset()
+            after_text = interface.get_text(0, -1)
+            entry.clear_cache()
+            observation = {'textBefore': before_text, 'caretOffset': caret, 'textAfter': after_text,
+                           'focused': entry.get_state_set().contains(Atspi.StateType.FOCUSED)}
+            assert app_identity() == original_app, 'App lifetime changed during location read'
+            return observation
+
+        def retain_location(observation):
+            report.setdefault('locationObservations', []).append(observation)
+            save()
+
+        settled = settled_location(read_location, location, retain_location)
+        report['enteredLocation'] = settled['textAfter']
+        report['enteredDirectory'] = str(Path(report['enteredLocation']).resolve(strict=True))
         assert report['enteredDirectory'] == str(fixture)
-        report['caretOffset'] = text.get_caret_offset()
-        assert report['caretOffset'] == len(str(fixture))
-        assert editors[0].get_state_set().contains(Atspi.StateType.FOCUSED), 'Location entry must retain focus'
+        report['caretOffset'] = settled['caretOffset']
+
+        def location_before_open():
+            observation = read_location()
+            report['locationBeforeOpen'] = observation
+            save()
+            assert location_matches(observation, location), 'Location changed before Open'
+
         wait(lambda: enabled_button(dialog, 'open'), 'Open enabled for entered directory')
     report['controls'] = [{'name': node.get_name(), 'role': node.get_role_name(),
                            'enabled': node.get_state_set().contains(Atspi.StateType.ENABLED)}
@@ -191,7 +228,7 @@ try:
                           node.get_role() in (Atspi.Role.PUSH_BUTTON, Atspi.Role.ENTRY, Atspi.Role.TEXT)]
     save()
     subprocess.run(['import', '-window', 'root', str(report_path.with_suffix('.png'))], check=True, timeout=15)
-    click_button(dialog, 'cancel' if action == 'cancel' else 'open')
+    click_button(dialog, 'cancel' if action == 'cancel' else 'open', location_before_open if action == 'select' else None)
     wait(chooser_closed, 'chooser closes while the same app remains alive')
     report.update(status='passed', closed=True)
     save()

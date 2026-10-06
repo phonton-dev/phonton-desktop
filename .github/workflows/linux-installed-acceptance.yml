@@ -48,6 +48,7 @@ jobs:
       - name: Check acceptance contracts
         run: |
           node --test scripts/*.test.mjs
+          python3 -m unittest discover -s scripts/linux-acceptance -p '*_test.py'
           python3 -c "import ast,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path('scripts/linux-acceptance').glob('*.py')]"
       - name: Install native cloud desktop dependencies
         run: |

@@ -165,7 +165,15 @@ async function picker(action, label) {
     const result = read(output); assert.equal(result.status, 'passed'); assert.equal(result.appPid, pid);
     assert.equal(result.action, action); assert.equal(result.fixture, fixture); assert.equal(result.closed, true);
     assert.equal(result.dialog.pid, pid); assert.equal(result.invokedButton.pid, pid);
-    if (action === 'select') assert.equal(result.enteredDirectory, fixture);
+    if (action === 'select') {
+      assert.equal(result.enteredDirectory, fixture);
+      assert.equal(result.enteredLocation, fixture + '/');
+      assert.equal(result.caretOffset, (fixture + '/').length);
+      assert.equal(result.locationBeforeOpen.textBefore, fixture + '/');
+      assert.equal(result.locationBeforeOpen.textAfter, fixture + '/');
+      assert.equal(result.locationBeforeOpen.caretOffset, (fixture + '/').length);
+      assert.equal(result.locationBeforeOpen.focused, true);
+    }
     record('native GTK picker ' + action, result);
   } finally {
     clearTimeout(timer);
