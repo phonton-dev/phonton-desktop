@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Installed Windows checks and original screenshots for enabled Settings
+  button contrast in every theme, including real pointer hover without saving settings.
+
 - [fixed] Keep enabled Settings button labels readable in all four themes with
   dedicated accent foregrounds and sufficient contrast during hover.
 
