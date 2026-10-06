@@ -29,7 +29,9 @@ function run(args) {
   if (request.scope === 'modal') {
     modal = axFindModal(queue.map(function (entry) { return entry.item; }), function (item, path) {
       progress('discover-role', path); var role = attr(item, 'AXRole');
-      progress('discover-subrole', path); return { AXRole: role, AXSubrole: attr(item, 'AXSubrole') };
+      var subrole = null;
+      if (role === 'AXWindow') { progress('discover-subrole', path); subrole = attr(item, 'AXSubrole'); }
+      return { AXRole: role, AXSubrole: subrole };
     }, function (item, path) { progress('discover-children', path); return item.uiElements(); });
     if (!modal.chain) {
       if (mode !== 'inspect') throw Error('Owned native dialog disappeared before action');
@@ -42,16 +44,26 @@ function run(args) {
     var current = queue.shift();
     if (rows.length >= 2500 || current.depth > 24) throw Error('Accessibility tree exceeded bound');
     var item = current.item, row = { index: rows.length, parent: current.parent, path: current.path, depth: current.depth };
-    ['AXRole', 'AXSubrole', 'AXTitle', 'AXDescription', 'AXValue', 'AXEnabled', 'AXPosition', 'AXSize', 'AXFocused', 'AXSelected', 'AXCurrent'].forEach(function (name) {
+    // Each bridge query is an AppleEvent. Read only role-relevant metadata while
+    // retaining the complete tree and every node's identity/text/geometry.
+    row.queriedAttributes = [];
+    function readAttribute(name) {
       progress('attribute-' + name, current.path);
+      row.queriedAttributes.push(name);
       var value = attr(item, name);
       if (typeof value === 'string') value = value.slice(0, 1000);
       if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' || Array.isArray(value)) row[name] = value;
-    });
-    progress('actions', current.path);
-    row.actions = item.actions().map(function (action) { return action.name(); });
+    }
+    readAttribute('AXRole');
+    var metadata = axMetadata(row.AXRole);
+    metadata.attributes.forEach(readAttribute);
+    row.actionsQueried = metadata.actions;
+    if (metadata.actions) {
+      progress('actions', current.path);
+      row.actions = item.actions().map(function (action) { return action.name(); });
+    }
     row.settable = {};
-    ['AXValue', 'AXFocused'].forEach(function (name) {
+    metadata.settable.forEach(function (name) {
       progress('settable-' + name, current.path);
       try { row.settable[name] = item.attributes.byName(name).settable(); }
       catch (error) { row.settable[name] = null; }
@@ -83,6 +95,18 @@ function run(args) {
     result.action = { mode: mode, selector: request.selector, selected: selected, native: true };
   }
   return JSON.stringify(result);
+}
+
+// Omitted fields were not queried; null means a queried attribute was unavailable.
+// Action selection stays limited to the same supported native control roles.
+function axMetadata(role) {
+  var attributes = ['AXTitle', 'AXDescription', 'AXValue', 'AXPosition', 'AXSize'];
+  var text = ['AXTextArea', 'AXTextField', 'AXComboBox'].indexOf(role) >= 0;
+  var control = text || ['AXButton', 'AXDisclosureTriangle', 'AXCheckBox', 'AXRadioButton', 'AXPopUpButton', 'AXMenuButton', 'AXSlider', 'AXLink', 'AXTab', 'AXMenuItem', 'AXRow'].indexOf(role) >= 0;
+  if (role === 'AXWindow') attributes.push('AXSubrole');
+  if (control) attributes.push('AXEnabled', 'AXSelected', 'AXCurrent');
+  if (text) attributes.push('AXFocused');
+  return { attributes: attributes, actions: control, settable: text ? ['AXValue', 'AXFocused'] : [] };
 }
 
 // Discover native dialogs without traversing the inactive application's web tree.

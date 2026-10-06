@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Limit native Mac accessibility metadata reads to relevant control roles
+  while retaining the complete hierarchy, text, geometry and action prerequisites.
+  Distinguish unqueried fields from unavailable attributes in retained evidence.
+
 - [fixed] Scope native Mac chooser checks to the uniquely owned dialog, retaining
   window ancestry, strict controls and partial operation logs on bounded failures.
 

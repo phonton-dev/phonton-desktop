@@ -10,6 +10,38 @@ import { assertSameProcess, parseProcessIdentity } from './macos-acceptance/proc
 const accessibility = vm.createContext({});
 vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), accessibility);
 const buttonSelector = { AXRole: 'AXButton', AXTitle: 'Settings', ancestor: { AXRole: 'AXGroup', AXTitle: 'Workspace' } };
+test('full native scans reduce bridge calls without losing late controls, geometry or duplicate detection', () => {
+  let reads = 0, presses = 0;
+  function element(role, title, children = []) {
+    const values = {AXRole:role,AXTitle:title,AXDescription:'',AXValue:title,AXPosition:[10,40],AXSize:[900,500],AXEnabled:true};
+    const actions = () => { reads++; return role === 'AXButton' ? [{name:() => { reads++; return 'AXPress'; }}] : []; };
+    actions.byName = name => ({perform:() => { assert.equal(name,'AXPress'); presses++; }});
+    return {attributes:{byName:name => ({value:() => { reads++; return values[name] ?? null; },settable:() => { reads++; return false; }})},
+      actions,uiElements:() => { reads++; return children; }};
+  }
+  const children = Array.from({length:100},(_,i) => element('AXStaticText',`File ${i}`));
+  children.push(element('AXButton','Cancel'));
+  const window = element('AXWindow','Open repository',[element('AXGroup','Files',children)]);
+  const app = {unixId:() => 42,name:() => 'Phonton',windows:() => [window]};
+  Object.defineProperty(app,'frontmost',{get:() => () => true,set() {}});
+  const context = vm.createContext({console:{log() {}},Application:() => ({processes:{whose:() => () => [app]}})});
+  vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js',import.meta.url),'utf8'),context);
+  const snapshot = JSON.parse(context.run(['42','inspect']));
+  assert.equal(snapshot.rows.length,103,'Complete tree, including the final Cancel');
+  assert.ok(reads < 800,`Avoid redundant bridge calls on static rows: ${reads}`);
+  for (const row of snapshot.rows) {
+    assert.equal(row.AXValue,row.AXTitle);
+    assert.deepEqual(row.AXPosition,[10,40]); assert.deepEqual(row.AXSize,[900,500]);
+  }
+  assert.equal(snapshot.rows[2].actionsQueried,false);
+  assert.equal(Object.hasOwn(snapshot.rows[2],'AXEnabled'),false,'Unqueried is distinct from null');
+  assert.equal(snapshot.rows[0].AXSubrole,null,'Unavailable queried subrole remains explicit');
+  const request = JSON.stringify({selector:{AXRole:'AXButton',AXTitle:'Cancel'}});
+  context.run(['42','press',request]); assert.equal(presses,1);
+  children.push(element('AXButton','Cancel'));
+  assert.throws(() => context.run(['42','press',request]),/one visible native match/);
+  assert.equal(presses,1,'Ambiguous late control never receives another action');
+});
 test('native modal discovery preserves ancestors and excludes inactive web content', () => {
   const cancel = { AXRole: 'AXButton', AXTitle: 'Cancel' };
   const sheet = { AXRole: 'AXSheet', children: [cancel] };
