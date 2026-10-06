@@ -5,7 +5,7 @@ import { interfaceJourney } from './windows-acceptance/interface-journey.mjs';
 
 // This models asynchronous DOM metadata for the acceptance harness itself.
 // It is not native product/runtime evidence; the installed cloud journey supplies that.
-function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false, accentProblem = null, generalDelay = false } = {}) {
+function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false, accentProblem = null, generalDelay = false, missingFieldLabel = false, wrongPressedTheme = false } = {}) {
   const state = { view: 'workbench', section: 'Account', theme: 'nebula', ready: false, approved: false, hovered: false, generalReady: !generalDelay };
   const records = [];
   const screenshots = [];
@@ -50,6 +50,15 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
       return fields[selector];
     },
     querySelectorAll(selector) {
+      if (selector === '.settings-page input:not([aria-hidden="true"]):not([type="hidden"]), .settings-page [role=combobox]') {
+        const names = {Provider:['Provider','Model','API key','Base URL','Account ID (Cloudflare)'],Budget:['Max tokens per session','Max USD cents per session'],Index:['Backend','Qdrant URL','Qdrant collection'],Permissions:['Default mode']}[state.section];
+        return names.map((name,index) => ({id:`field-${index}`,labels:missingFieldLabel && name === 'Model' ? [] : [{textContent:name}]}));
+      }
+      if (selector === '.settings-page button[aria-pressed]') {
+        const names = state.section === 'Appearance' ? ['Graphite','Cursor Dark','Light','High contrast'] : ['Global','This project'];
+        const active = state.section === 'Appearance' ? {nebula:'Graphite','cursor-dark':'Cursor Dark',light:'Light','high-contrast':'High contrast'}[state.theme] : 'Global';
+        return names.map(name => ({textContent:name,getAttribute:attribute => { assert.equal(attribute,'aria-pressed'); return String(name === active && !(wrongPressedTheme && state.section === 'Appearance')); }}));
+      }
       if (selector === '.settings-page button') {
         if (state.section !== 'General' || !state.generalReady || accentProblem === 'absent') return [];
         return accentProblem === 'ambiguous' ? [saveGeneral, saveGeneral] : [saveGeneral];
@@ -139,6 +148,11 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
     records, screenshots, waits: () => metadataWaits, appearanceWaits: () => appearanceWaits, generalWaits: () => generalWaits,
   };
 }
+
+test('installed settings audit rejects an unnamed field or missing selected theme', async () => {
+  await assert.rejects(harness({missingFieldLabel:true}).run(), /Model must have its real associated label/);
+  await assert.rejects(harness({wrongPressedTheme:true}).run(), /active theme must expose its pressed state/);
+});
 
 test('installed navigation waits for late and refreshed machine metadata at every snapshot', async () => {
   const app = harness();
