@@ -4,6 +4,12 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Measure Linux acceptance disk headroom at the owned external runtime's
+  configured model directory; retain the product's unverified-store disclosure.
+
+- [fixed] Refresh stale native chooser accessibility during close observation;
+  require the same live app and independent native-window absence before passing.
+
 - [fixed] Navigate the native Linux chooser out of Recent before selecting a
   repository; verify entry caret and focus, then wait for its enabled Open action.
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, statfsSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fullFixtureTests } from '../windows-acceptance/full-journey.mjs';
@@ -257,7 +257,23 @@ try {
   assert.equal(initial.local_only, false); assert.equal(initial.managed_runtime_supported, false);
   assert.equal(initial.active_model, null); assert.deepEqual(initial.models, []);
   assert.ok(initial.hardware.ram_available_bytes >= 6 * 1024 ** 3);
-  assert.ok(initial.managed_storage.available_bytes >= 12 * 1024 ** 3);
+  // This platform uses an external runtime. The Windows-managed store's free
+  // space is unknown and is not the directory used by this owned Ollama process.
+  assert.equal(initial.managed_storage.available_bytes, null);
+  const runtimeBeforeStorage = (await ownedEngine()).runtimes.find(row => row.pid === external.process.pid);
+  const configuredModelPaths = readFileSync(`/proc/${external.process.pid}/environ`, 'utf8').split('\0')
+    .filter(value => value.startsWith('OLLAMA_MODELS=')).map(value => value.slice('OLLAMA_MODELS='.length));
+  const externalModels = realpathSync(path.join(process.env.RUNNER_TEMP, 'phonton external models'));
+  assert.deepEqual(configuredModelPaths, [externalModels], 'Measure the actual owned external model directory');
+  assert.equal(realpathSync(process.env.OLLAMA_MODELS), externalModels);
+  const storage = statfsSync(externalModels);
+  const availableBytes = storage.bavail * storage.bsize;
+  assert.ok(Number.isSafeInteger(availableBytes) && availableBytes >= 12 * 1024 ** 3);
+  const runtimeAfterStorage = (await ownedEngine()).runtimes.find(row => row.pid === external.process.pid);
+  assert.equal(sameLinuxProcess(runtimeBeforeStorage, runtimeAfterStorage), true);
+  record('owned external model directory has required disk headroom', { path: externalModels,
+    availableBytes, requiredBytes: 12 * 1024 ** 3, process: runtimeAfterStorage,
+    scope: 'Independent test resource check; product model-store origin remains unverified' });
   await screenshot('03-local-models');
   await click('.model-advanced > summary');
   await type('#custom-model', model.model);
