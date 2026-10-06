@@ -3,7 +3,8 @@ function run(args) {
   var pid = Number(args[0]), mode = args[1];
   if (!(pid > 0) || ['inspect', 'quit'].indexOf(mode) < 0) throw Error('Invalid probe arguments');
   var system = Application('System Events');
-  if (!system.UIElementsEnabled()) throw Error('Accessibility is unavailable on this cloud runner');
+  // Actual owned-process/window queries establish accessibility capability.
+  // Permission errors propagate; no permission database or setting is changed.
   var owned = system.processes.whose({ unixId: pid })();
   if (owned.length !== 1) throw Error('Expected one owned native application');
   var app = owned[0];

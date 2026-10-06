@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Probe native Mac accessibility through actual owned-window queries;
+  remove an invalid scripting-property lookup without changing permissions.
+
 - [fixed] Identify macOS acceptance processes through native executable paths and
   kernel start times; retain independent file, mapping, ownership and Quit checks.
 
