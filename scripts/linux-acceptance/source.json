@@ -1,23 +1,23 @@
 {
   "schema": 1,
   "repository": "phonton-dev/phonton-desktop",
-  "commit": "ef6341a24a369b535ccc34fd8db0b68088264e10",
-  "runId": 37377446801,
-  "buildJobId": 111990321807,
+  "commit": "11bb14638999ec95417e73ef06af48b731dcf9a4",
+  "runId": 37401331114,
+  "buildJobId": 112068986648,
   "artifact": {
-    "id": 11373280095,
+    "id": 11384974050,
     "name": "release-candidate-ubuntu-22.04",
-    "sha256": "9d626c67e2e89dc47beb839552f7d93a261d26c281a626f2d4f10581aff9f3eb"
+    "sha256": "3c1269666328d7db893f146afda60a4cbe5a5d8c81dd89446d61588f373d9617"
   },
-  "desktopSha256": "406a60f9169878aa6b1cd7ac165e8cef38d66f2226a9959ef9e6b5c36fe52791",
+  "desktopSha256": "e32e1086a5d9e334b29363bb5a6e6c95d984696da97c7658c0825d1d67623fdb",
   "deb": {
     "name": "Phonton_0.4.0-beta.1_amd64.deb",
-    "sha256": "aa60b3bd001622789d26264f2632ba082cf2d6da5faf17f645c7cf515c402499"
+    "sha256": "2173d6cdba3a7133c4e7035b3a351246328b0786cc5b1126ddf5fd7d3a2039a5"
   },
   "appImage": {
     "name": "Phonton_0.4.0-beta.1_amd64.AppImage",
-    "sha256": "a80f75b5a576c3710981bb86aff10bacf3bf871a2e8edb5ce8dbb3a9106ff642",
-    "payloadSha256": "b95ff90f2b17ca9abc5e663109fd536732163b8bad8a04e01512a1dcf4100c69",
+    "sha256": "25d00731ae5e11ddb1ec847dfc9359cfbc3e4fffcdfd7743cb5c3c6eb78629ff",
+    "payloadSha256": "a746e41a681161487011db82aff7c65d024e2955a3d398d4d2ceef0b177bd798",
     "appRunSha256": "eb0b254ac0dae6543e6dd7cd02e1baf40a060de95b927313122d6b46323c00aa"
   },
   "engine": {
