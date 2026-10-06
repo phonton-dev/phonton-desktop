@@ -11,12 +11,16 @@ const accessibility = vm.createContext({});
 vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), accessibility);
 const buttonSelector = { AXRole: 'AXButton', AXTitle: 'Settings', ancestor: { AXRole: 'AXGroup', AXTitle: 'Workspace' } };
 
-test('modal scans omit only the identified native folder sidebar descendants', () => {
-  const row = { AXRole: 'AXOutline', AXDescription: 'sidebar' };
-  assert.equal(accessibility.axOmitModalSidebar('modal', row), true);
-  for (const scope of [undefined, 'application']) assert.equal(accessibility.axOmitModalSidebar(scope, row), false);
-  for (const other of [{ ...row, AXDescription: 'files' }, { ...row, AXDescription: null }, { ...row, AXRole: 'AXGroup' }]) {
-    assert.equal(accessibility.axOmitModalSidebar('modal', other), false);
+test('modal scans omit only the identified native folder navigation descendants', () => {
+  for (const [row, reason] of [
+    [{ AXRole: 'AXOutline', AXDescription: 'sidebar' }, 'native-folder-sidebar'],
+    [{ AXRole: 'AXBrowser', AXDescription: 'column view' }, 'native-folder-columns'],
+  ]) {
+    assert.equal(accessibility.axModalChildrenOmission('modal', row), reason);
+    for (const scope of [undefined, 'application']) assert.equal(accessibility.axModalChildrenOmission(scope, row), null);
+    for (const other of [{ ...row, AXDescription: 'files' }, { ...row, AXDescription: null }, { ...row, AXRole: 'AXGroup' }]) {
+      assert.equal(accessibility.axModalChildrenOmission('modal', other), null);
+    }
   }
 });
 test('full native scans reduce bridge calls without losing late controls, geometry or duplicate detection', () => {
@@ -72,8 +76,8 @@ test('native modal discovery preserves ancestors and excludes inactive web conte
   const cycle = { AXRole: 'AXGroup' }; cycle.children = [cycle];
   assert.throws(() => accessibility.axFindModal([cycle], node => node, node => node.children), /exceeded bound/);
 });
-test('scoped native scans retain late path and Cancel controls without traversing a growing sidebar', () => {
-  let sidebarReads = 0;
+test('scoped native scans retain path and dialog controls without expanding folder navigation contents', () => {
+  let sidebarReads = 0, columnReads = 0;
   const element = (role, title, children = [], extra = {}) => {
     const values = { AXRole: role, AXTitle: title, AXPosition: [10, 40], AXSize: [900, 500], AXEnabled: true, ...extra };
     const actions = () => role === 'AXButton' ? [{ name: () => 'AXPress' }] : [];
@@ -81,7 +85,11 @@ test('scoped native scans retain late path and Cancel controls without traversin
   };
   const sidebar = element('AXOutline', null, [], { AXDescription: 'sidebar' });
   sidebar.uiElements = () => { sidebarReads++; throw Error('Expanding native sidebar must not be traversed'); };
-  const children = [sidebar, element('AXTextField', null, [], { AXValue: '/fixture', AXFocused: true }), element('AXButton', 'Cancel')];
+  // Observed after Return in run37417131654: the chooser's column browser
+  // expands into the runner's large temporary directory. Open remains a sibling.
+  const columns = element('AXBrowser', null, [], { AXDescription: 'column view' });
+  columns.uiElements = () => { columnReads++; throw Error('Expanding native folder columns must not be traversed'); };
+  const children = [sidebar, columns, element('AXTextField', null, [], { AXValue: '/fixture', AXFocused: true }), element('AXButton', 'Cancel'), element('AXButton', 'Open')];
   const sheet = element('AXSheet', 'Open repository', children);
   const app = { unixId: () => 42, name: () => 'Phonton', windows: () => [element('AXWindow', 'Phonton', [sheet])] };
   Object.defineProperty(app, 'frontmost', { get: () => () => true, set() {} });
@@ -89,13 +97,30 @@ test('scoped native scans retain late path and Cancel controls without traversin
   vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), context);
   const scan = () => JSON.parse(context.run(['42', 'inspect', JSON.stringify({ scope: 'modal' })]));
   const result = scan();
-  assert.equal(sidebarReads, 0);
+  assert.equal(sidebarReads, 0); assert.equal(columnReads, 0);
   assert.equal(result.rows.find(row => row.AXRole === 'AXOutline').childrenOmitted, 'native-folder-sidebar');
+  assert.equal(result.rows.find(row => row.AXRole === 'AXBrowser').childrenOmitted, 'native-folder-columns');
+  assert.deepEqual(result.rows.find(row => row.AXRole === 'AXBrowser').AXPosition, [10, 40]);
+  assert.deepEqual(result.rows.find(row => row.AXRole === 'AXBrowser').AXSize, [900, 500]);
+  assert.equal(result.rows.find(row => row.AXTitle === 'Open').AXEnabled, true);
+  assert.equal(accessibility.axSelect(result.rows, { AXRole: 'AXButton', AXTitle: 'Open' }, 'press').AXTitle, 'Open');
   assert.equal(result.rows.find(row => row.AXRole === 'AXTextField').AXValue, '/fixture');
   assert.equal(result.rows.filter(row => row.AXTitle === 'Cancel').length, 1);
   children.push(element('AXButton', 'Cancel'));
   assert.equal(scan().rows.filter(row => row.AXTitle === 'Cancel').length, 2, 'Late duplicate controls stay visible to action admission');
+  assert.throws(() => accessibility.axSelect(scan().rows, { AXRole: 'AXButton', AXTitle: 'Cancel' }, 'press'), /one visible native match/);
+  children.push(element('AXButton', 'Open'));
+  assert.throws(() => accessibility.axSelect(scan().rows, { AXRole: 'AXButton', AXTitle: 'Open' }, 'press'), /one visible native match/);
   assert.throws(() => context.run(['42', 'inspect']), /Expanding native sidebar/, 'Application scope still traverses the complete tree');
+  children.splice(0, 1);
+  assert.throws(() => context.run(['42', 'inspect']), /Expanding native folder columns/, 'Application column contents remain fully inspected');
+  for (const [other, expected] of [
+    [element('AXBrowser', null, [element('AXStaticText', 'Keep other browser')], { AXDescription: 'different browser' }), 'Keep other browser'],
+    [element('AXTable', null, [element('AXStaticText', 'Keep path suggestions')]), 'Keep path suggestions'],
+  ]) {
+    children[0] = other;
+    assert.ok(scan().rows.some(row => row.AXTitle === expected));
+  }
 });
 function nativeTree() {
   return [

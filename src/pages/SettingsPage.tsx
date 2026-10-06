@@ -288,7 +288,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <Separator />
                 <Label htmlFor="cloud-token">Cloud sync token</Label>
                 <Textarea
-                  id="cloud-token"
+                  id="cloud-token" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                   rows={3}
                   value={tokenInput}
                   onChange={(e) => setTokenInput(e.target.value)}
@@ -395,7 +395,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="space-y-2">
                   <Label htmlFor="settings-provider-model">Model</Label>
                   <Input
-                    id="settings-provider-model"
+                    id="settings-provider-model" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                     value={config.provider.model ?? ""}
                     onChange={(e) =>
                       setConfig({
@@ -408,7 +408,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="space-y-2">
                   <Label htmlFor="settings-provider-key">API key {config.provider.has_api_key ? "(saved)" : ""}</Label>
                   <Input
-                    id="settings-provider-key"
+                    id="settings-provider-key" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                     type="password"
                     placeholder={config.provider.has_api_key ? "••••••••" : "sk-…"}
                     onChange={(e) =>
@@ -422,7 +422,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="space-y-2">
                   <Label htmlFor="settings-provider-url">Base URL</Label>
                   <Input
-                    id="settings-provider-url"
+                    id="settings-provider-url" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                     value={config.provider.base_url ?? ""}
                     onChange={(e) =>
                       setConfig({
@@ -435,7 +435,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="space-y-2">
                   <Label htmlFor="settings-provider-account">Account ID (Cloudflare)</Label>
                   <Input
-                    id="settings-provider-account"
+                    id="settings-provider-account" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                     value={config.provider.account_id ?? ""}
                     onChange={(e) =>
                       setConfig({
@@ -518,7 +518,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="space-y-2">
                   <Label htmlFor="settings-index-url">Qdrant URL</Label>
                   <Input
-                    id="settings-index-url"
+                    id="settings-index-url" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                     value={config.index.qdrant_url ?? ""}
                     disabled={config.index.backend === "local-hnsw"}
                     onChange={(e) =>
@@ -532,7 +532,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="space-y-2">
                   <Label htmlFor="settings-index-collection">Qdrant collection</Label>
                   <Input
-                    id="settings-index-collection"
+                    id="settings-index-collection" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                     value={config.index.qdrant_collection ?? ""}
                     disabled={config.index.backend === "local-hnsw"}
                     onChange={(e) =>
@@ -630,7 +630,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 {!projectOpen && <p className="text-sm text-muted-foreground">Workspace editing is unavailable until the engine and selected repository match. Global settings remain separate.</p>}
                 <Textarea
                   className="min-h-[320px] font-mono text-xs"
-                  aria-label={`${extFile} configuration`}
+                  aria-label={`${extFile} configuration`} spellCheck={false} autoCorrect="off" autoCapitalize="off"
                   value={extContent}
                   onChange={(e) => setExtContent(e.target.value)}
                 />

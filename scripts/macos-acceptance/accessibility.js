@@ -69,8 +69,9 @@ function run(args) {
       catch (error) { row.settable[name] = null; }
     });
     rows.push(row); elements.push(item);
-    if (axOmitModalSidebar(request.scope, row)) {
-      row.childrenOmitted = 'native-folder-sidebar';
+    var omission = axModalChildrenOmission(request.scope, row);
+    if (omission) {
+      row.childrenOmitted = omission;
       continue;
     }
     progress('children', current.path);
@@ -138,11 +139,15 @@ function run(args) {
   return JSON.stringify(result);
 }
 
-// The observed chooser sidebar grows asynchronously and is unrelated to path
-// entry, Open or Cancel. Keep its identity/geometry but explicitly omit only its
-// descendants in modal scans; application scans and all other controls stay full.
-function axOmitModalSidebar(scope, row) {
-  return scope === 'modal' && row.AXRole === 'AXOutline' && row.AXDescription === 'sidebar';
+// The observed chooser sidebar and column listing can expand into large native
+// file trees. Keep their identity/geometry while omitting only their descendants
+// in modal scans. Path, Open, Cancel and application scans remain fully inspected;
+// the caller still requires the exact selected repository in the actual workbench.
+function axModalChildrenOmission(scope, row) {
+  if (scope !== 'modal') return null;
+  if (row.AXRole === 'AXOutline' && row.AXDescription === 'sidebar') return 'native-folder-sidebar';
+  if (row.AXRole === 'AXBrowser' && row.AXDescription === 'column view') return 'native-folder-columns';
+  return null;
 }
 
 function axFolderPath(rows, request, mode) {

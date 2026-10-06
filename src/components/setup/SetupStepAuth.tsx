@@ -110,7 +110,7 @@ export function SetupStepAuth({ authState }: Props) {
             <div className="field" style={{ marginTop: 12 }}>
               <label htmlFor="session-paste">Paste a session token from phonton.dev/account</label>
               <textarea
-                id="session-paste"
+                id="session-paste" spellCheck={false} autoCorrect="off" autoCapitalize="off"
                 className="goal-input"
                 rows={3}
                 placeholder="Paste session token"

@@ -143,7 +143,7 @@ export function SettingsModal({ open: isOpen, onClose, themeId, onThemeChange, o
             Cloud sync token {cloudConnected ? <span className="cloud-badge">connected</span> : null}
           </label>
           <textarea
-            id="cloud-token"
+            id="cloud-token" spellCheck={false} autoCorrect="off" autoCapitalize="off"
             className="goal-input"
             rows={4}
             placeholder="Paste cloud sync token from phonton.dev/account (Pro or Ultra)"

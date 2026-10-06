@@ -9,6 +9,9 @@ expose their selection, and local run, file-change and Doctor outcomes have conc
 screen-reader announcements. Model actions identify the model they affect.
 Custom scroll areas ship their native-track hiding rules in the bundled stylesheet;
 the custom scrollbar and native scrolling remain active under the packaged CSP.
+Literal command JSON, configuration, paths, model tags and identifiers disable
+spelling correction, automatic capitalization and smart text substitutions.
+Their exact text is preserved; ordinary goal composition keeps its normal behavior.
 
 The unreleased local workspace now opens without an account. Its dark monospace
 composer shows repository, selected local model, explicit file scope and execution

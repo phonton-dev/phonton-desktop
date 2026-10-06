@@ -4,6 +4,13 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Preserve literal verification JSON, configuration, paths, model tags and
+  identifiers during native text entry by disabling spelling and smart text
+  substitutions for those fields. Keep ordinary goal composition unchanged.
+
+- [fixed] Bound Mac chooser inspection to its controls instead of expanding the
+  native column listing; preserve exact folder selection and control ambiguity checks.
+
 - [fixed] Enter the Mac cloud fixture path through its native editable value
   interface and require exact text and focus readback before confirming it.
 
