@@ -38,6 +38,9 @@ All notable changes to Phonton Desktop are documented here.
   Select GCC12 for the pinned CLI's native dependency on Ubuntu22.04 and retain
   compiler identity plus a compile-only FP16 capability probe in cloud evidence.
 
+- [fixed] Stop the owned Unix CLI when Desktop closes by replacing its shell
+  wrapper with the actual engine process; preserve separately started runtimes.
+
 - [fixed] Check rendered diagnostic visibility during native recovery acceptance;
   closed disclosures may retain nonzero layout dimensions. Keep separate checks
   for expanded text, compact viewport clipping and closing the disclosure again.
