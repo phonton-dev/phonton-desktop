@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Confirm the cloud Mac repository picker with one guarded native Return
+  after exact path readback, then require the actual folder selection to finish.
+
 - [fixed] Bound Mac cloud runtime startup independently of its initial GPU
   discovery watchdog and retain HTTP readiness evidence before native testing.
 

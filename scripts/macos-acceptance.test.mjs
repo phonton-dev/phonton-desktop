@@ -207,6 +207,26 @@ test('Go to Folder confirmation requires exact read-back in the uniquely focused
   assert.throws(() => accessibility.axFolderPath(rows,request,'folder-path-confirm'),/match exactly/);
 });
 
+test('Go to Folder sends one Return only while exact text, focus and ownership still hold', () => {
+  const expectedPath = '/tmp/phonton macos acceptance fixture';
+  let focused = true, text = expectedPath, owned = true;
+  const events = [];
+  const target = {attributes:{byName:name => ({value:() => name === 'AXFocused' ? focused : text})}};
+  const system = {keyCode:key => events.push(key)};
+  const assertOwned = () => { events.push('ownership'); if (!owned) throw Error('Lost owner'); };
+  accessibility.axConfirmFolderPath(target, expectedPath, system, assertOwned);
+  assert.deepEqual(events, ['ownership', 36]);
+  events.length = 0; focused = false;
+  assert.throws(() => accessibility.axConfirmFolderPath(target, expectedPath, system, assertOwned), /lost focus/);
+  assert.deepEqual(events, []);
+  focused = true; text = '/tmp/another';
+  assert.throws(() => accessibility.axConfirmFolderPath(target, expectedPath, system, assertOwned), /changed/);
+  assert.deepEqual(events, []);
+  text = expectedPath; owned = false;
+  assert.throws(() => accessibility.axConfirmFolderPath(target, expectedPath, system, assertOwned), /Lost owner/);
+  assert.deepEqual(events, ['ownership']);
+});
+
 test('observed pressed theme checkboxes require their exact native role, state and AXPress', () => {
   const rows=nativeTree();
   Object.assign(rows[2], {parent:0,AXRole:'AXCheckBox',AXTitle:'Light',AXValue:0,

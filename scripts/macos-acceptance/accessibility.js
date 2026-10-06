@@ -102,7 +102,9 @@ function run(args) {
       if (pathField.attributes.byName('AXFocused').value() !== true) throw Error('Path field did not retain native focus');
       system.keystroke('a', { using: ['command down'] });
       system.keystroke(request.path);
-    } else pathField.actions.byName('AXConfirm').perform();
+    } else axConfirmFolderPath(pathField, request.path, system, function () {
+      if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application before folder Return');
+    });
     result.action = { mode: mode, path: request.path, selected: field, native: true };
     return JSON.stringify(result);
   }
@@ -160,6 +162,17 @@ function axFolderPath(rows, request, mode) {
   if (field.AXEnabled !== true || typeof field.AXValue !== 'string' || !field.settable || field.settable.AXFocused !== true) throw Error('Native path field is not editable');
   if (mode === 'folder-path-confirm' && (field.AXValue !== request.path || !Array.isArray(field.actions) || field.actions.indexOf('AXConfirm') < 0)) throw Error('Native path must match exactly before confirm');
   return field;
+}
+
+// The native Go to Folder text field advertises AXConfirm, but the observed
+// panel stayed open after that action. Use its actual Return-key interaction,
+// rechecking exact text, focus and app ownership immediately before one key.
+// The caller still requires the nested sheet to close and Open to be enabled.
+function axConfirmFolderPath(target, expectedPath, system, assertOwned) {
+  if (target.attributes.byName('AXFocused').value() !== true) throw Error('Native path lost focus before Return');
+  if (target.attributes.byName('AXValue').value() !== expectedPath) throw Error('Native path changed before Return');
+  assertOwned();
+  system.keyCode(36); // macOS kVK_Return (0x24).
 }
 
 // Omitted fields were not queried; null means a queried attribute was unavailable.
