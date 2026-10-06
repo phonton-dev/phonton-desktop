@@ -1,23 +1,23 @@
 {
   "schema": 1,
   "repository": "phonton-dev/phonton-desktop",
-  "commit": "ef6341a24a369b535ccc34fd8db0b68088264e10",
-  "runId": 37377446801,
+  "commit": "11bb14638999ec95417e73ef06af48b731dcf9a4",
+  "runId": 37401331114,
   "engine": {
     "repository": "phonton-dev/phonton-cli",
     "commit": "157c2893136266f3a29473b89aa10355fa251e54",
     "version": "0.22.0"
   },
-  "buildJobId": 111990321965,
+  "buildJobId": 112068986631,
   "artifact": {
-    "id": 11372502559,
+    "id": 11384984213,
     "name": "release-candidate-macos-latest",
-    "sha256": "905fb84a724715a6c392491b9ac7fc151cce1551c637e8ac49c81aeb7b4c0dad"
+    "sha256": "5feb592bc2892468f930d6cbe5d67de70fadaff25a24b8edee84f8dc32a7b459"
   },
-  "desktopSha256": "5c6426eba9332707afce8e429f79c4ec517fb3a615f446964053ea921541ff11",
+  "desktopSha256": "f8f9568208d25eb72426cba4ba957298c9a3316a133098ab72936b535b10ad3a",
   "dmg": {
     "name": "Phonton_0.4.0-beta.1_aarch64.dmg",
-    "bytes": 6783991,
-    "sha256": "b5bb75595b2dcfdc4fd85b8e7967ffa5ec802abdd72506280521bcbb1c538396"
+    "bytes": 6803910,
+    "sha256": "65b67d9b897be6d205748d4b3a46240ce82ee4eca0d6599d7c813d0e4836a15d"
   }
 }
