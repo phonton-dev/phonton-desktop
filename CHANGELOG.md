@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Bundle native-scrollbar hiding styles for custom scroll areas, removing
+  duplicate tracks in packaged Settings while retaining native scrolling.
+
 - [fixed] Associate Settings fields with their labels, expose selected theme and
   configuration scope, announce local-run and diagnostic outcomes, and identify
   each model in its action labels. Installed checks inspect the real label links

@@ -7,6 +7,8 @@ Light and High contrast, including their hover states.
 Settings fields have associated labels, theme and configuration-scope choices
 expose their selection, and local run, file-change and Doctor outcomes have concise
 screen-reader announcements. Model actions identify the model they affect.
+Custom scroll areas ship their native-track hiding rules in the bundled stylesheet;
+the custom scrollbar and native scrolling remain active under the packaged CSP.
 
 The unreleased local workspace now opens without an account. Its dark monospace
 composer shows repository, selected local model, explicit file scope and execution

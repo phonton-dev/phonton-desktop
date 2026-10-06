@@ -32,6 +32,16 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
 
   await click('nav[aria-label=Workspace] button[aria-label="Settings"]');
   await until(() => execute('return !!document.querySelector(".settings-page")'), 'settings page');
+  const scrollAreas = await execute(`return [...document.querySelectorAll('.settings-page [data-slot="scroll-area-viewport"]')].map(e => ({
+    width:getComputedStyle(e).scrollbarWidth, nativeDisplay:getComputedStyle(e,'::-webkit-scrollbar').display,
+    overflowX:getComputedStyle(e).overflowX, overflowY:getComputedStyle(e).overflowY
+  }))`);
+  assert.equal(scrollAreas.length, 2, 'Settings navigation and content must both use the scroll-area viewport');
+  for (const area of scrollAreas) {
+    assert.equal(area.width, 'none', 'Bundled styles must hide duplicate native tracks');
+    assert.equal(area.nativeDisplay, 'none', 'WebKit native scrollbar hiding must be bundled');
+    assert.equal(area.overflowX, 'scroll'); assert.equal(area.overflowY, 'scroll', 'Native scrolling must remain enabled');
+  }
   assert.equal(await execute('return document.querySelector("#local-goal").getBoundingClientRect().height'), 0, 'Workbench must be hidden behind Settings');
   const sections = [
     ['Account', 'Account'], ['Appearance', 'Appearance'], ['Provider', 'Provider'],
@@ -67,7 +77,7 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
         [{name:'Global',pressed:'true'},{name:'This project',pressed:'false'}], 'Default extension scope must expose its selected state');
     }
   }
-  record('all eleven installed settings sections render with selected navigation', {fieldLabels});
+  record('all eleven installed settings sections render with selected navigation', {fieldLabels,scrollAreas});
 
   const accentChecks = [];
   const movePointer = origin => command('POST', '/actions', { actions: [{ type: 'pointer', id: 'contrast-pointer',

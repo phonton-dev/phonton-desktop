@@ -5,7 +5,7 @@ import { interfaceJourney } from './windows-acceptance/interface-journey.mjs';
 
 // This models asynchronous DOM metadata for the acceptance harness itself.
 // It is not native product/runtime evidence; the installed cloud journey supplies that.
-function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false, accentProblem = null, generalDelay = false, missingFieldLabel = false, wrongPressedTheme = false } = {}) {
+function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false, accentProblem = null, generalDelay = false, missingFieldLabel = false, wrongPressedTheme = false, scrollProblem = null } = {}) {
   const state = { view: 'workbench', section: 'Account', theme: 'nebula', ready: false, approved: false, hovered: false, generalReady: !generalDelay };
   const records = [];
   const screenshots = [];
@@ -14,6 +14,7 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
   let appearanceWaits = 0;
   let colorsReady = !settlingTheme;
   const surface = { parentElement: null };
+  const scrollViewports = [{}, {}];
   const saveGeneral = { textContent: 'Save general', parentElement: surface,
     get disabled() { return accentProblem === 'disabled'; },
     checkVisibility: () => accentProblem !== 'hidden', matches: selector => { assert.equal(selector, ':hover'); return state.hovered; } };
@@ -50,6 +51,7 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
       return fields[selector];
     },
     querySelectorAll(selector) {
+      if (selector === '.settings-page [data-slot="scroll-area-viewport"]') return scrollViewports;
       if (selector === '.settings-page input:not([aria-hidden="true"]):not([type="hidden"]), .settings-page [role=combobox]') {
         const names = {Provider:['Provider','Model','API key','Base URL','Account ID (Cloudflare)'],Budget:['Max tokens per session','Max USD cents per session'],Index:['Backend','Qdrant URL','Qdrant collection'],Permissions:['Default mode']}[state.section];
         return names.map((name,index) => ({id:`field-${index}`,labels:missingFieldLabel && name === 'Model' ? [] : [{textContent:name}]}));
@@ -73,7 +75,16 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
   };
   const context = vm.createContext({ document, innerWidth: 1280,
     localStorage: { getItem: () => 'C:\\fixture' },
-    getComputedStyle: element => {
+    getComputedStyle: (element, pseudo) => {
+      if (scrollViewports.includes(element)) {
+        if (pseudo) {
+          assert.equal(pseudo, '::-webkit-scrollbar');
+          return { display: scrollProblem === 'webkit-track' ? 'block' : 'none' };
+        }
+        return { scrollbarWidth: scrollProblem === 'native-track' ? 'auto' : 'none',
+          overflowX: scrollProblem === 'horizontal-disabled' ? 'hidden' : 'scroll',
+          overflowY: scrollProblem === 'vertical-disabled' ? 'hidden' : 'scroll' };
+      }
       if (element === saveGeneral || element === surface) {
         const palette = colors[state.theme];
         const unreadable = accentProblem === 'normal-contrast' && !state.hovered || accentProblem === 'hover-contrast' && state.hovered;
@@ -152,6 +163,14 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
 test('installed settings audit rejects an unnamed field or missing selected theme', async () => {
   await assert.rejects(harness({missingFieldLabel:true}).run(), /Model must have its real associated label/);
   await assert.rejects(harness({wrongPressedTheme:true}).run(), /active theme must expose its pressed state/);
+});
+
+test('installed settings audit rejects duplicate native tracks and disabled scrolling', async () => {
+  for (const scrollProblem of ['native-track', 'webkit-track', 'horizontal-disabled', 'vertical-disabled']) {
+    const app = harness({ scrollProblem });
+    await assert.rejects(app.run(), error => error.code === 'ERR_ASSERTION');
+    assert.equal(app.records.length, 0, 'No settings success with broken viewport styles');
+  }
 });
 
 test('installed navigation waits for late and refreshed machine metadata at every snapshot', async () => {
