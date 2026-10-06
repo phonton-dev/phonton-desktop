@@ -4,6 +4,10 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Keep cloud updater instrumentation available after Windows recreates the
+  restart environment, with exact runner-user fixture paths, per-executable
+  loopback debugging and ownership-checked cleanup. Default app data stays intact.
+
 - [fixed] Associate Settings fields with their labels, expose selected theme and
   configuration scope, announce local-run and diagnostic outcomes, and identify
   each model in its action labels. Installed checks inspect the real label links

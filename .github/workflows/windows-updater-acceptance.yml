@@ -83,6 +83,9 @@ jobs:
       - name: Remove exact runner-only TLS certificate and key
         if: always()
         run: ./scripts/windows-acceptance/updater-tls-command.ps1 -Action cleanup
+      - name: Remove exact runner-only updater test environment
+        if: always()
+        run: ./scripts/windows-acceptance/updater-user-environment.ps1 -Action cleanup
       - name: Retain bounded updater evidence including failures
         if: always()
         uses: actions/upload-artifact@v4
