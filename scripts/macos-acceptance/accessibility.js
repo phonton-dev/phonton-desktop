@@ -69,6 +69,10 @@ function run(args) {
       catch (error) { row.settable[name] = null; }
     });
     rows.push(row); elements.push(item);
+    if (axOmitModalSidebar(request.scope, row)) {
+      row.childrenOmitted = 'native-folder-sidebar';
+      continue;
+    }
     progress('children', current.path);
     if (modal && current.chainIndex < modal.chain.length - 1) {
       var next = modal.chain[current.chainIndex + 1];
@@ -109,6 +113,13 @@ function run(args) {
     result.action = { mode: mode, selector: request.selector, selected: selected, native: true };
   }
   return JSON.stringify(result);
+}
+
+// The observed chooser sidebar grows asynchronously and is unrelated to path
+// entry, Open or Cancel. Keep its identity/geometry but explicitly omit only its
+// descendants in modal scans; application scans and all other controls stay full.
+function axOmitModalSidebar(scope, row) {
+  return scope === 'modal' && row.AXRole === 'AXOutline' && row.AXDescription === 'sidebar';
 }
 
 // Omitted fields were not queried; null means a queried attribute was unavailable.

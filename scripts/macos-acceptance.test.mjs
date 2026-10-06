@@ -10,6 +10,15 @@ import { assertSameProcess, parseProcessIdentity } from './macos-acceptance/proc
 const accessibility = vm.createContext({});
 vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), accessibility);
 const buttonSelector = { AXRole: 'AXButton', AXTitle: 'Settings', ancestor: { AXRole: 'AXGroup', AXTitle: 'Workspace' } };
+
+test('modal scans omit only the identified native folder sidebar descendants', () => {
+  const row = { AXRole: 'AXOutline', AXDescription: 'sidebar' };
+  assert.equal(accessibility.axOmitModalSidebar('modal', row), true);
+  for (const scope of [undefined, 'application']) assert.equal(accessibility.axOmitModalSidebar(scope, row), false);
+  for (const other of [{ ...row, AXDescription: 'files' }, { ...row, AXDescription: null }, { ...row, AXRole: 'AXGroup' }]) {
+    assert.equal(accessibility.axOmitModalSidebar('modal', other), false);
+  }
+});
 test('full native scans reduce bridge calls without losing late controls, geometry or duplicate detection', () => {
   let reads = 0, presses = 0;
   function element(role, title, children = []) {
@@ -62,6 +71,31 @@ test('native modal discovery preserves ancestors and excludes inactive web conte
   assert.throws(() => accessibility.axFindModal([window, { AXRole: 'AXWindow', AXSubrole: 'AXDialog' }], node => node, children), /one owned native dialog/);
   const cycle = { AXRole: 'AXGroup' }; cycle.children = [cycle];
   assert.throws(() => accessibility.axFindModal([cycle], node => node, node => node.children), /exceeded bound/);
+});
+test('scoped native scans retain late path and Cancel controls without traversing a growing sidebar', () => {
+  let sidebarReads = 0;
+  const element = (role, title, children = [], extra = {}) => {
+    const values = { AXRole: role, AXTitle: title, AXPosition: [10, 40], AXSize: [900, 500], AXEnabled: true, ...extra };
+    const actions = () => role === 'AXButton' ? [{ name: () => 'AXPress' }] : [];
+    return { attributes: { byName: name => ({ value: () => values[name] ?? null, settable: () => false }) }, actions, uiElements: () => children };
+  };
+  const sidebar = element('AXOutline', null, [], { AXDescription: 'sidebar' });
+  sidebar.uiElements = () => { sidebarReads++; throw Error('Expanding native sidebar must not be traversed'); };
+  const children = [sidebar, element('AXTextField', null, [], { AXValue: '/fixture', AXFocused: true }), element('AXButton', 'Cancel')];
+  const sheet = element('AXSheet', 'Open repository', children);
+  const app = { unixId: () => 42, name: () => 'Phonton', windows: () => [element('AXWindow', 'Phonton', [sheet])] };
+  Object.defineProperty(app, 'frontmost', { get: () => () => true, set() {} });
+  const context = vm.createContext({ console: { log() {} }, Application: () => ({ processes: { whose: () => () => [app] } }) });
+  vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), context);
+  const scan = () => JSON.parse(context.run(['42', 'inspect', JSON.stringify({ scope: 'modal' })]));
+  const result = scan();
+  assert.equal(sidebarReads, 0);
+  assert.equal(result.rows.find(row => row.AXRole === 'AXOutline').childrenOmitted, 'native-folder-sidebar');
+  assert.equal(result.rows.find(row => row.AXRole === 'AXTextField').AXValue, '/fixture');
+  assert.equal(result.rows.filter(row => row.AXTitle === 'Cancel').length, 1);
+  children.push(element('AXButton', 'Cancel'));
+  assert.equal(scan().rows.filter(row => row.AXTitle === 'Cancel').length, 2, 'Late duplicate controls stay visible to action admission');
+  assert.throws(() => context.run(['42', 'inspect']), /Expanding native sidebar/, 'Application scope still traverses the complete tree');
 });
 function nativeTree() {
   return [

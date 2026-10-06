@@ -29,3 +29,13 @@
 .shell-muted-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Keep the viewport's native track hidden even when packaged CSP blocks the
+   component library's runtime style element. The custom scrollbar stays active. */
+[data-slot="scroll-area-viewport"] {
+  scrollbar-width: none;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar {
+  display: none;
+}
