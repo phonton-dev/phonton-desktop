@@ -4,8 +4,45 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import path from 'node:path';
+import vm from 'node:vm';
 import { verifyMacCandidate } from './macos-acceptance/contract.mjs';
 import { assertSameProcess, parseProcessIdentity } from './macos-acceptance/process-identity.mjs';
+const accessibility = vm.createContext({});
+vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), accessibility);
+const buttonSelector = { AXRole: 'AXButton', AXTitle: 'Settings', ancestor: { AXRole: 'AXGroup', AXTitle: 'Workspace' } };
+function nativeTree() {
+  return [
+    { index: 0, parent: null, AXRole: 'AXWindow', AXTitle: 'Phonton', AXPosition: [0, 30], AXSize: [1024, 674] },
+    { index: 1, parent: 0, AXRole: 'AXGroup', AXTitle: 'Workspace', AXPosition: [0, 80], AXSize: [200, 500] },
+    { index: 2, parent: 1, AXRole: 'AXButton', AXTitle: 'Settings', AXEnabled: true, AXPosition: [18, 354], AXSize: [151, 40], actions: ['AXPress'], settable: { AXFocused: true } },
+  ];
+}
+test('native accessibility resolves unique owned hierarchy and rejects ambiguity, clipping or unsupported actions', () => {
+  const tree = nativeTree();
+  assert.equal(accessibility.axSelect(tree, buttonSelector, 'press'), tree[2]);
+  for (const mutate of [
+    rows => { rows.push({ ...rows[2], index: 3 }); },
+    rows => { rows[1].AXTitle = 'Another workspace'; },
+    rows => { rows[2].AXEnabled = false; },
+    rows => { rows[2].AXEnabled = null; },
+    rows => { rows[2].AXSize = [0, 40]; },
+    rows => { rows[2].AXPosition = [18, 800]; },
+    rows => { rows[1].AXRole = 'AXScrollArea'; rows[1].AXSize = [200, 100]; },
+    rows => { rows[2].actions = []; },
+    rows => { rows[2].parent = 2; },
+    rows => { rows[2].AXTitle = 'Another control'; },
+  ]) { const value = nativeTree(); mutate(value); assert.throws(() => accessibility.axSelect(value, buttonSelector, 'press')); }
+  assert.throws(() => accessibility.axSelect(tree, { AXRole: 'AXButton' }, 'press'));
+  assert.throws(() => accessibility.axSelect(tree, buttonSelector, 'unknown'));
+});
+test('native typing requires a uniquely visible editable control with settable native focus', () => {
+  const tree = nativeTree(); Object.assign(tree[2], { AXRole: 'AXTextArea', AXTitle: 'Coding goal' });
+  const selector = { AXRole: 'AXTextArea', AXTitle: 'Coding goal' };
+  assert.equal(accessibility.axSelect(tree, selector, 'type'), tree[2]);
+  tree[2].settable.AXFocused = null;
+  assert.throws(() => accessibility.axSelect(tree, selector, 'type'));
+  assert.throws(() => accessibility.axSelect(nativeTree(), buttonSelector, 'type'));
+});
 const pin = JSON.parse(readFileSync(new URL('./macos-acceptance/source.json', import.meta.url), 'utf8'));
 function fixture() {
   const run = { id: pin.runId, repository: { full_name: pin.repository }, head_sha: pin.commit,

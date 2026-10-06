@@ -3,8 +3,10 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
 import { assertSameProcess, parseProcessIdentity } from './process-identity.mjs';
+import { interfaceProbe } from './interface-probe.mjs';
 assert.equal(process.platform, 'darwin'); assert.equal(process.arch, 'arm64');
 assert.equal(process.env.GITHUB_ACTIONS, 'true'); assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted');
 const read = file => JSON.parse(readFileSync(file, 'utf8'));
@@ -15,9 +17,12 @@ const evidence = path.resolve('acceptance-evidence');
 const save = (name, value) => writeFileSync(path.join(evidence, name + '.json'), JSON.stringify(value, null, 2) + '\n');
 const output = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 30000 }).trim();
 const report = { schema: 1, status: 'running', harnessCommit: process.env.GITHUB_SHA,
-  candidateCommit: installed.candidateCommit, scope: 'ARM64 DMG launch, native accessibility and normal Quit probe only; not full UI/coding, retained-profile or public-beta acceptance', checks: [] };
+  candidateCommit: installed.candidateCommit, scope: 'ARM64 DMG launch, native draft/settings/theme controls, picker Cancel and normal Quit; not model/coding/Apply, retained-profile or public-beta acceptance', checks: [] };
 const record = (name, detail) => { report.checks.push({ name, detail }); save('probe-result', report); };
 const identityHelper = path.join(temporary, 'phonton-process-identity');
+const selectors = vm.createContext({});
+// Host-side validation of observed AX data; never runs code in the application.
+vm.runInContext(readFileSync('scripts/macos-acceptance/accessibility.js', 'utf8'), selectors);
 const trackedPids = new Set();
 const nativeIdentity = pid => parseProcessIdentity(spawnSync(identityHelper, [String(pid)], { encoding: 'utf8', timeout: 10000 }), pid);
 function snapshot() {
@@ -53,8 +58,8 @@ async function until(check, label, timeout = 60000) {
   while (Date.now() < end) { const value = await check(); if (value) return value; await delay(500); }
   throw new Error('Timed out: ' + label);
 }
-function accessibility(pid, mode) {
-  return JSON.parse(output('/usr/bin/osascript', ['-l', 'JavaScript', 'scripts/macos-acceptance/accessibility.js', String(pid), mode]));
+function accessibility(pid, mode, request) {
+  return JSON.parse(output('/usr/bin/osascript', ['-l', 'JavaScript', 'scripts/macos-acceptance/accessibility.js', String(pid), mode, ...(request ? [JSON.stringify(request)] : [])]));
 }
 try {
   assert.equal(hash(installed.binary), installed.desktopSha256); assert.equal(hash(installed.engine), installed.engineSha256);
@@ -87,7 +92,9 @@ try {
   for (const row of [...started.apps, ...started.engines]) {
     trackedPids.add(row.pid);
     assertSameProcess(row.native, nativeIdentity(row.pid));
-    const mapped = output('/usr/sbin/lsof', ['-a', '-p', String(row.pid), '-d', 'txt', '-Fn']).split('\n');
+    const rawMapped = output('/usr/sbin/lsof', ['-a', '-p', String(row.pid), '-d', 'txt', '-Fn']);
+    writeFileSync(path.join(evidence, `mapped-executable-${row.pid}.log`), rawMapped + '\n');
+    const mapped = rawMapped.split('\n');
     assert.ok(mapped.includes('n' + row.exe), 'Actual mapped executable must match process identity');
   }
   assert.equal(hash(installed.binary), installed.desktopSha256); assert.equal(hash(installed.engine), installed.engineSha256);
@@ -103,6 +110,31 @@ try {
   assert.equal(readFileSync(path.join(evidence, '01-native-macos.png')).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
   record('native accessibility tree and original screen captured', { pid: tree.pid, rows: tree.rows.length,
     storagePaths: { appData: { path: appData, exists: existsSync(appData) }, webkitRoot: { path: webkitRoot, exists: existsSync(webkitRoot) }, webkitData: { path: webkitData, exists: existsSync(webkitData) } } });
+  let nativeActions = 0;
+  const inspect = () => {
+    assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
+    const observed = accessibility(started.apps[0].pid, 'inspect');
+    assert.equal(observed.pid, started.apps[0].pid); assert.equal(observed.frontmost, true);
+    assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
+    return observed;
+  };
+  await interfaceProbe({ inspect, save, record, until,
+    ready: (tree, selector, mode) => {
+      try { selectors.axSelect(tree.rows, selector, mode); return true; }
+      catch (error) {
+        if (/^(Expected one visible native match, got 0|Native control is disabled or unknown)$/.test(error.message)) return false;
+        throw error;
+      }
+    },
+    action: (mode, request) => {
+      assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
+      const result = accessibility(started.apps[0].pid, mode, request);
+      save(`native-action-${String(++nativeActions).padStart(2, '0')}`, result);
+      assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
+      return result;
+    },
+    capture: label => output('/usr/sbin/screencapture', ['-x', '-t', 'png', path.join(evidence, label + '.png')]),
+  });
   const owned = descendants(started.apps[0].pid, snapshot().processes);
   for (const row of owned) {
     trackedPids.add(row.pid);
@@ -124,6 +156,10 @@ try {
   report.status = 'passed'; save('probe-result', report);
 } catch (error) {
   report.status = 'failed'; report.error = String(error.stack || error);
+  try {
+    const apps = snapshot().apps;
+    if (apps.length === 1) save('failure-accessibility', accessibility(apps[0].pid, 'inspect'));
+  } catch (captureError) { report.accessibilityError = String(captureError); }
   try { save('failure-processes', snapshot()); } catch (captureError) { report.processError = String(captureError); }
   try { output('/usr/sbin/screencapture', ['-x', '-t', 'png', path.join(evidence, 'failure.png')]); } catch (captureError) { report.captureError = String(captureError); }
   save('probe-result', report); throw error;

@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Native macOS accessibility control checks for draft retention, Settings,
+  theme controls and folder-picker Cancel, with owned-process and original-screen evidence.
+
 - [fixed] Probe native Mac accessibility through actual owned-window queries;
   remove an invalid scripting-property lookup without changing permissions.
 
