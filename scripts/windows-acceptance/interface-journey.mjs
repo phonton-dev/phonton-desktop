@@ -48,6 +48,67 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
   }
   record('all eleven installed settings sections render with selected navigation');
 
+  const accentChecks = [];
+  const movePointer = origin => command('POST', '/actions', { actions: [{ type: 'pointer', id: 'contrast-pointer',
+    parameters: { pointerType: 'mouse' }, actions: [{ type: 'pointerMove', duration: 150, origin, x: 0, y: 0 }] }] });
+  const sampleAccent = async hovered => {
+    const sample = await until(() => execute(`
+      const matches = [...document.querySelectorAll('.settings-page button')].filter(e => e.textContent.trim() === 'Save general');
+      if (matches.length !== 1) throw Error('Expected one Save general control');
+      const button = matches[0];
+      if (!button.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}) || button.disabled || button.matches(':hover') !== arguments[0]) return false;
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext('2d', {willReadFrequently:true});
+      const rgba = color => { ctx.clearRect(0,0,1,1); ctx.fillStyle = color; ctx.fillRect(0,0,1,1); return [...ctx.getImageData(0,0,1,1).data].map(v => v/255); };
+      const layers = []; let element = button;
+      while (element) {
+        const style = getComputedStyle(element);
+        if (style.opacity !== '1' || style.backgroundImage !== 'none' || style.filter !== 'none' || style.mixBlendMode !== 'normal') throw Error('Unsupported paint effect in contrast measurement');
+        layers.push({color:rgba(style.backgroundColor),background:style.backgroundColor}); element=element.parentElement;
+      }
+      return {theme:document.documentElement.dataset.theme,hovered:button.matches(':hover'),foreground:rgba(getComputedStyle(button).color),layers};
+    `, hovered), 'enabled Settings action paint and pointer state');
+    // Wait for the real CSS transition to reach its stable endpoint, not a sampled midpoint.
+    const endpoint = hovered ? 0.9 : 1;
+    if (Math.abs(sample.layers[0].color[3] - endpoint) > 1 / 255 + 0.001) return false;
+    let painted = [0, 0, 0, 0];
+    for (const { color } of [...sample.layers].reverse()) {
+      const alpha = color[3] + painted[3] * (1 - color[3]);
+      painted = [...color.slice(0, 3).map((value, index) => alpha ? (value * color[3] + painted[index] * painted[3] * (1 - color[3])) / alpha : 0), alpha];
+    }
+    assert.equal(painted[3], 1, 'Actual ancestor paint must resolve to an opaque backdrop');
+    assert.equal(sample.foreground[3], 1, 'Enabled action label must be opaque');
+    const luminance = values => values.slice(0, 3).map(v => v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)
+      .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+    const foreground = luminance(sample.foreground), background = luminance(painted);
+    const ratio = (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    assert.ok(ratio >= 4.5, `${sample.theme} enabled action contrast ${ratio.toFixed(2)}:1`);
+    return { ...sample, painted, ratio };
+  };
+  for (const [label, theme] of [['Graphite', 'nebula'], ['Cursor Dark', 'cursor-dark'], ['Light', 'light'], ['High contrast', 'high-contrast']]) {
+    await section('Appearance'); await settingsButton(label);
+    await until(() => execute('return document.documentElement.dataset.theme === arguments[0]', theme), `${label} theme`);
+    await section('General');
+    await until(() => execute(`
+      const heading = [...document.querySelectorAll('.settings-page h2')].some(e => e.textContent.trim() === 'General');
+      const buttons = [...document.querySelectorAll('.settings-page button')].filter(e => e.textContent.trim() === 'Save general');
+      return heading && buttons.length === 1 && !buttons[0].disabled && buttons[0].checkVisibility({checkOpacity:true,checkVisibilityCSS:true});
+    `), 'General action ready');
+    const found = await command('POST', '/element', {using:'xpath',value:'//div[contains(@class,"settings-page")]//button[normalize-space(.)="Save general"]'});
+    const id = found['element-6066-11e4-a52e-4f735466cecf'];
+    assert.equal(await command('GET', `/element/${id}/enabled`), true);
+    await movePointer('viewport');
+    const normal = await until(() => sampleAccent(false), `${label} normal contrast`);
+    await screenshot(`ui-accent-${theme}-normal`);
+    await movePointer({'element-6066-11e4-a52e-4f735466cecf':id});
+    const hover = await until(() => sampleAccent(true), `${label} hover contrast`);
+    await screenshot(`ui-accent-${theme}-hover`);
+    assert.equal(normal.theme, theme); assert.equal(hover.theme, theme);
+    accentChecks.push({theme,normal,hover});
+  }
+  await command('DELETE', '/actions');
+  record('enabled Settings action labels meet contrast in all four native themes and hover states', accentChecks);
+
   await section('Appearance');
   await settingsButton('Light');
   await until(() => execute('return document.documentElement.dataset.theme === "light"'), 'Light appearance');
