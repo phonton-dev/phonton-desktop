@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Bound Mac cloud runtime startup independently of its initial GPU
+  discovery watchdog and retain HTTP readiness evidence before native testing.
+
 - [added] Full cloud macOS acceptance for native model download, calibration,
   repository selection, explicit consent, verified review, Apply and rollback
   across a normal Quit and reopen of the default profile. Execution remains a

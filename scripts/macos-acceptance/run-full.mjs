@@ -37,16 +37,33 @@ function launch(executable, args, label, timeout) {
 }
 try {
   const server = launch(runtime, ['serve'], 'external-ollama');
-  const deadline = Date.now() + 30000; let version;
-  while (Date.now() < deadline) {
-    assert.equal(server.exitCode, null, 'External runtime exited during startup');
-    try {
-      const response = await fetch('http://127.0.0.1:11434/api/version', { signal: AbortSignal.timeout(2000) });
-      assert.equal(response.ok, true); version = await response.json(); break;
-    } catch (error) { if (error.cause?.code !== 'ECONNREFUSED' && error.name !== 'TimeoutError') throw error; }
-    await delay(500);
+  // The pinned Darwin runtime can spend 30 seconds discovering unavailable GPU
+  // devices before its HTTP handlers become ready. Retain a bounded startup
+  // observation; the product's real memory/calibration gates remain unchanged.
+  const startup = { status: 'waiting', expectedVersion: pin.version, timeoutMs: 90000, attempts: [] };
+  const startupStarted = Date.now(), deadline = startupStarted + startup.timeoutMs; let version;
+  try {
+    while (Date.now() < deadline) {
+      assert.equal(server.exitCode, null, 'External runtime exited during startup');
+      assert.equal(server.signalCode, null, 'External runtime was terminated during startup');
+      const attempt = { elapsedMs: Date.now() - startupStarted };
+      try {
+        const response = await fetch('http://127.0.0.1:11434/api/version', { signal: AbortSignal.timeout(2000) });
+        attempt.httpStatus = response.status;
+        assert.equal(response.ok, true); version = await response.json(); attempt.version = version; break;
+      } catch (error) {
+        attempt.error = { name: error.name, code: error.cause?.code || null };
+        if (error.cause?.code !== 'ECONNREFUSED' && error.name !== 'TimeoutError') throw error;
+      } finally { startup.attempts.push(attempt); }
+      await delay(500);
+    }
+    assert.equal(version?.version, pin.version, 'Pinned runtime version must be ready within the bounded startup window');
+    startup.status = 'passed';
+  } catch (error) { startup.status = 'failed'; startup.error = String(error); throw error; }
+  finally {
+    startup.elapsedMs = Date.now() - startupStarted;
+    writeFileSync('acceptance-evidence/external-runtime-startup.json', JSON.stringify(startup, null, 2) + '\n', { flag: 'wx' });
   }
-  assert.equal(version?.version, pin.version);
   const identity = nativeRuntimeIdentity(server.pid);
   assert.equal(identity.status, 'present'); assert.equal(identity.exe, runtime); assert.equal(identity.ppid, process.pid);
   const external = { process: identity, version, models, scope: 'Separately started pinned external runtime; product origin remains unverified' };
