@@ -282,9 +282,13 @@ A normal close is followed by the existing full model/Apply/reopen/rollback
 journey in a separate controlled-updater mode, preserving direct-upgrade labels.
 
 `updater-tls.ps1` generates a three-hour localhost certificate only on a manual
-GitHub-hosted Windows runner. Only its public certificate enters that runner's
-CurrentUser Root store. Cleanup removes the matching thumbprint and exact temp
-files; private key bytes are never copied to evidence or artifacts. Normal and
+GitHub-hosted Windows runner running as administrator. Only its public certificate
+enters that disposable runner's LocalMachine Root store, avoiding a user-store
+trust dialog. `updater-tls-command.ps1` bounds each helper to 90 seconds, records
+separate invocation logs, and confirms a timed-out helper exits before cleanup.
+Cleanup refuses to overlap a prior helper's exact process lifetime and removes
+only the matching thumbprint and exact temp files. No user-PC store is changed;
+private key bytes are never copied to evidence or artifacts. Normal and
 failure evidence use the `windows-controlled-updater-evidence` artifact. This
 tests controlled bootstrap delivery, not the public feed, public 0.3.4 updater
 migration, consumer Windows or publisher signing.

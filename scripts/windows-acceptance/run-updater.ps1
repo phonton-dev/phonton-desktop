@@ -32,7 +32,7 @@ $env:PHONTON_CONFIG_PATH = Join-Path $stateDirectory 'config.toml'
 $env:PHONTON_ACCEPTANCE_UPGRADE_NATIVE = 'true'
 $env:PHONTON_ACCEPTANCE_CONTROLLED_UPDATER = 'true'
 $env:PHONTON_ACCEPTANCE_FULL_JOURNEY = 'true'
-& ./scripts/windows-acceptance/updater-tls.ps1 -Action create
+& ./scripts/windows-acceptance/updater-tls-command.ps1 -Action create
 $driver = $null
 $replacementDriver = $null
 try {
@@ -51,5 +51,5 @@ try {
     }
     if ($null -ne $driver -and !$driver.HasExited) { Stop-Process -InputObject $driver }
     if ($null -ne $replacementDriver -and !$replacementDriver.HasExited) { Stop-Process -InputObject $replacementDriver }
-    & ./scripts/windows-acceptance/updater-tls.ps1 -Action cleanup
+    & ./scripts/windows-acceptance/updater-tls-command.ps1 -Action cleanup
 }

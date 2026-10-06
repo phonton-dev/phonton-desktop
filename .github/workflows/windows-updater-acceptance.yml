@@ -62,6 +62,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          cache-on-failure: true
       - name: Build labelled bootstrap with original updater public key
         env:
           PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/phonton-dev
@@ -81,7 +82,7 @@ jobs:
         run: ./scripts/windows-acceptance/run-updater.ps1
       - name: Remove exact runner-only TLS certificate and key
         if: always()
-        run: ./scripts/windows-acceptance/updater-tls.ps1 -Action cleanup
+        run: ./scripts/windows-acceptance/updater-tls-command.ps1 -Action cleanup
       - name: Retain bounded updater evidence including failures
         if: always()
         uses: actions/upload-artifact@v4
