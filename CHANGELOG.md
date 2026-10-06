@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Use the observed native Mac checkbox role for pressed theme controls
+  and verify that exactly one theme reports its selected state.
+
 - [added] Bounded native Mac observation of scope, permissions, model controls and
   repository path navigation, with retained drafts and no model or file mutation.
 

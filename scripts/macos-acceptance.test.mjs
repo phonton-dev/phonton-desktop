@@ -123,6 +123,23 @@ test('native typing requires a uniquely visible editable control with settable n
   assert.throws(() => accessibility.axSelect(nativeTree(), buttonSelector, 'type'));
 });
 
+test('observed pressed theme checkboxes require their exact native role, state and AXPress', () => {
+  const rows=nativeTree();
+  Object.assign(rows[2], {parent:0,AXRole:'AXCheckBox',AXTitle:'Light',AXValue:0,
+    AXPosition:[284,345],AXSize:[331,98],actions:['AXPress','AXShowMenu','AXScrollToVisible']});
+  const selector={AXRole:'AXCheckBox',AXTitle:'Light'};
+  assert.equal(accessibility.axSelect(rows,selector,'press'),rows[2]);
+  rows[2].AXValue=1;
+  assert.equal(accessibility.axSelect(rows,selector,'press'),rows[2]);
+  assert.throws(() => accessibility.axSelect(rows,{...selector,AXRole:'AXButton'},'press'),/one visible native match/);
+  for (const value of [null,2,'1',false]) {
+    rows[2].AXValue=value;
+    assert.throws(() => accessibility.axSelect(rows,selector,'press'),/checkbox state/);
+  }
+  rows[2].AXValue=0; rows[2].actions=['AXShowMenu'];
+  assert.throws(() => accessibility.axSelect(rows,selector,'press'),/AXPress is unavailable/);
+});
+
 test('observed WebKit summaries use guarded native focus without inventing AXPress support', () => {
   // Native records from the retained 6 October Mac draft inspection. Geometry
   // and control capabilities are preserved; the ancestor chain is reduced here.

@@ -11,10 +11,23 @@ export async function interfaceProbe({ inspect, action, capture, save, record, u
     capture(`ui-${String(sequence).padStart(2, '0')}-${label}`);
     return tree;
   };
-  const press = async (title, ancestor, scope) => {
-    const selector = { AXRole: 'AXButton', AXTitle: title, ...(ancestor ? { ancestor } : {}) };
+  const press = async (title, ancestor, scope, role = 'AXButton') => {
+    const selector = { AXRole: role, AXTitle: title, ...(ancestor ? { ancestor } : {}) };
     await until(() => ready(inspect(scope), selector, 'press'), `native ${title} control ready`, 30000);
     return action('press', { selector, ...(scope ? { scope } : {}) }); // Exactly one action after bounded read-only readiness.
+  };
+  const selectTheme = async title => {
+    // aria-pressed maps these observed WebKit controls to AXCheckBox, with
+    // numeric AXValue and AXPress. Do not search for a generic button fallback.
+    await press(title, undefined, undefined, 'AXCheckBox');
+    await until(() => {
+      const tree = inspect();
+      const themes = ['Graphite', 'Cursor Dark', 'Light', 'High contrast'];
+      return themes.every(name => {
+        const rows = tree.rows.filter(row => row.AXRole === 'AXCheckBox' && row.AXTitle === name);
+        return rows.length === 1 && rows[0].AXValue === (name === title ? 1 : 0);
+      });
+    }, `native ${title} is the only selected theme`, 30000);
   };
   const emptyRepository = tree => {
     assert.equal(tree.rows.filter(row => row.AXRole === 'AXStaticText' && row.AXValue === 'No repository open').length, 1);
@@ -44,11 +57,11 @@ export async function interfaceProbe({ inspect, action, capture, save, record, u
   }
   record('native settings sections expose their actual content headings', { sections, scope: 'AX and original screens; no saved configuration or provider/billing operations' });
   await press('Appearance', { AXRole: 'AXGroup', AXTitle: 'Settings sections' });
-  await press('Light'); await observe('light-settings');
+  await selectTheme('Light'); await observe('light-settings');
   await press('Back'); assert.equal(draft(await observe('light-draft')), goal);
   await press('Settings', { AXRole: 'AXGroup', AXTitle: 'Workspace' });
   await press('Appearance', { AXRole: 'AXGroup', AXTitle: 'Settings sections' });
-  await press('Graphite'); await observe('graphite-settings');
+  await selectTheme('Graphite'); await observe('graphite-settings');
   await press('Back'); assert.equal(draft(await observe('graphite-draft')), goal);
   record('native theme controls and Settings round trips preserve the actual draft', { goal, scope: 'Theme appearance requires original screenshot review; no computed-color or retained-profile claim' });
 

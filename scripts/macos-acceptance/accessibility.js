@@ -202,7 +202,7 @@ function axVisible(rows, row) {
   });
 }
 function axSelect(rows, selector, mode) {
-  if (!selector || ['AXButton', 'AXDisclosureTriangle', 'AXTextArea', 'AXTextField'].indexOf(selector.AXRole) < 0 ||
+  if (!selector || ['AXButton', 'AXCheckBox', 'AXDisclosureTriangle', 'AXTextArea', 'AXTextField'].indexOf(selector.AXRole) < 0 ||
     typeof selector.AXTitle !== 'string' || !selector.AXTitle || Object.keys(selector).some(function (key) { return ['AXRole', 'AXTitle', 'ancestor'].indexOf(key) < 0; })) throw Error('Invalid native selector');
   var matching = rows.filter(function (row) {
     if (row.AXRole !== selector.AXRole || row.AXTitle !== selector.AXTitle) return false;
@@ -213,6 +213,7 @@ function axSelect(rows, selector, mode) {
   var row = matching[0];
   if (row.AXEnabled !== true) throw Error('Native control is disabled or unknown');
   if (mode === 'press' && (!Array.isArray(row.actions) || row.actions.indexOf('AXPress') < 0)) throw Error('Native AXPress is unavailable');
+  if (mode === 'press' && row.AXRole === 'AXCheckBox' && [0, 1].indexOf(row.AXValue) < 0) throw Error('Native checkbox state is unavailable');
   if (mode === 'type' && (['AXTextArea', 'AXTextField'].indexOf(row.AXRole) < 0 || !row.settable || row.settable.AXFocused !== true)) throw Error('Native text focus is not settable');
   if (mode === 'summary-toggle' && (row.AXRole !== 'AXDisclosureTriangle' || row.AXSubrole !== 'AXSummary' ||
     typeof row.AXValue !== 'boolean' || !row.settable || row.settable.AXFocused !== true)) throw Error('Native summary state or focus is unavailable');
