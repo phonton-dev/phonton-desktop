@@ -10,7 +10,7 @@ import gi
 assert sys.platform == 'linux' and os.environ.get('GITHUB_ACTIONS') == 'true'
 assert os.environ.get('RUNNER_ENVIRONMENT') == 'github-hosted'
 gi.require_version('Atspi', '2.0')
-from gi.repository import Atspi
+from gi.repository import Atspi, GLib
 
 pid = int(sys.argv[1])
 action = sys.argv[2]
@@ -22,11 +22,27 @@ assert not report_path.exists()
 report = {'schema': 1, 'status': 'running', 'appPid': pid, 'action': action, 'fixture': str(fixture)}
 
 
+def app_identity():
+    stat = Path(f'/proc/{pid}/stat')
+    before = stat.read_text().rsplit(')', 1)[1].split()
+    executable = os.readlink(f'/proc/{pid}/exe')
+    after = stat.read_text().rsplit(')', 1)[1].split()
+    assert before[19] == after[19] and after[0] not in ('Z', 'X'), 'App lifetime changed'
+    return {'pid': pid, 'startTime': after[19], 'exe': executable}
+
+
+original_app = app_identity()
+report['originalApp'] = original_app
+
+
 def save():
     report_path.write_text(json.dumps(report, indent=2) + '\n')
 
 
-def walk(root):
+def walk(root, refresh=False):
+    if refresh:
+        # clear_cache recursively clears descendants as well.
+        root.clear_cache()
     queue = [(root, 0)]
     count = 0
     while queue:
@@ -44,11 +60,18 @@ def showing(node):
     return states.contains(Atspi.StateType.SHOWING) and states.contains(Atspi.StateType.ENABLED)
 
 
-def dialogs():
+def owned_applications(refresh=False):
     desktop = Atspi.get_desktop(0)
+    if refresh:
+        desktop.clear_cache()
     applications = [desktop.get_child_at_index(i) for i in range(desktop.get_child_count())]
-    owned = [app for app in applications if app.get_process_id() == pid]
-    return [node for app in owned for node in walk(app)
+    return [app for app in applications if app is not None and app.get_process_id() == pid]
+
+
+def dialogs(owned=None, refresh=False):
+    if owned is None:
+        owned = owned_applications(refresh)
+    return [node for app in owned for node in walk(app, refresh)
             if node.get_name() == 'Open repository' and
             node.get_role() in (Atspi.Role.DIALOG, Atspi.Role.FILE_CHOOSER) and showing(node)]
 
@@ -79,6 +102,34 @@ def click_button(dialog, label):
     report['invokedButton'] = {'name': button.get_name(), 'pid': button.get_process_id(), 'action': interface.get_action_name(actions[0])}
     save()
     assert interface.do_action(actions[0])
+
+
+def chooser_closed():
+    # A destroyed accessible during dialog teardown is not proof of closure.
+    # Retry only that observed error, then require fresh AX plus X11 absence
+    # while the same native app lifetime remains alive.
+    assert app_identity() == original_app, 'App exited or was replaced during chooser action'
+    try:
+        owned = owned_applications(refresh=True)
+        assert len(owned) <= 1, 'Ambiguous owned accessible application'
+        if not owned:
+            return False
+        matches = dialogs(owned, refresh=True)
+    except GLib.GError as error:
+        if error.domain != 'atspi_error' or error.code != 0 or error.message != 'The application no longer exists':
+            raise
+        report['staleCloseObservations'] = report.get('staleCloseObservations', 0) + 1
+        report['lastStaleCloseError'] = {'domain': error.domain, 'code': error.code, 'message': error.message}
+        save()
+        return False
+    windows = subprocess.run(['xdotool', 'search', '--all', '--onlyvisible', '--pid', str(pid), '--name', '^Open repository$'],
+                             capture_output=True, text=True, timeout=10)
+    assert windows.returncode in (0, 1) and not windows.stderr, 'Cannot independently observe chooser windows'
+    report['closeObservation'] = {'nativeApp': app_identity(), 'ownedApplications': len(owned),
+                                  'accessibleDialogs': len(matches), 'nativeWindows': windows.stdout.split()}
+    assert report['closeObservation']['nativeApp'] == original_app
+    save()
+    return not matches and windows.returncode == 1 and not windows.stdout.strip()
 
 
 try:
@@ -141,7 +192,7 @@ try:
     save()
     subprocess.run(['import', '-window', 'root', str(report_path.with_suffix('.png'))], check=True, timeout=15)
     click_button(dialog, 'cancel' if action == 'cancel' else 'open')
-    wait(lambda: not dialogs(), 'chooser closes after native action')
+    wait(chooser_closed, 'chooser closes while the same app remains alive')
     report.update(status='passed', closed=True)
     save()
 except Exception as error:
