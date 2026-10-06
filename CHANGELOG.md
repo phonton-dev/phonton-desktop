@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Bounded native Mac observation of scope, permissions, model controls and
+  repository path navigation, with retained drafts and no model or file mutation.
+
 - [fixed] Associate Settings fields with their labels, expose selected theme and
   configuration scope, announce local-run and diagnostic outcomes, and identify
   each model in its action labels. Installed checks inspect the real label links

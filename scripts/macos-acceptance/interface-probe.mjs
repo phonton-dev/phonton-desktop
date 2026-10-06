@@ -78,4 +78,39 @@ export async function interfaceProbe({ inspect, action, capture, save, record, u
   const cancelled = await observe('picker-cancelled-draft');
   assert.equal(draft(cancelled), goal); emptyRepository(cancelled);
   record('owned native folder-picker Cancel preserves the draft', { dialog: picker.dialog, goal, repository: 'No repository open' });
+
+  // Observe the native control types needed for the full fixture journey before
+  // adding selectors for unknown Mac labels, popup items or scroll actions.
+  for (const title of ['Scope · files, new file', 'Checks & permissions']) {
+    const selector = { AXRole: 'AXDisclosureTriangle', AXTitle: title };
+    const summaryValue = tree => {
+      const rows = tree.rows.filter(row => row.AXRole === selector.AXRole && row.AXTitle === title);
+      assert.equal(rows.length, 1); return rows[0].AXValue;
+    };
+    assert.equal(summaryValue(inspect()), false, 'Expected collapsed summary before observation');
+    action('summary-toggle', { selector });
+    await until(() => summaryValue(inspect()) === true, `native ${title} expands`, 30000);
+    const expanded = await observe(title.startsWith('Scope') ? 'scope-controls' : 'permission-controls');
+    assert.equal(draft(expanded), goal);
+    action('summary-toggle', { selector });
+    await until(() => summaryValue(inspect()) === false, `native ${title} collapses`, 30000);
+  }
+  await press('Local models', { AXRole: 'AXGroup', AXTitle: 'Workspace' });
+  await observe('model-controls');
+  await press('← Workspace');
+  assert.equal(draft(await observe('models-return-draft')), goal);
+  emptyRepository(inspect());
+  record('scope permissions and model controls captured through native navigation', { goal, scope: 'Control inventory only; no model download, calibration, command approval or file mutation' });
+
+  await press('Change folder ↗');
+  await until(() => inspect('modal').modalScope.found, 'reopened owned folder dialog', 30000);
+  action('folder-shortcut', {scope:'modal',shortcut:'go-to-folder'});
+  await observe('folder-path-controls', 'modal');
+  action('folder-shortcut', {scope:'modal',shortcut:'escape'});
+  await observe('folder-path-dismissed', 'modal');
+  await press('Cancel', ancestor, 'modal');
+  await until(() => !inspect('modal').modalScope.found, 'observed path dialog and chooser dismissed', 30000);
+  const returned = await observe('path-observation-return');
+  assert.equal(draft(returned), goal); emptyRepository(returned);
+  record('repository path shortcut observation returned without selecting a folder', {goal,scope:'Native shortcut and resulting AX/original frames only; path-field identity and folder selection require separate review and acceptance'});
 }

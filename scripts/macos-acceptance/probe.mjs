@@ -17,7 +17,7 @@ const evidence = path.resolve('acceptance-evidence');
 const save = (name, value) => writeFileSync(path.join(evidence, name + '.json'), JSON.stringify(value, null, 2) + '\n');
 const output = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 30000 }).trim();
 const report = { schema: 1, status: 'running', harnessCommit: process.env.GITHUB_SHA,
-  candidateCommit: installed.candidateCommit, scope: 'ARM64 DMG launch, native draft/settings/theme controls, picker Cancel and normal Quit; not model/coding/Apply, retained-profile or public-beta acceptance', checks: [] };
+  candidateCommit: installed.candidateCommit, scope: 'ARM64 DMG launch, native draft/settings/theme controls, picker Cancel, path/control observation and normal Quit; not folder Select, model/coding/Apply, retained-profile or public-beta acceptance', checks: [] };
 const record = (name, detail) => { report.checks.push({ name, detail }); save('probe-result', report); };
 const identityHelper = path.join(temporary, 'phonton-process-identity');
 const selectors = vm.createContext({});

@@ -70,6 +70,20 @@ function nativeTree() {
     { index: 2, parent: 1, AXRole: 'AXButton', AXTitle: 'Settings', AXEnabled: true, AXPosition: [18, 354], AXSize: [151, 40], actions: ['AXPress'], settable: { AXFocused: true } },
   ];
 }
+test('folder shortcuts require modal scope and an identified unique repository chooser', () => {
+  const tree=nativeTree(); tree[1].AXRole='AXSheet'; tree[1].AXTitle=null;
+  tree.push({index:3,parent:1,AXRole:'AXStaticText',AXValue:'Open repository'});
+  for (const shortcut of ['go-to-folder','escape']) assert.equal(accessibility.axFolderShortcut(tree,{scope:'modal',shortcut}),tree[1]);
+  for (const request of [{shortcut:'escape'},{scope:'modal',shortcut:'enter'},{scope:'application',shortcut:'go-to-folder'}]) {
+    assert.throws(() => accessibility.axFolderShortcut(tree,request),/Invalid folder shortcut/);
+  }
+  const misplaced=structuredClone(tree); misplaced[3].parent=0;
+  assert.throws(() => accessibility.axFolderShortcut(misplaced,{scope:'modal',shortcut:'escape'}),/identified repository dialog/);
+  const clipped=structuredClone(tree); clipped[1].AXPosition=[0,900];
+  assert.throws(() => accessibility.axFolderShortcut(clipped,{scope:'modal',shortcut:'escape'}),/identified repository dialog/);
+  tree.push({...tree[1],index:4,parent:0,AXRole:'AXSheet',AXTitle:'Open repository'});
+  assert.throws(() => accessibility.axFolderShortcut(tree,{scope:'modal',shortcut:'escape'}),/identified repository dialog/);
+});
 test('a dialog disappearing between readiness and action cannot count as native Cancel', () => {
   const context = vm.createContext({ console: { log() {} } });
   const window = { attributes: { byName: name => ({ value: () => name === 'AXRole' ? 'AXWindow' : null }) }, uiElements: () => [] };
@@ -107,6 +121,56 @@ test('native typing requires a uniquely visible editable control with settable n
   tree[2].settable.AXFocused = null;
   assert.throws(() => accessibility.axSelect(tree, selector, 'type'));
   assert.throws(() => accessibility.axSelect(nativeTree(), buttonSelector, 'type'));
+});
+
+test('observed WebKit summaries use guarded native focus without inventing AXPress support', () => {
+  // Native records from the retained 6 October Mac draft inspection. Geometry
+  // and control capabilities are preserved; the ancestor chain is reduced here.
+  const observed = [
+    {AXTitle:'Scope · files, new file',AXPosition:[235,503]},
+    {AXTitle:'Checks & permissions',AXPosition:[235,538]},
+  ];
+  for (const value of observed) {
+    const rows = nativeTree();
+    rows[2] = {...value,index:2,parent:0,AXRole:'AXDisclosureTriangle',AXSubrole:'AXSummary',AXValue:false,
+      AXSize:[742,29],AXEnabled:true,AXFocused:false,actions:['AXShowMenu','AXScrollToVisible'],settable:{AXValue:false,AXFocused:true}};
+    const selector = {AXRole:rows[2].AXRole,AXTitle:rows[2].AXTitle};
+    assert.throws(() => accessibility.axSelect(rows,selector,'press'),/AXPress is unavailable/);
+    assert.equal(accessibility.axSelect(rows,selector,'summary-toggle'),rows[2]);
+    for (const mutate of [
+      row => { row.AXSubrole=null; }, row => { row.AXValue=null; },
+      row => { row.settable.AXFocused=false; }, row => { row.AXEnabled=false; },
+      row => { row.AXPosition=[235,900]; },
+    ]) {
+      const invalid=structuredClone(rows); mutate(invalid[2]);
+      assert.throws(() => accessibility.axSelect(invalid,selector,'summary-toggle'));
+    }
+  }
+  assert.throws(() => accessibility.axSelect(nativeTree(),buttonSelector,'summary-toggle'),/summary state or focus/);
+  const metadata=accessibility.axMetadata('AXDisclosureTriangle');
+  for (const name of ['AXSubrole','AXFocused','AXValue']) assert.ok(metadata.attributes.includes(name));
+  assert.ok(metadata.settable.includes('AXFocused'));
+});
+
+test('summary Space is sent only after native focus read-back and ownership verification', () => {
+  function attempt(focusWorks,owned) {
+    const events=[]; let focused=false;
+    const attribute={};
+    Object.defineProperty(attribute,'value',{
+      get:() => () => { events.push('focus-read'); return focused; },
+      set:value => { assert.equal(value,true); events.push('focus-write'); focused=focusWorks; },
+    });
+    const target={attributes:{byName:name => { assert.equal(name,'AXFocused'); return attribute; }}};
+    const system={keystroke:key => { assert.equal(key,' '); events.push('Space'); }};
+    const run=() => accessibility.axToggleSummary(target,system,() => { events.push('ownership'); if (!owned) throw Error('Lost ownership'); });
+    return {run,events};
+  }
+  const valid=attempt(true,true); valid.run();
+  assert.deepEqual(valid.events,['focus-write','focus-read','ownership','Space']);
+  const noFocus=attempt(false,true); assert.throws(noFocus.run,/did not gain focus/);
+  assert.deepEqual(noFocus.events,['focus-write','focus-read']);
+  const noOwnership=attempt(true,false); assert.throws(noOwnership.run,/Lost ownership/);
+  assert.deepEqual(noOwnership.events,['focus-write','focus-read','ownership']);
 });
 const pin = JSON.parse(readFileSync(new URL('./macos-acceptance/source.json', import.meta.url), 'utf8'));
 function fixture() {

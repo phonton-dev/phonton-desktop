@@ -1,7 +1,7 @@
 // Native accessibility only: this script never evaluates JavaScript in the app.
 function run(args) {
   var pid = Number(args[0]), mode = args[1];
-  if (!(pid > 0) || ['inspect', 'quit', 'press', 'type'].indexOf(mode) < 0) throw Error('Invalid probe arguments');
+  if (!(pid > 0) || ['inspect', 'quit', 'press', 'type', 'summary-toggle', 'folder-shortcut'].indexOf(mode) < 0) throw Error('Invalid probe arguments');
   var system = Application('System Events');
   // Actual owned-process/window queries establish accessibility capability.
   // Permission errors propagate; no permission database or setting is changed.
@@ -79,12 +79,26 @@ function run(args) {
   }
   var result = { schema: 2, pid: pid, application: app.name(), frontmost: app.frontmost(), rows: rows };
   if (modal) result.modalScope = { found: true, visited: modal.visited, path: modal.chain[modal.chain.length - 1].path };
+  if (mode === 'folder-shortcut') {
+    var dialog = axFolderShortcut(rows, request);
+    if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application focus before folder shortcut');
+    progress('native-folder-shortcut', request.shortcut);
+    if (request.shortcut === 'go-to-folder') system.keystroke('g', { using: ['command down', 'shift down'] });
+    else system.keyCode(53); // macOS kVK_Escape (0x35).
+    result.action = { mode: mode, shortcut: request.shortcut, dialog: dialog, native: true };
+    return JSON.stringify(result);
+  }
   if (mode !== 'inspect') {
     var selected = axSelect(rows, request.selector, mode);
     var target = elements[selected.index];
     if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application focus before native action');
     progress('native-action', selected.path);
     if (mode === 'press') target.actions.byName('AXPress').perform();
+    else if (mode === 'summary-toggle') {
+      axToggleSummary(target, system, function () {
+        if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application focus before summary key');
+      });
+    }
     else {
       if (typeof request.text !== 'string' || request.text.length > 1000 || /[^\x20-\x7e]/.test(request.text)) throw Error('Expected bounded printable ASCII text');
       target.attributes.byName('AXFocused').value = true;
@@ -105,8 +119,36 @@ function axMetadata(role) {
   var control = text || ['AXButton', 'AXDisclosureTriangle', 'AXCheckBox', 'AXRadioButton', 'AXPopUpButton', 'AXMenuButton', 'AXSlider', 'AXLink', 'AXTab', 'AXMenuItem', 'AXRow'].indexOf(role) >= 0;
   if (role === 'AXWindow') attributes.push('AXSubrole');
   if (control) attributes.push('AXEnabled', 'AXSelected', 'AXCurrent');
+  if (role === 'AXDisclosureTriangle') attributes.push('AXExpanded', 'AXSubrole', 'AXFocused');
   if (text) attributes.push('AXFocused');
-  return { attributes: attributes, actions: control, settable: text ? ['AXValue', 'AXFocused'] : [] };
+  return { attributes: attributes, actions: control || role === 'AXScrollArea', settable: text ? ['AXValue', 'AXFocused'] : role === 'AXDisclosureTriangle' ? ['AXFocused'] : [] };
+}
+
+// WebKit summaries expose settable focus but no AXPress on the observed Mac.
+// Deliver one native Space only after read-back focus and owned-app verification.
+// The caller must separately observe the expected AXValue transition.
+function axToggleSummary(target, system, assertOwned) {
+  target.attributes.byName('AXFocused').value = true;
+  if (target.attributes.byName('AXFocused').value() !== true) throw Error('Native summary did not gain focus');
+  assertOwned();
+  system.keystroke(' ');
+}
+
+// Shortcuts are permitted only inside the app's observed repository chooser.
+// The post-shortcut tree is recorded separately; sending a key never proves that
+// a path field appeared or that a folder was selected.
+function axFolderShortcut(rows, request) {
+  if (request.scope !== 'modal' || ['go-to-folder', 'escape'].indexOf(request.shortcut) < 0) throw Error('Invalid folder shortcut');
+  var dialogs = rows.filter(function (row) {
+    if (['AXSheet', 'AXDialog'].indexOf(row.AXRole) < 0 && !(row.AXRole === 'AXWindow' && row.AXSubrole === 'AXDialog')) return false;
+    if (!axVisible(rows, row)) return false;
+    return rows.some(function (child) {
+      return [child.AXTitle, child.AXDescription, child.AXValue].indexOf('Open repository') >= 0 &&
+        (child.index === row.index || axAncestors(rows, child).some(function (parent) { return parent.index === row.index; }));
+    });
+  });
+  if (dialogs.length !== 1) throw Error('Expected one identified repository dialog before shortcut');
+  return dialogs[0];
 }
 
 // Discover native dialogs without traversing the inactive application's web tree.
@@ -172,6 +214,8 @@ function axSelect(rows, selector, mode) {
   if (row.AXEnabled !== true) throw Error('Native control is disabled or unknown');
   if (mode === 'press' && (!Array.isArray(row.actions) || row.actions.indexOf('AXPress') < 0)) throw Error('Native AXPress is unavailable');
   if (mode === 'type' && (['AXTextArea', 'AXTextField'].indexOf(row.AXRole) < 0 || !row.settable || row.settable.AXFocused !== true)) throw Error('Native text focus is not settable');
-  if (['press', 'type'].indexOf(mode) < 0) throw Error('Invalid native action');
+  if (mode === 'summary-toggle' && (row.AXRole !== 'AXDisclosureTriangle' || row.AXSubrole !== 'AXSummary' ||
+    typeof row.AXValue !== 'boolean' || !row.settable || row.settable.AXFocused !== true)) throw Error('Native summary state or focus is unavailable');
+  if (['press', 'type', 'summary-toggle'].indexOf(mode) < 0) throw Error('Invalid native action');
   return row;
 }
