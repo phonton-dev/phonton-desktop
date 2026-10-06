@@ -36,4 +36,33 @@ $store.Clear(); $phases.Clear()
 $noWrite = { param($name,$value) }
 Reject { Set-OwnedTestValues $desired $read $noWrite $save } 'readback failed'
 Assert-True ($phases[-1] -eq 'prepared') 'Missing readback must never claim successful setup'
-Write-Output 'Passed pure ownership tests: creation, cleanup, duplicate cleanup, existing value, interrupted setup, changed owner, failed readback. No OS settings accessed.'
+
+# Execute the real adapter against an in-memory CLR string boundary. PowerShell
+# converts ordinary $null to an empty string for .NET string parameters.
+Add-Type -TypeDefinition @'
+public static class UserEnvironmentAdapterProbe {
+    public static string Name;
+    public static string Value;
+    public static System.EnvironmentVariableTarget Target;
+    public static int Calls;
+    public static void SetEnvironmentVariable(string name, string value, System.EnvironmentVariableTarget target) {
+        Name = name; Value = value; Target = target; Calls++;
+    }
+}
+'@
+$parseErrors=$null; $parseTokens=$null
+$entrypoint=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'updater-user-environment.ps1'),[ref]$parseTokens,[ref]$parseErrors)
+Assert-True ($parseErrors.Count -eq 0) 'Adapter must parse'
+$assignment=$entrypoint.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text -ceq '$write' },$true)
+Assert-True ($assignment.Count -eq 1) 'Require the actual unique write adapter'
+$expression=$assignment[0].Right.Find({ param($node) $node -is [Management.Automation.Language.ScriptBlockExpressionAst] },$true)
+$adapterSource=$expression.ScriptBlock.Extent.Text
+Assert-True ([regex]::Matches($adapterSource,'\[Environment\]::SetEnvironmentVariable').Count -ge 1) 'Require actual environment adapter calls'
+$adapterSource=$adapterSource.Replace('[Environment]::SetEnvironmentVariable','[UserEnvironmentAdapterProbe]::SetEnvironmentVariable')
+$adapter=[scriptblock]::Create($adapterSource.Substring(1,$adapterSource.Length-2))
+& $adapter 'PHONTON_CONFIG_PATH' 'fixture-config'
+Assert-True ([UserEnvironmentAdapterProbe]::Name -ceq 'PHONTON_CONFIG_PATH' -and [UserEnvironmentAdapterProbe]::Value -ceq 'fixture-config' -and [UserEnvironmentAdapterProbe]::Target -eq 'User') 'Creation must preserve exact string and user scope'
+& $adapter 'PHONTON_CONFIG_PATH' $null
+Assert-True ($null -eq [UserEnvironmentAdapterProbe]::Value) 'Cleanup must pass a CLR null, never an empty string'
+Assert-True ([UserEnvironmentAdapterProbe]::Calls -eq 2) 'Each adapter request performs one call'
+Write-Output 'Passed pure ownership and actual adapter CLR-null tests. No OS settings accessed.'

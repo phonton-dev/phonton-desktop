@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Remove owned cloud updater environment values with a true CLR null,
+  preserving exact absence checks on current PowerShell and .NET versions.
+
 - [fixed] Keep cloud updater instrumentation available after Windows recreates the
   restart environment, with exact runner-user fixture paths, per-executable
   loopback debugging and ownership-checked cleanup. Default app data stays intact.

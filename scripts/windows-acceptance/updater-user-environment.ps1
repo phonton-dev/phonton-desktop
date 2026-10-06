@@ -33,6 +33,10 @@ $write = {
             if ($null -eq $value) { $key.DeleteValue('phonton-desktop.exe', $false) }
             else { $key.SetValue('phonton-desktop.exe', $value, [Microsoft.Win32.RegistryValueKind]::String) }
         } finally { $key.Dispose() }
+    } elseif ($null -eq $value) {
+        # PowerShell marshals ordinary $null to an empty .NET string. On .NET 9+
+        # that preserves an empty value; only a CLR null removes the owned value.
+        [Environment]::SetEnvironmentVariable($name, [System.Management.Automation.Language.NullString]::Value, 'User')
     } else { [Environment]::SetEnvironmentVariable($name, $value, 'User') }
 }
 $save = {
