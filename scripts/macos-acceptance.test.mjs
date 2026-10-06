@@ -11,6 +11,91 @@ const accessibility = vm.createContext({});
 vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), accessibility);
 const buttonSelector = { AXRole: 'AXButton', AXTitle: 'Settings', ancestor: { AXRole: 'AXGroup', AXTitle: 'Workspace' } };
 
+function windowObservationProbe({ recover = true, afterWait, readError, modal = false } = {}) {
+  let now = 0, reads = 0, waits = 0, focused = true, owned = true;
+  const values = { AXRole: 'AXWindow', AXTitle: 'Phonton', AXPosition: [0, 30], AXSize: [1024, 674] };
+  const sheet = { attributes: { byName: name => ({ value: () => ({ ...values, AXRole: 'AXSheet', AXTitle: 'Open repository' })[name] ?? null }) }, uiElements: () => [] };
+  const window = { attributes: { byName: name => ({ value: () => values[name] ?? null }) }, uiElements: () => modal ? [sheet] : [] };
+  const app = { unixId: () => 42, name: () => 'Phonton', windows: () => {
+    reads++;
+    if (readError) throw Error(readError);
+    return recover && reads > 1 ? [window] : [];
+  } };
+  Object.defineProperty(app, 'frontmost', { get: () => () => focused, set() {} });
+  const context = vm.createContext({
+    console: { log() {} }, Date: class extends Date { static now() { return now; } },
+    delay(seconds) {
+      waits++; now += seconds * 1000;
+      if (afterWait === 'focus') focused = false;
+      if (afterWait === 'ownership') owned = false;
+    },
+    Application: () => ({ processes: { whose: () => () => owned ? [app] : [] } }),
+  });
+  vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), context);
+  return { run: (mode = 'inspect') => JSON.parse(context.run(['42', mode, JSON.stringify({ scope: 'modal' })])),
+    counts: () => ({ reads, waits, now }) };
+}
+
+test('inspection waits for an owned native window before concluding that no modal exists', () => {
+  // Run37427526069: the first modal inspection had no windows, while the next
+  // diagnostic read saw the same live window and the screenshot showed its sheet.
+  for (const modal of [false, true]) {
+    const probe = windowObservationProbe({ modal });
+    const result = probe.run();
+    assert.equal(result.modalScope.found, modal, 'Only the recovered real window determines modal presence');
+    assert.deepEqual(result.windowObservations.map(row => row.windowCount), [0, 1]);
+    assert.deepEqual(probe.counts(), { reads: 2, waits: 1, now: 250 });
+  }
+});
+
+test('unavailable native windows remain an error after bounded inspection attempts', () => {
+  const probe = windowObservationProbe({ recover: false });
+  assert.throws(() => probe.run(), /No native window/);
+  const { reads, waits, now } = probe.counts();
+  assert.ok(reads > 1 && reads <= 21);
+  assert.equal(waits, reads - 1);
+  assert.ok(now <= 5000);
+});
+
+test('window inspection never retries permission errors or lost ownership or focus', () => {
+  for (const afterWait of ['focus', 'ownership']) {
+    const probe = windowObservationProbe({ afterWait });
+    assert.throws(() => probe.run(), /owned|ownership|focus/i);
+    assert.deepEqual(probe.counts(), { reads: 1, waits: 1, now: 250 });
+  }
+  const denied = windowObservationProbe({ readError: 'AX permission denied' });
+  assert.throws(() => denied.run(), /AX permission denied/);
+  assert.deepEqual(denied.counts(), { reads: 1, waits: 0, now: 0 });
+});
+
+test('native action modes never retry an unavailable window or act on empty rows', () => {
+  for (const mode of ['press', 'type', 'summary-toggle', 'folder-shortcut', 'folder-path-type', 'folder-path-confirm', 'reveal', 'select-context']) {
+    const probe = windowObservationProbe();
+    assert.throws(() => probe.run(mode), /No native window/);
+    assert.deepEqual(probe.counts(), { reads: 1, waits: 0, now: 0 });
+  }
+});
+
+test('native JXA executes the bounded observation helper with its real delay primitive', {
+  skip: process.env.PHONTON_TEST_MACOS_IDENTITY !== '1',
+}, () => {
+  assert.equal(process.platform, 'darwin');
+  assert.equal(process.env.GITHUB_ACTIONS, 'true');
+  const script = `var inspectWindows = ${accessibility.axInspectWindows.toString()};
+    function run() {
+      var reads = 0, observations = [];
+      var windows = inspectWindows(function () { return ++reads === 1 ? [] : ['observed-window']; },
+        function () {}, function (seconds) { delay(seconds); }, function (row) { observations.push(row); });
+      return JSON.stringify({ windows: windows, reads: reads, observations: observations });
+    }`;
+  const result = spawnSync('/usr/bin/osascript', ['-l', 'JavaScript', '-e', script], { encoding: 'utf8', timeout: 10000 });
+  assert.ifError(result.error); assert.equal(result.status, 0, result.stderr);
+  const observed = JSON.parse(result.stdout);
+  assert.deepEqual(observed.windows, ['observed-window']);
+  assert.equal(observed.reads, 2);
+  assert.deepEqual(observed.observations.map(row => row.windowCount), [0, 1]);
+});
+
 test('modal scans omit only the identified native folder navigation descendants', () => {
   for (const [row, reason] of [
     [{ AXRole: 'AXOutline', AXDescription: 'sidebar' }, 'native-folder-sidebar'],

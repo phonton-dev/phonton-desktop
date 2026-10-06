@@ -20,7 +20,15 @@ function run(args) {
     console.log(JSON.stringify({ time: new Date().toISOString(), pid: pid, mode: mode, scope: request.scope || 'application', stage: stage, detail: detail }));
   }
   progress('windows', null);
-  var rows = [], elements = [], queue = app.windows().map(function (item, index) { return { item: item, depth: 0, parent: null, path: [index] }; });
+  var windowObservations = [];
+  var windows = mode === 'inspect' ? axInspectWindows(function () { return app.windows(); }, function () {
+    var current = system.processes.whose({ unixId: pid })();
+    if (current.length !== 1 || current[0].unixId() !== pid) throw Error('Lost owned application during window inspection');
+    if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost native focus/ownership during window inspection');
+  }, function (seconds) { delay(seconds); }, function (detail) {
+    windowObservations.push(detail); progress('windows-observation', detail);
+  }) : app.windows();
+  var rows = [], elements = [], queue = windows.map(function (item, index) { return { item: item, depth: 0, parent: null, path: [index] }; });
   if (!queue.length) throw Error('No native window');
   function attr(item, name) {
     try { return item.attributes.byName(name).value(); } catch (error) { return null; }
@@ -35,7 +43,7 @@ function run(args) {
     }, function (item, path) { progress('discover-children', path); return item.uiElements(); });
     if (!modal.chain) {
       if (mode !== 'inspect') throw Error('Owned native dialog disappeared before action');
-      return JSON.stringify({ schema: 2, pid: pid, application: app.name(), frontmost: app.frontmost(), rows: [], modalScope: { found: false, visited: modal.visited } });
+      return JSON.stringify({ schema: 2, pid: pid, application: app.name(), frontmost: app.frontmost(), rows: [], windowObservations: windowObservations, modalScope: { found: false, visited: modal.visited } });
     }
     // Keep actual ancestors for ownership/clipping while avoiding inactive web content.
     queue = [{ item: modal.chain[0].item, path: modal.chain[0].path, depth: 0, parent: null, chainIndex: 0 }];
@@ -83,6 +91,7 @@ function run(args) {
     }
   }
   var result = { schema: 2, pid: pid, application: app.name(), frontmost: app.frontmost(), rows: rows };
+  if (mode === 'inspect') result.windowObservations = windowObservations;
   if (modal) result.modalScope = { found: true, visited: modal.visited, path: modal.chain[modal.chain.length - 1].path };
   if (mode === 'folder-shortcut') {
     var dialog = axFolderShortcut(rows, request);
@@ -137,6 +146,23 @@ function run(args) {
     result.action = { mode: mode, selector: request.selector, selected: selected, native: true };
   }
   return JSON.stringify(result);
+}
+
+// AppKit can briefly expose no AX windows while attaching a native sheet. Retry
+// only that inspection result; never turn unavailable windows into modal absence.
+// All native actions and all bridge/permission errors remain non-retryable.
+function axInspectWindows(readWindows, assertOwned, wait, observe) {
+  var started = Date.now();
+  for (var attempt = 1; attempt <= 21; attempt++) {
+    assertOwned();
+    var windows = readWindows();
+    var elapsed = Date.now() - started;
+    observe({ attempt: attempt, windowCount: windows.length, elapsedMs: elapsed });
+    if (windows.length) return windows;
+    if (elapsed >= 5000 || attempt === 21) break;
+    wait(0.25);
+  }
+  throw Error('No native window after bounded inspection');
 }
 
 // The observed chooser sidebar and column listing can expand into large native

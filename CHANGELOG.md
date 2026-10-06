@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Retry a transient empty Mac accessibility window list during inspection
+  only, preserving ownership, focus, action failures and explicit unavailable state.
+
 - [fixed] Preserve literal verification JSON, configuration, paths, model tags and
   identifiers during native text entry by disabling spelling and smart text
   substitutions for those fields. Keep ordinary goal composition unchanged.
