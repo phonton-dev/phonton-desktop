@@ -10,7 +10,9 @@ concurrency:
 jobs:
   probe:
     name: Check ARM64 DMG model, review, Apply and retained profile
-    runs-on: macos-latest
+    # The full Qwen3B/4096 journey exceeds standard ARM64 runner headroom.
+    # Requires larger-runner access; see scripts/macos-acceptance/README.md.
+    runs-on: macos-26-xlarge
     timeout-minutes: 130
     steps:
       - uses: actions/checkout@v4

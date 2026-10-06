@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [changed] Run full native Mac acceptance on a 14 GB ARM64 cloud runner,
+  preserving the pinned model, context and memory-admission checks.
+
 - [fixed] Retry a transient empty Mac accessibility window list during inspection
   only, preserving ownership, focus, action failures and explicit unavailable state.
 
