@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Keep enabled Settings button labels readable in all four themes with
+  dedicated accent foregrounds and sufficient contrast during hover.
+
 - [fixed] Stop the owned Unix CLI when Desktop closes by replacing its shell
   wrapper with the actual engine process; preserve separately started runtimes.
 
