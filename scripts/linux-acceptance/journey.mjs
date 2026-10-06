@@ -292,7 +292,15 @@ try {
   await screenshot('full-01-selected-model');
   await button('← Workspace');
   await until(() => execute('return document.querySelector("#local-goal")?.getBoundingClientRect().height>0'), 'visible workbench');
-  await button('Review plan again');
+  // Opening Local models intentionally invalidates the old model-bound plan.
+  // Preserve the draft, require fresh consent, and use the initial review action.
+  const returnedDraft = await pickerState();
+  for (const key of ['active', 'recent', 'goal', 'files', 'checks']) assert.deepEqual(returnedDraft[key], unconfiguredPlan[key], key + ' changed during model setup');
+  assert.equal(returnedDraft.plan, null, 'Old model-bound plan must be invalidated');
+  assert.deepEqual(returnedDraft.consent, [false, false]);
+  assert.deepEqual(runFiles(), []); unchanged();
+  record('model setup preserves draft and invalidates the old plan and approvals', returnedDraft);
+  await click('.lw-submit .lw-primary');
   await until(() => execute('return document.querySelector("[aria-label=Plan]")?.textContent.includes(arguments[0]) && [...document.querySelectorAll(".lw-plan-actions button")].some(button=>button.textContent==="Review plan again" && !button.disabled)', selectedRow.profile_sha256), 'fresh calibrated plan replaces unconfigured plan');
   const calibratedPlan = await pickerState(true);
   for (const value of ['port.py', 'unittest', model.model, model.digest.slice(0, 12), selectedRow.profile_sha256]) assert.ok(calibratedPlan.plan.includes(value), value);

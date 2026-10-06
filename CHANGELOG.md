@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Review a fresh Linux acceptance plan after model setup, checking that
+  the draft survives while the old model-bound plan and approvals are cleared.
+
 - [fixed] Measure Linux acceptance disk headroom at the owned external runtime's
   configured model directory; retain the product's unverified-store disclosure.
 
