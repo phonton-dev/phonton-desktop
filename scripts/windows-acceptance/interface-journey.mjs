@@ -39,14 +39,35 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
     ['General', 'General'], ['Steering', 'Steering'], ['MCP', 'MCP servers'],
     ['Doctor', 'Doctor'], ['Updates', 'App updates'],
   ];
+  const settingsFields = {
+    Provider: ['Provider', 'Model', 'API key', 'Base URL', 'Account ID (Cloudflare)'],
+    Budget: ['Max tokens per session', 'Max USD cents per session'],
+    Index: ['Backend', 'Qdrant URL', 'Qdrant collection'],
+    Permissions: ['Default mode'],
+  };
+  const fieldLabels = {};
   for (const [label, heading] of sections) {
     await section(label);
     await until(() => execute(`return [...document.querySelectorAll('.settings-page h2')].some(h => h.textContent.trim() === arguments[0])`, heading), `${label} content`);
     const selected = await execute('return document.querySelector(".settings-nav [aria-current=page]")?.textContent.trim()');
     assert.equal(selected, label, 'Navigation must indicate the rendered settings section');
     assert.equal(await execute('return document.documentElement.scrollWidth > innerWidth + 1'), false, `${label} must not overflow the window horizontally`);
+    if (settingsFields[label]) {
+      fieldLabels[label] = await execute(`return [...document.querySelectorAll('.settings-page input:not([aria-hidden="true"]):not([type="hidden"]), .settings-page [role=combobox]')].map(e => ({
+        id:e.id, labels:[...e.labels ?? []].map(l => l.textContent.trim().replace(/\\s+/g, ' ')).join(' ')
+      }))`);
+      assert.equal(fieldLabels[label].length, settingsFields[label].length, `${label} field inventory`);
+      for (const [index, name] of settingsFields[label].entries()) {
+        assert.ok(fieldLabels[label][index].id, `${name} needs a stable label target`);
+        assert.equal(fieldLabels[label][index].labels.replace(/ \(saved\)$/, ''), name, `${name} must have its real associated label`);
+      }
+    }
+    if (label === 'Steering' || label === 'MCP') {
+      assert.deepEqual(await execute(`return [...document.querySelectorAll('.settings-page button[aria-pressed]')].map(e => ({name:e.textContent.trim(),pressed:e.getAttribute('aria-pressed')}))`),
+        [{name:'Global',pressed:'true'},{name:'This project',pressed:'false'}], 'Default extension scope must expose its selected state');
+    }
   }
-  record('all eleven installed settings sections render with selected navigation');
+  record('all eleven installed settings sections render with selected navigation', {fieldLabels});
 
   const accentChecks = [];
   const movePointer = origin => command('POST', '/actions', { actions: [{ type: 'pointer', id: 'contrast-pointer',
@@ -88,6 +109,8 @@ export async function interfaceJourney({ command, execute, click, screenshot, re
   for (const [label, theme] of [['Graphite', 'nebula'], ['Cursor Dark', 'cursor-dark'], ['Light', 'light'], ['High contrast', 'high-contrast']]) {
     await section('Appearance'); await settingsButton(label);
     await until(() => execute('return document.documentElement.dataset.theme === arguments[0]', theme), `${label} theme`);
+    const pressedThemes = await execute(`return [...document.querySelectorAll('.settings-page button[aria-pressed]')].filter(e => e.getAttribute('aria-pressed') === 'true').map(e => e.textContent.trim())`);
+    assert.deepEqual(pressedThemes, [label], 'Exactly the active theme must expose its pressed state');
     await section('General');
     await until(() => execute(`
       const heading = [...document.querySelectorAll('.settings-page h2')].some(e => e.textContent.trim() === 'General');

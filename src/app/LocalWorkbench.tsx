@@ -449,7 +449,22 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
   const verdict = receipt ? receiptVerdict(receipt) : "unverified";
   const changes = (selected?.diff ?? "").split("\n").reduce((sum, line) => ({ add: sum.add + (line.startsWith("+") && !line.startsWith("+++") ? 1 : 0), del: sum.del + (line.startsWith("-") && !line.startsWith("---") ? 1 : 0) }), { add: 0, del: 0 });
   const selectedChecks = selected?.checks.filter(check => check.purpose !== "preparation") ?? [];
+  // Keep polling logs and diffs out of announcements. Only a changed, concise
+  // phase or confirmed result updates this persistent live region.
+  const currentApply = applyStatus?.run_id === receipt?.id && applyStatus?.candidate_number === selected?.number ? applyStatus : null;
+  const announcement = mutationRecovery ? "File change result is unconfirmed. Recheck the saved journal."
+    : applying ? "Checking files and the saved journal…"
+    : busy ? cancelRequested ? "Cancellation requested. Waiting for the local run to stop." : "Local run in progress."
+    : currentApply?.state === "rolled_back" ? "Rollback confirmed. Review the restored files."
+    : currentApply?.state === "applied" ? "Changes applied. Review the current files."
+    : currentApply?.state === "prepared" || currentApply?.state === "rollback_prepared" ? "File changes need recovery. Review the saved journal before continuing."
+    : receipt ? receipt.state === "review_ready" ? "Run complete. A checked candidate is ready for your review."
+      : receipt.state === "review_unverified" ? "Run complete without a verified candidate. Review the evidence."
+        : `Run stopped: ${label(receipt.state)}. Review the evidence.`
+    : restoring ? restoreError ? "Saved goal needs attention. Review the recovery details." : "Restoring saved goal…"
+    : planning ? "Preparing the plan…" : plan ? "Plan ready for review. Your approval is needed to run it." : "";
   return <div className="local-workbench">
+    <p id="workbench-status" className="sr-only" role="status" aria-atomic="true">{announcement}</p>
     <header className="lw-header"><span className="lw-wordmark"><b aria-hidden="true">φ</b>phonton</span>
       <span className="lw-engine">{connected ? `engine ${engine.version}` : label(engine.status)}</span>
       {record && <span className="lw-record" title={`${record.verified_runs} of ${record.runs} finished runs verified · best streak ${record.best_streak}`}><b>{record.verified_runs.toLocaleString()}</b> verified · streak <b data-hot={record.streak > 0 || undefined}>{record.streak}</b></span>}
