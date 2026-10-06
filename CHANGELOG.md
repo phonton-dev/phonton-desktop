@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Keep enabled Settings button labels readable in all four themes with
+  dedicated accent foregrounds and sufficient contrast during hover.
+
 - [fixed] Limit native Mac accessibility metadata reads to relevant control roles
   while retaining the complete hierarchy, text, geometry and action prerequisites.
   Distinguish unqueried fields from unavailable attributes in retained evidence.
