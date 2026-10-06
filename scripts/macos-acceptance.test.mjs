@@ -157,6 +157,56 @@ test('native typing requires a uniquely visible editable control with settable n
   assert.throws(() => accessibility.axSelect(nativeTree(), buttonSelector, 'type'));
 });
 
+test('offscreen controls can only be revealed through their actual scroll action before pressing', () => {
+  const rows=nativeTree(); rows[2].AXPosition=[18,900]; rows[2].actions=['AXPress','AXScrollToVisible'];
+  assert.throws(() => accessibility.axSelect(rows,buttonSelector,'press'),/one visible native match/);
+  assert.equal(accessibility.axSelect(rows,buttonSelector,'reveal'),rows[2]);
+  for (const mutate of [row => {row.actions=['AXPress'];},row => {row.AXSize=[0,40];},row => {row.AXEnabled=false;}]) {
+    const invalid=structuredClone(rows); mutate(invalid[2]);
+    assert.throws(() => accessibility.axSelect(invalid,buttonSelector,'reveal'));
+  }
+  rows.push({...rows[2],index:3});
+  assert.throws(() => accessibility.axSelect(rows,buttonSelector,'reveal'),/one visible native match/);
+});
+
+test('native context selection requires the exact enabled visible popup with AXPress', () => {
+  const rows=nativeTree(); Object.assign(rows[2],{AXRole:'AXPopUpButton',AXTitle:'Calibration context'});
+  const selector={AXRole:'AXPopUpButton',AXTitle:'Calibration context'};
+  assert.equal(accessibility.axSelect(rows,selector,'select-context'),rows[2]);
+  for (const mutate of [row => {row.actions=[];},row => {row.AXEnabled=false;},row => {row.AXPosition=[18,900];},row => {row.AXRole='AXButton';}]) {
+    const invalid=structuredClone(rows); mutate(invalid[2]);
+    assert.throws(() => accessibility.axSelect(invalid,selector,'select-context'));
+  }
+  rows[2].AXTitle='Another choice';
+  assert.throws(() => accessibility.axSelect(rows,{...selector,AXTitle:'Another choice'},'select-context'),/calibration context/);
+});
+
+test('Go to Folder confirmation requires exact read-back in the uniquely focused nested native field', () => {
+  const rows = [
+    {index:0,parent:null,AXRole:'AXWindow',AXTitle:'Phonton',AXPosition:[0,30],AXSize:[1024,674]},
+    {index:1,parent:0,AXRole:'AXSheet',AXTitle:null,AXPosition:[240,144],AXSize:[710,446]},
+    {index:2,parent:1,AXRole:'AXStaticText',AXValue:'Open repository'},
+    {index:3,parent:1,AXRole:'AXSheet',AXTitle:null,AXPosition:[280,275],AXSize:[460,190]},
+    {index:4,parent:3,AXRole:'AXTextField',AXTitle:null,AXDescription:null,AXValue:'/tmp/fixture',AXFocused:true,AXEnabled:true,
+      AXPosition:[297,283],AXSize:[344,22],actions:['AXShowMenu','AXConfirm'],settable:{AXFocused:true,AXValue:true}},
+  ];
+  const request={scope:'modal',path:'/tmp/fixture'};
+  assert.equal(accessibility.axFolderPath(rows,request,'folder-path-confirm'),rows[4]);
+  for (const mutate of [r => {r[4].AXValue='/tmp/another';},r => {r[4].AXFocused=false;},r => {r[4].parent=1;},
+    r => {r[4].AXEnabled=false;},r => {r[4].actions=[];},r => {r[4].AXSize=[0,22];},
+    r => {r.push({...r[4],index:5});},r => {r[2].AXValue='Another dialog';}]) {
+    const invalid=structuredClone(rows); mutate(invalid);
+    assert.throws(() => accessibility.axFolderPath(invalid,request,'folder-path-confirm'));
+  }
+  for (const fixturePath of ['relative','/tmp/../fixture','/tmp/x\nwrong','/tmp\\fixture']) {
+    assert.throws(() => accessibility.axFolderPath(rows,{...request,path:fixturePath},'folder-path-type'),/fixture path/);
+  }
+  assert.throws(() => accessibility.axFolderPath(rows,{path:'/tmp/fixture'},'folder-path-confirm'));
+  rows[4].AXValue='';
+  assert.equal(accessibility.axFolderPath(rows,request,'folder-path-type'),rows[4]);
+  assert.throws(() => accessibility.axFolderPath(rows,request,'folder-path-confirm'),/match exactly/);
+});
+
 test('observed pressed theme checkboxes require their exact native role, state and AXPress', () => {
   const rows=nativeTree();
   Object.assign(rows[2], {parent:0,AXRole:'AXCheckBox',AXTitle:'Light',AXValue:0,

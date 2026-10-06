@@ -121,6 +121,13 @@ macOS/Linux installed behavior or updater installation; retain those release
 gates until their own evidence exists. NSIS and MSI have separate manifests and
 fresh runners; one installer's result cannot certify the other. MSI checks its
 registered product identity as well as the installed app and engine bytes.
+The manual `macos_installed_probe` mode exercises the exact pinned ARM64 DMG
+with a separately verified external Ollama runtime. Native controls drive model
+download, calibration, repository selection, consent, review, Apply and rollback
+across a normal Quit and reopen. It retains original screenshots, native process
+identities, the original receipt bytes and default WebKit directory identity.
+This workflow is a verification harness: only a reviewed passing run proves its
+bounded journey, and trusted signing remains a separate public-beta gate.
 Engine resources are staged with their actual installed filenames because WiX
 preserves source basenames. This keeps MSI and NSIS runtime layouts consistent.
 For this beta, Windows MSI metadata uses `0.4.0.1`; the app and release assets

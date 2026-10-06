@@ -1,7 +1,7 @@
 // Native accessibility only: this script never evaluates JavaScript in the app.
 function run(args) {
   var pid = Number(args[0]), mode = args[1];
-  if (!(pid > 0) || ['inspect', 'quit', 'press', 'type', 'summary-toggle', 'folder-shortcut'].indexOf(mode) < 0) throw Error('Invalid probe arguments');
+  if (!(pid > 0) || ['inspect', 'quit', 'press', 'type', 'summary-toggle', 'folder-shortcut', 'folder-path-type', 'folder-path-confirm', 'reveal', 'select-context'].indexOf(mode) < 0) throw Error('Invalid probe arguments');
   var system = Application('System Events');
   // Actual owned-process/window queries establish accessibility capability.
   // Permission errors propagate; no permission database or setting is changed.
@@ -92,12 +92,34 @@ function run(args) {
     result.action = { mode: mode, shortcut: request.shortcut, dialog: dialog, native: true };
     return JSON.stringify(result);
   }
+  if (mode === 'folder-path-type' || mode === 'folder-path-confirm') {
+    var field = axFolderPath(rows, request, mode);
+    var pathField = elements[field.index];
+    if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application before path action');
+    progress('native-folder-path', mode);
+    if (mode === 'folder-path-type') {
+      pathField.attributes.byName('AXFocused').value = true;
+      if (pathField.attributes.byName('AXFocused').value() !== true) throw Error('Path field did not retain native focus');
+      system.keystroke('a', { using: ['command down'] });
+      system.keystroke(request.path);
+    } else pathField.actions.byName('AXConfirm').perform();
+    result.action = { mode: mode, path: request.path, selected: field, native: true };
+    return JSON.stringify(result);
+  }
   if (mode !== 'inspect') {
     var selected = axSelect(rows, request.selector, mode);
     var target = elements[selected.index];
     if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application focus before native action');
     progress('native-action', selected.path);
-    if (mode === 'press') target.actions.byName('AXPress').perform();
+    if (mode === 'reveal') target.actions.byName('AXScrollToVisible').perform();
+    else if (mode === 'press') target.actions.byName('AXPress').perform();
+    else if (mode === 'select-context') {
+      // Native select opens its actual menu. Home + two Down chooses the third
+      // source-defined option (4096); a fresh AX read-back is mandatory outside.
+      target.actions.byName('AXPress').perform();
+      if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application before context selection');
+      system.keyCode(115); system.keyCode(125); system.keyCode(125); system.keyCode(36);
+    }
     else if (mode === 'summary-toggle') {
       axToggleSummary(target, system, function () {
         if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application focus before summary key');
@@ -120,6 +142,24 @@ function run(args) {
 // descendants in modal scans; application scans and all other controls stay full.
 function axOmitModalSidebar(scope, row) {
   return scope === 'modal' && row.AXRole === 'AXOutline' && row.AXDescription === 'sidebar';
+}
+
+function axFolderPath(rows, request, mode) {
+  if (request.scope !== 'modal' || ['folder-path-type', 'folder-path-confirm'].indexOf(mode) < 0 ||
+      typeof request.path !== 'string' || request.path[0] !== '/' || request.path.length > 1000 ||
+      /[^\x20-\x7e]/.test(request.path) || request.path.indexOf('\\') >= 0 || request.path.split('/').indexOf('..') >= 0) throw Error('Invalid native fixture path');
+  var dialog = axFolderShortcut(rows, { scope: 'modal', shortcut: 'go-to-folder' });
+  var matches = rows.filter(function (row) {
+    var ancestors = axAncestors(rows, row);
+    return row.AXRole === 'AXTextField' && row.AXTitle === null && row.AXDescription === null && row.AXFocused === true &&
+      ancestors.some(function (parent) { return parent.index === dialog.index; }) &&
+      ancestors.some(function (parent) { return parent.AXRole === 'AXSheet' && parent.index !== dialog.index; }) && axVisible(rows, row);
+  });
+  if (matches.length !== 1) throw Error('Expected one focused native Go to Folder path field, got ' + matches.length);
+  var field = matches[0];
+  if (field.AXEnabled !== true || typeof field.AXValue !== 'string' || !field.settable || field.settable.AXFocused !== true) throw Error('Native path field is not editable');
+  if (mode === 'folder-path-confirm' && (field.AXValue !== request.path || !Array.isArray(field.actions) || field.actions.indexOf('AXConfirm') < 0)) throw Error('Native path must match exactly before confirm');
+  return field;
 }
 
 // Omitted fields were not queried; null means a queried attribute was unavailable.
@@ -213,21 +253,27 @@ function axVisible(rows, row) {
   });
 }
 function axSelect(rows, selector, mode) {
-  if (!selector || ['AXButton', 'AXCheckBox', 'AXDisclosureTriangle', 'AXTextArea', 'AXTextField'].indexOf(selector.AXRole) < 0 ||
+  if (!selector || ['AXButton', 'AXCheckBox', 'AXDisclosureTriangle', 'AXTextArea', 'AXTextField', 'AXPopUpButton'].indexOf(selector.AXRole) < 0 ||
     typeof selector.AXTitle !== 'string' || !selector.AXTitle || Object.keys(selector).some(function (key) { return ['AXRole', 'AXTitle', 'ancestor'].indexOf(key) < 0; })) throw Error('Invalid native selector');
   var matching = rows.filter(function (row) {
     if (row.AXRole !== selector.AXRole || row.AXTitle !== selector.AXTitle) return false;
     if (selector.ancestor && !axAncestors(rows, row).some(function (parent) { return axMatch(parent, selector.ancestor); })) return false;
-    return axVisible(rows, row);
+    if (mode !== 'reveal') return axVisible(rows, row);
+    return Array.isArray(row.AXPosition) && row.AXPosition.length === 2 && row.AXPosition.every(Number.isFinite) &&
+      Array.isArray(row.AXSize) && row.AXSize.length === 2 && row.AXSize.every(function (value) { return Number.isFinite(value) && value > 0; }) &&
+      axAncestors(rows, row).some(function (parent) { return parent.AXRole === 'AXWindow'; });
   });
   if (matching.length !== 1) throw Error('Expected one visible native match, got ' + matching.length);
   var row = matching[0];
   if (row.AXEnabled !== true) throw Error('Native control is disabled or unknown');
   if (mode === 'press' && (!Array.isArray(row.actions) || row.actions.indexOf('AXPress') < 0)) throw Error('Native AXPress is unavailable');
   if (mode === 'press' && row.AXRole === 'AXCheckBox' && [0, 1].indexOf(row.AXValue) < 0) throw Error('Native checkbox state is unavailable');
+  if (mode === 'reveal' && (!Array.isArray(row.actions) || row.actions.indexOf('AXScrollToVisible') < 0)) throw Error('Native scroll-to-visible is unavailable');
+  if (mode === 'select-context' && (row.AXRole !== 'AXPopUpButton' || row.AXTitle !== 'Calibration context' ||
+      !Array.isArray(row.actions) || row.actions.indexOf('AXPress') < 0)) throw Error('Expected actual calibration context menu');
   if (mode === 'type' && (['AXTextArea', 'AXTextField'].indexOf(row.AXRole) < 0 || !row.settable || row.settable.AXFocused !== true)) throw Error('Native text focus is not settable');
   if (mode === 'summary-toggle' && (row.AXRole !== 'AXDisclosureTriangle' || row.AXSubrole !== 'AXSummary' ||
     typeof row.AXValue !== 'boolean' || !row.settable || row.settable.AXFocused !== true)) throw Error('Native summary state or focus is unavailable');
-  if (['press', 'type', 'summary-toggle'].indexOf(mode) < 0) throw Error('Invalid native action');
+  if (['press', 'type', 'summary-toggle', 'reveal', 'select-context'].indexOf(mode) < 0) throw Error('Invalid native action');
   return row;
 }

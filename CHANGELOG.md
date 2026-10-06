@@ -4,6 +4,11 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [added] Full cloud macOS acceptance for native model download, calibration,
+  repository selection, explicit consent, verified review, Apply and rollback
+  across a normal Quit and reopen of the default profile. Execution remains a
+  separate gate; the harness alone does not establish Mac release readiness.
+
 - [fixed] Bound native macOS folder-dialog inspection by explicitly omitting the
   unrelated sidebar descendants while retaining path, Open and Cancel controls.
 

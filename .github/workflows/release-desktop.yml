@@ -9,7 +9,7 @@ on:
         type: string
         default: ''
       macos_installed_probe:
-        description: Probe exact ARM64 DMG native launch, accessibility and normal Quit only
+        description: Test exact ARM64 DMG native model, consent, Apply, retained profile and rollback
         required: false
         type: boolean
         default: false

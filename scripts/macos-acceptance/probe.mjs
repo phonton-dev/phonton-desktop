@@ -7,6 +7,8 @@ import vm from 'node:vm';
 import { setTimeout as delay } from 'node:timers/promises';
 import { assertSameProcess, parseProcessIdentity } from './process-identity.mjs';
 import { interfaceProbe } from './interface-probe.mjs';
+import { fullMacJourney } from './full-journey.mjs';
+import { requireExternalRuntime } from './external-runtime.mjs';
 assert.equal(process.platform, 'darwin'); assert.equal(process.arch, 'arm64');
 assert.equal(process.env.GITHUB_ACTIONS, 'true'); assert.equal(process.env.RUNNER_ENVIRONMENT, 'github-hosted');
 const read = file => JSON.parse(readFileSync(file, 'utf8'));
@@ -18,6 +20,9 @@ const save = (name, value) => writeFileSync(path.join(evidence, name + '.json'),
 const output = (cmd, args) => execFileSync(cmd, args, { encoding: 'utf8', timeout: 30000 }).trim();
 const report = { schema: 1, status: 'running', harnessCommit: process.env.GITHUB_SHA,
   candidateCommit: installed.candidateCommit, scope: 'ARM64 DMG launch, native draft/settings/theme controls, picker Cancel, path/control observation and normal Quit; not folder Select, model/coding/Apply, retained-profile or public-beta acceptance', checks: [] };
+report.fullJourney = process.env.PHONTON_MACOS_FULL_JOURNEY === 'true';
+if (report.fullJourney) report.scope = 'ARM64 native DMG, external Ollama and one existing-file fixture: native download/calibrate/select/consent/goal/Apply/default-profile Quit+reopen/rollback. No trusted publisher, Intel or public updater proof.';
+const external = report.fullJourney ? read('acceptance-evidence/external-runtime.json') : null;
 const record = (name, detail) => { report.checks.push({ name, detail }); save('probe-result', report); };
 const identityHelper = path.join(temporary, 'phonton-process-identity');
 const selectors = vm.createContext({});
@@ -90,6 +95,8 @@ try {
   writeFileSync(path.join(evidence, 'open-help.log'), help.stdout + help.stderr);
   record('no prior app data, WebKit root or app/engine listener', { before, appData, webkitRoot, webkitData, configPath, localState,
     limitation: 'Expected Cocoa default paths only; actual data location and retained-profile behavior are not established by this initial probe' });
+  async function launchSession() {
+  if (external) requireExternalRuntime(external);
   output('/usr/bin/open', ['-n', '--env', 'PATH=' + launchPath, '--env', 'PHONTON_CONFIG_PATH=' + configPath,
     '--env', 'PHONTON_LOCAL_STATE=' + localState, installed.app]);
   const started = await until(() => {
@@ -115,6 +122,9 @@ try {
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'config.get', params: {} }), signal: AbortSignal.timeout(15000) });
   assert.equal(response.status, 200); const configuration = await response.json(); assert.ok(!configuration.error);
   assert.equal(configuration.result.path, configPath); save('configuration', configuration.result);
+  return started;
+  }
+  let started = await launchSession();
   const tree = accessibility(started.apps[0].pid, 'inspect'); save('accessibility', tree);
   assert.equal(tree.pid, started.apps[0].pid); assert.equal(tree.frontmost, true); assert.ok(tree.rows.length > 0);
   output('/usr/sbin/screencapture', ['-x', '-t', 'png', path.join(evidence, '01-native-macos.png')]);
@@ -129,11 +139,26 @@ try {
     assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
     return observed;
   };
-  await interfaceProbe({ inspect, save, record, until,
+  const nativeApi = { inspect, save, record, until,
+    verifyOwnership: () => {
+      for (const row of [...started.apps, ...started.engines]) assertSameProcess(row.native, nativeIdentity(row.pid));
+      const observed = snapshot();
+      assert.equal(observed.apps.length, 1); assert.equal(observed.engines.length, 1);
+      assert.equal(observed.apps[0].pid, started.apps[0].pid); assert.equal(observed.engines[0].pid, started.engines[0].pid);
+      assert.ok(observed.listeners.length > 0 && observed.listeners.every(row => row.pid === started.engines[0].pid && row.address === '127.0.0.1:47831'));
+      return observed;
+    },
     ready: (tree, selector, mode) => {
       try { selectors.axSelect(tree.rows, selector, mode); return true; }
       catch (error) {
         if (/^(Expected one visible native match, got 0|Native control is disabled or unknown)$/.test(error.message)) return false;
+        throw error;
+      }
+    },
+    folderPathReady: (tree, fixture, mode) => {
+      try { selectors.axFolderPath(tree.rows, { scope: 'modal', path: fixture }, mode); return true; }
+      catch (error) {
+        if (/^(Expected one focused native Go to Folder path field, got 0|Native path field is not editable|Native path must match exactly before confirm)$/.test(error.message)) return false;
         throw error;
       }
     },
@@ -145,7 +170,9 @@ try {
       return result;
     },
     capture: label => output('/usr/sbin/screencapture', ['-x', '-t', 'png', path.join(evidence, label + '.png')]),
-  });
+  };
+  await interfaceProbe(nativeApi);
+  async function closeSession(label) {
   const owned = descendants(started.apps[0].pid, snapshot().processes);
   for (const row of owned) {
     trackedPids.add(row.pid);
@@ -163,7 +190,22 @@ try {
       !value.processes.some(row => owned.some(prior => row.pid === prior.pid)) &&
       !value.processes.some(row => ['phonton-desktop', 'phonton'].includes(path.posix.basename(row.comm))) ? value : false;
   }, 'normal Quit removes app and owned CLI before harness teardown', 30000);
-  record('normal native Quit removes owned processes and listener', { owned, closed });
+  const runtime = external ? requireExternalRuntime(external) : undefined;
+  record(label, { owned, closed, ...(runtime ? { externalRuntime: runtime } : {}) });
+  }
+  if (report.fullJourney) {
+    await fullMacJourney({ ...nativeApi, temporary, evidence, stateDirectory: state, webkitData, external,
+      closeNormally: () => closeSession('first normal Quit removes owned processes and retains external runtime'),
+      reopen: async () => {
+        const previous = started.apps[0].native;
+        started = await launchSession();
+        assert.notEqual(started.apps[0].pid, previous.pid, 'Reopen must create a new native application');
+        return { previous, restarted: started.apps[0].native };
+      },
+    });
+    report.fullJourneyCompleted = true;
+  }
+  await closeSession('normal native Quit removes owned processes and listener');
   report.status = 'passed'; save('probe-result', report);
 } catch (error) {
   report.status = 'failed'; report.error = String(error.stack || error);
