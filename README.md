@@ -2,6 +2,9 @@
 
 Private desktop shell for Phonton.
 
+Settings buttons use contrasting accent foregrounds in Graphite, Cursor Dark,
+Light and High contrast, including their hover states.
+
 The unreleased local workspace now opens without an account. Its dark monospace
 composer shows repository, selected local model, explicit file scope and execution
 permissions. Model management and candidate execution use the same core as CLI
