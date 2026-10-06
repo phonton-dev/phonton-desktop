@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Bound Mac cloud folder confirmation inspection by omitting the native
+  column file listing while retaining path, Open, Cancel and selection checks.
+
 - [fixed] Enter the Mac cloud fixture path through its native editable value
   interface and require exact text and focus readback before confirming it.
 
