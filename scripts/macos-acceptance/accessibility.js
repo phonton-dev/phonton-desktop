@@ -98,10 +98,9 @@ function run(args) {
     if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application before path action');
     progress('native-folder-path', mode);
     if (mode === 'folder-path-type') {
-      pathField.attributes.byName('AXFocused').value = true;
-      if (pathField.attributes.byName('AXFocused').value() !== true) throw Error('Path field did not retain native focus');
-      system.keystroke('a', { using: ['command down'] });
-      system.keystroke(request.path);
+      axSetFolderPath(pathField, request.path, function () {
+        if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application before folder value');
+      });
     } else axConfirmFolderPath(pathField, request.path, system, function () {
       if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application before folder Return');
     });
@@ -160,8 +159,20 @@ function axFolderPath(rows, request, mode) {
   if (matches.length !== 1) throw Error('Expected one focused native Go to Folder path field, got ' + matches.length);
   var field = matches[0];
   if (field.AXEnabled !== true || typeof field.AXValue !== 'string' || !field.settable || field.settable.AXFocused !== true) throw Error('Native path field is not editable');
+  if (mode === 'folder-path-type' && field.settable.AXValue !== true) throw Error('Native path value is not settable');
   if (mode === 'folder-path-confirm' && (field.AXValue !== request.path || !Array.isArray(field.actions) || field.actions.indexOf('AXConfirm') < 0)) throw Error('Native path must match exactly before confirm');
   return field;
+}
+
+// Native path completion can drop the beginning of a batched keystroke. This
+// AppKit field advertises settable AXValue; use that native control interface
+// once, then retain immediate and separately observed exact-value readbacks.
+function axSetFolderPath(target, expectedPath, assertOwned) {
+  if (target.attributes.byName('AXFocused').value() !== true) throw Error('Native path lost focus before value');
+  assertOwned();
+  target.attributes.byName('AXValue').value = expectedPath;
+  if (target.attributes.byName('AXValue').value() !== expectedPath) throw Error('Native path value did not match after entry');
+  if (target.attributes.byName('AXFocused').value() !== true) throw Error('Native path lost focus after value');
 }
 
 // The native Go to Folder text field advertises AXConfirm, but the observed

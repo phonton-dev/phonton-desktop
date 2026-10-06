@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Enter the Mac cloud fixture path through its native editable value
+  interface and require exact text and focus readback before confirming it.
+
 - [fixed] Confirm the cloud Mac repository picker with one guarded native Return
   after exact path readback, then require the actual folder selection to finish.
 

@@ -205,6 +205,28 @@ test('Go to Folder confirmation requires exact read-back in the uniquely focused
   rows[4].AXValue='';
   assert.equal(accessibility.axFolderPath(rows,request,'folder-path-type'),rows[4]);
   assert.throws(() => accessibility.axFolderPath(rows,request,'folder-path-confirm'),/match exactly/);
+  rows[4].settable.AXValue=false;
+  assert.throws(() => accessibility.axFolderPath(rows,request,'folder-path-type'),/not settable/);
+});
+
+test('native folder value entry rejects lost ownership, focus and truncated readback', () => {
+  const expected = '/tmp/phonton macos acceptance fixture';
+  function probe({focused=true,owned=true,truncated=false,loseFocus=false}={}) {
+    let value = ''; const writes = [];
+    const attribute = {};
+    Object.defineProperty(attribute, 'value', {
+      get: () => () => value,
+      set: next => { writes.push(next); value = truncated ? next.slice(4) : next; if (loseFocus) focused=false; },
+    });
+    const target = {attributes:{byName:name => name === 'AXValue' ? attribute : {value:() => focused}}};
+    return {writes, run:() => accessibility.axSetFolderPath(target,expected,() => { if (!owned) throw Error('Lost owner'); })};
+  }
+  const good=probe();good.run();assert.deepEqual(good.writes,[expected]);
+  for (const options of [{focused:false},{owned:false}]) {
+    const denied=probe(options);assert.throws(denied.run);assert.deepEqual(denied.writes,[]);
+  }
+  const truncated=probe({truncated:true});assert.throws(truncated.run,/did not match/);assert.equal(truncated.writes.length,1);
+  const changedFocus=probe({loseFocus:true});assert.throws(changedFocus.run,/lost focus after/);assert.equal(changedFocus.writes.length,1);
 });
 
 test('Go to Folder sends one Return only while exact text, focus and ownership still hold', () => {
