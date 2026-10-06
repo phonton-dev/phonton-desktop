@@ -14,35 +14,64 @@ function run(args) {
     system.keystroke('q', { using: ['command down'] });
     return JSON.stringify({ action: 'Command-Q', pid: pid, native: true });
   }
+  var request = args[2] ? JSON.parse(args[2]) : {};
+  if (request.scope && request.scope !== 'modal') throw Error('Invalid native inspection scope');
+  function progress(stage, detail) {
+    console.log(JSON.stringify({ time: new Date().toISOString(), pid: pid, mode: mode, scope: request.scope || 'application', stage: stage, detail: detail }));
+  }
+  progress('windows', null);
   var rows = [], elements = [], queue = app.windows().map(function (item, index) { return { item: item, depth: 0, parent: null, path: [index] }; });
   if (!queue.length) throw Error('No native window');
   function attr(item, name) {
     try { return item.attributes.byName(name).value(); } catch (error) { return null; }
+  }
+  var modal = null;
+  if (request.scope === 'modal') {
+    modal = axFindModal(queue.map(function (entry) { return entry.item; }), function (item, path) {
+      progress('discover-role', path); var role = attr(item, 'AXRole');
+      progress('discover-subrole', path); return { AXRole: role, AXSubrole: attr(item, 'AXSubrole') };
+    }, function (item, path) { progress('discover-children', path); return item.uiElements(); });
+    if (!modal.chain) {
+      if (mode !== 'inspect') throw Error('Owned native dialog disappeared before action');
+      return JSON.stringify({ schema: 2, pid: pid, application: app.name(), frontmost: app.frontmost(), rows: [], modalScope: { found: false, visited: modal.visited } });
+    }
+    // Keep actual ancestors for ownership/clipping while avoiding inactive web content.
+    queue = [{ item: modal.chain[0].item, path: modal.chain[0].path, depth: 0, parent: null, chainIndex: 0 }];
   }
   while (queue.length) {
     var current = queue.shift();
     if (rows.length >= 2500 || current.depth > 24) throw Error('Accessibility tree exceeded bound');
     var item = current.item, row = { index: rows.length, parent: current.parent, path: current.path, depth: current.depth };
     ['AXRole', 'AXSubrole', 'AXTitle', 'AXDescription', 'AXValue', 'AXEnabled', 'AXPosition', 'AXSize', 'AXFocused', 'AXSelected', 'AXCurrent'].forEach(function (name) {
+      progress('attribute-' + name, current.path);
       var value = attr(item, name);
       if (typeof value === 'string') value = value.slice(0, 1000);
       if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' || Array.isArray(value)) row[name] = value;
     });
+    progress('actions', current.path);
     row.actions = item.actions().map(function (action) { return action.name(); });
     row.settable = {};
     ['AXValue', 'AXFocused'].forEach(function (name) {
+      progress('settable-' + name, current.path);
       try { row.settable[name] = item.attributes.byName(name).settable(); }
       catch (error) { row.settable[name] = null; }
     });
     rows.push(row); elements.push(item);
-    item.uiElements().forEach(function (child, index) { queue.push({ item: child, depth: current.depth + 1, parent: row.index, path: current.path.concat([index]) }); });
+    progress('children', current.path);
+    if (modal && current.chainIndex < modal.chain.length - 1) {
+      var next = modal.chain[current.chainIndex + 1];
+      queue.push({ item: next.item, depth: current.depth + 1, parent: row.index, path: next.path, chainIndex: current.chainIndex + 1 });
+    } else {
+      item.uiElements().forEach(function (child, index) { queue.push({ item: child, depth: current.depth + 1, parent: row.index, path: current.path.concat([index]) }); });
+    }
   }
   var result = { schema: 2, pid: pid, application: app.name(), frontmost: app.frontmost(), rows: rows };
+  if (modal) result.modalScope = { found: true, visited: modal.visited, path: modal.chain[modal.chain.length - 1].path };
   if (mode !== 'inspect') {
-    var request = JSON.parse(args[2]);
     var selected = axSelect(rows, request.selector, mode);
     var target = elements[selected.index];
     if (!app.frontmost() || app.unixId() !== pid) throw Error('Lost owned application focus before native action');
+    progress('native-action', selected.path);
     if (mode === 'press') target.actions.byName('AXPress').perform();
     else {
       if (typeof request.text !== 'string' || request.text.length > 1000 || /[^\x20-\x7e]/.test(request.text)) throw Error('Expected bounded printable ASCII text');
@@ -54,6 +83,28 @@ function run(args) {
     result.action = { mode: mode, selector: request.selector, selected: selected, native: true };
   }
   return JSON.stringify(result);
+}
+
+// Discover native dialogs without traversing the inactive application's web tree.
+// Missing/ambiguous ownership stays explicit; there is no fallback coordinate action.
+function axFindModal(roots, describe, children) {
+  var queue = roots.map(function (item, index) { return { item: item, path: [index], chain: [] }; });
+  var matches = [], visited = 0;
+  while (queue.length) {
+    var entry = queue.shift();
+    if (++visited > 512 || entry.path.length > 12) throw Error('Native modal discovery exceeded bound');
+    var row = describe(entry.item, entry.path);
+    var chain = entry.chain.concat([{ item: entry.item, path: entry.path }]);
+    if (['AXSheet', 'AXDialog'].indexOf(row.AXRole) >= 0 || row.AXRole === 'AXWindow' && row.AXSubrole === 'AXDialog') {
+      matches.push(chain); continue;
+    }
+    if (row.AXRole === 'AXWebArea') continue;
+    children(entry.item, entry.path).forEach(function (item, index) {
+      queue.push({ item: item, path: entry.path.concat([index]), chain: chain });
+    });
+  }
+  if (matches.length > 1) throw Error('Expected one owned native dialog, got ' + matches.length);
+  return { chain: matches[0] || null, visited: visited };
 }
 
 

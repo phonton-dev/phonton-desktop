@@ -4,17 +4,17 @@ import { setTimeout as delay } from 'node:timers/promises';
 /** Native AX actions only; this bounded probe does not claim model/Apply acceptance. */
 export async function interfaceProbe({ inspect, action, capture, save, record, until, ready }) {
   let sequence = 0;
-  const observe = async label => {
+  const observe = async (label, scope) => {
     await delay(300);
-    const tree = inspect();
+    const tree = inspect(scope);
     save(`ui-${String(++sequence).padStart(2, '0')}-${label}`, tree);
     capture(`ui-${String(sequence).padStart(2, '0')}-${label}`);
     return tree;
   };
-  const press = async (title, ancestor) => {
+  const press = async (title, ancestor, scope) => {
     const selector = { AXRole: 'AXButton', AXTitle: title, ...(ancestor ? { ancestor } : {}) };
-    await until(() => ready(inspect(), selector, 'press'), `native ${title} control ready`, 30000);
-    return action('press', { selector }); // Exactly one action after bounded read-only readiness.
+    await until(() => ready(inspect(scope), selector, 'press'), `native ${title} control ready`, 30000);
+    return action('press', { selector, ...(scope ? { scope } : {}) }); // Exactly one action after bounded read-only readiness.
   };
   const emptyRepository = tree => {
     assert.equal(tree.rows.filter(row => row.AXRole === 'AXStaticText' && row.AXValue === 'No repository open').length, 1);
@@ -54,7 +54,7 @@ export async function interfaceProbe({ inspect, action, capture, save, record, u
 
   await press('Change folder ↗');
   const picker = await until(() => {
-    const tree = inspect();
+    const tree = inspect('modal');
     const dialogs = tree.rows.filter(row => ['AXSheet', 'AXDialog'].includes(row.AXRole) || row.AXRole === 'AXWindow' && row.AXSubrole === 'AXDialog');
     if (dialogs.length !== 1) return false;
     const dialog = dialogs[0];
@@ -66,13 +66,13 @@ export async function interfaceProbe({ inspect, action, capture, save, record, u
       [row.AXTitle, row.AXDescription, row.AXValue].includes('Open repository'));
     return identified ? { tree, dialog } : false;
   }, 'owned native folder dialog', 30000);
-  await observe('native-folder-dialog');
+  await observe('native-folder-dialog', 'modal');
   const ancestor = { AXRole: picker.dialog.AXRole };
   if (picker.dialog.AXSubrole) ancestor.AXSubrole = picker.dialog.AXSubrole;
   if (picker.dialog.AXTitle) ancestor.AXTitle = picker.dialog.AXTitle;
-  await press('Cancel', ancestor);
+  await press('Cancel', ancestor, 'modal');
   await until(() => {
-    const tree = inspect();
+    const tree = inspect('modal');
     return !tree.rows.some(row => ['AXSheet', 'AXDialog'].includes(row.AXRole) || row.AXRole === 'AXWindow' && row.AXSubrole === 'AXDialog') ? tree : false;
   }, 'native Cancel dismisses owned chooser', 30000);
   const cancelled = await observe('picker-cancelled-draft');

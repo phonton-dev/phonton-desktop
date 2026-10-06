@@ -10,6 +10,27 @@ import { assertSameProcess, parseProcessIdentity } from './macos-acceptance/proc
 const accessibility = vm.createContext({});
 vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), accessibility);
 const buttonSelector = { AXRole: 'AXButton', AXTitle: 'Settings', ancestor: { AXRole: 'AXGroup', AXTitle: 'Workspace' } };
+test('native modal discovery preserves ancestors and excludes inactive web content', () => {
+  const cancel = { AXRole: 'AXButton', AXTitle: 'Cancel' };
+  const sheet = { AXRole: 'AXSheet', children: [cancel] };
+  const web = { AXRole: 'AXWebArea' };
+  const group = { AXRole: 'AXGroup', children: [web, sheet] };
+  const window = { AXRole: 'AXWindow', children: [group] };
+  const visited = [];
+  const children = node => {
+    assert.notEqual(node, web, 'Inactive web tree must never be traversed');
+    assert.notEqual(node, sheet, 'Discovery must leave modal contents to the scoped scan');
+    visited.push(node); return node.children || [];
+  };
+  const result = accessibility.axFindModal([window], node => node, children);
+  assert.deepEqual(Array.from(result.chain, entry => entry.item), [window, group, sheet]);
+  assert.deepEqual(Array.from(result.chain[2].path), [0, 0, 1]);
+  assert.deepEqual(visited, [window, group]);
+  assert.equal(accessibility.axFindModal([web], node => node, children).chain, null);
+  assert.throws(() => accessibility.axFindModal([window, { AXRole: 'AXWindow', AXSubrole: 'AXDialog' }], node => node, children), /one owned native dialog/);
+  const cycle = { AXRole: 'AXGroup' }; cycle.children = [cycle];
+  assert.throws(() => accessibility.axFindModal([cycle], node => node, node => node.children), /exceeded bound/);
+});
 function nativeTree() {
   return [
     { index: 0, parent: null, AXRole: 'AXWindow', AXTitle: 'Phonton', AXPosition: [0, 30], AXSize: [1024, 674] },
@@ -17,6 +38,18 @@ function nativeTree() {
     { index: 2, parent: 1, AXRole: 'AXButton', AXTitle: 'Settings', AXEnabled: true, AXPosition: [18, 354], AXSize: [151, 40], actions: ['AXPress'], settable: { AXFocused: true } },
   ];
 }
+test('a dialog disappearing between readiness and action cannot count as native Cancel', () => {
+  const context = vm.createContext({ console: { log() {} } });
+  const window = { attributes: { byName: name => ({ value: () => name === 'AXRole' ? 'AXWindow' : null }) }, uiElements: () => [] };
+  const app = { unixId: () => 42, name: () => 'Phonton', windows: () => [window] };
+  Object.defineProperty(app, 'frontmost', { get: () => () => true, set() {} });
+  context.Application = () => ({ processes: { whose: () => () => [app] } });
+  vm.runInContext(readFileSync(new URL('./macos-acceptance/accessibility.js', import.meta.url), 'utf8'), context);
+  assert.equal(JSON.parse(context.run(['42', 'inspect', JSON.stringify({ scope: 'modal' })])).modalScope.found, false);
+  for (const mode of ['press', 'type']) {
+    assert.throws(() => context.run(['42', mode, JSON.stringify({ scope: 'modal', selector: { AXRole: 'AXButton', AXTitle: 'Cancel' } })]), /disappeared before action/);
+  }
+});
 test('native accessibility resolves unique owned hierarchy and rejects ambiguity, clipping or unsupported actions', () => {
   const tree = nativeTree();
   assert.equal(accessibility.axSelect(tree, buttonSelector, 'press'), tree[2]);

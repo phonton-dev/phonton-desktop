@@ -58,8 +58,19 @@ async function until(check, label, timeout = 60000) {
   while (Date.now() < end) { const value = await check(); if (value) return value; await delay(500); }
   throw new Error('Timed out: ' + label);
 }
+let accessibilityCalls = 0;
 function accessibility(pid, mode, request) {
-  return JSON.parse(output('/usr/bin/osascript', ['-l', 'JavaScript', 'scripts/macos-acceptance/accessibility.js', String(pid), mode, ...(request ? [JSON.stringify(request)] : [])]));
+  const label = `ax-invocation-${String(++accessibilityCalls).padStart(3, '0')}`;
+  const started = Date.now();
+  const result = spawnSync('/usr/bin/osascript', ['-l', 'JavaScript', 'scripts/macos-acceptance/accessibility.js', String(pid), mode, ...(request ? [JSON.stringify(request)] : [])],
+    { encoding: 'utf8', timeout: 30000, maxBuffer: 8 * 1024 ** 2 });
+  // Preserve partial operation progress even if the native bridge times out.
+  writeFileSync(path.join(evidence, label + '.stdout.log'), result.stdout || '', { flag: 'wx' });
+  writeFileSync(path.join(evidence, label + '.stderr.log'), result.stderr || '', { flag: 'wx' });
+  save(label, { pid, mode, scope: request?.scope || 'application', elapsedMs: Date.now() - started,
+    status: result.status, signal: result.signal, error: result.error ? String(result.error) : null });
+  assert.ifError(result.error); assert.equal(result.status, 0, 'Native accessibility command failed: ' + label);
+  return JSON.parse(result.stdout);
 }
 try {
   assert.equal(hash(installed.binary), installed.desktopSha256); assert.equal(hash(installed.engine), installed.engineSha256);
@@ -111,9 +122,9 @@ try {
   record('native accessibility tree and original screen captured', { pid: tree.pid, rows: tree.rows.length,
     storagePaths: { appData: { path: appData, exists: existsSync(appData) }, webkitRoot: { path: webkitRoot, exists: existsSync(webkitRoot) }, webkitData: { path: webkitData, exists: existsSync(webkitData) } } });
   let nativeActions = 0;
-  const inspect = () => {
+  const inspect = scope => {
     assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
-    const observed = accessibility(started.apps[0].pid, 'inspect');
+    const observed = accessibility(started.apps[0].pid, 'inspect', scope ? { scope } : undefined);
     assert.equal(observed.pid, started.apps[0].pid); assert.equal(observed.frontmost, true);
     assertSameProcess(started.apps[0].native, nativeIdentity(started.apps[0].pid));
     return observed;
