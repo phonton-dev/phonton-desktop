@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Stop the owned Unix CLI when Desktop closes by replacing its shell
+  wrapper with the actual engine process; preserve separately started runtimes.
+
 - [fixed] Check rendered diagnostic visibility during native recovery acceptance;
   closed disclosures may retain nonzero layout dimensions. Keep separate checks
   for expanded text, compact viewport clipping and closing the disclosure again.

@@ -44,6 +44,9 @@ Object before it starts. Closing or crashing Desktop ends that engine instead
 of leaving an orphan on the local port; reloading the view within the same app
 keeps its tracked engine and operations. A hard stop can interrupt active work,
 which must be reviewed from saved run evidence after reopening.
+On Unix, the launch shell replaces itself with the CLI so Desktop tracks the
+engine directly. Normal close stops that owned CLI; a separately started Ollama
+runtime remains independent. Installed Linux lifecycle acceptance is still pending.
 For an iterative unsigned debug preview, run
 `.\node_modules\.bin\tauri.cmd build --debug --config src-tauri/tauri.local.conf.json --no-sign`;
 the build hook prepares the debug engine automatically. A standalone Desktop
