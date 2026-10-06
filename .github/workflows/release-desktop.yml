@@ -8,6 +8,24 @@ on:
         required: false
         type: string
         default: ''
+      macos_installed_probe:
+        description: Test exact ARM64 DMG native model, consent, Apply, retained profile and rollback
+        required: false
+        type: boolean
+        default: false
+      linux_installed_acceptance:
+        description: Run only the pinned native Linux acceptance journey
+        required: false
+        type: boolean
+        default: false
+      linux_package:
+        description: Linux package to launch through the native full journey
+        required: false
+        type: choice
+        options:
+          - debian
+          - appimage
+        default: debian
   push:
     tags:
       - 'v*'
@@ -20,8 +38,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  acceptance-mode:
+    name: Check manual acceptance mode
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Reject conflicting acceptance modes
+        env:
+          UPDATER_PIN: ${{ inputs.updater_candidate_pin }}
+          LINUX_ACCEPTANCE: ${{ inputs.linux_installed_acceptance }}
+          MACOS_PROBE: ${{ inputs.macos_installed_probe }}
+        run: node -e "if([!!process.env.UPDATER_PIN,process.env.LINUX_ACCEPTANCE==='true',process.env.MACOS_PROBE==='true'].filter(Boolean).length>1) throw Error('Choose one acceptance mode')"
+
+  installed-linux:
+    if: github.event_name == 'workflow_dispatch' && inputs.linux_installed_acceptance == true && inputs.updater_candidate_pin == '' && inputs.macos_installed_probe != true
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/linux-installed-acceptance.yml
+    with:
+      package: ${{ inputs.linux_package || 'debian' }}
+
+  installed-macos-probe:
+    if: github.event_name == 'workflow_dispatch' && inputs.macos_installed_probe == true && inputs.linux_installed_acceptance != true && inputs.updater_candidate_pin == ''
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/macos-installed-acceptance.yml
+
   controlled-updater:
-    if: github.event_name == 'workflow_dispatch' && inputs.updater_candidate_pin != ''
+    if: github.event_name == 'workflow_dispatch' && inputs.updater_candidate_pin != '' && inputs.linux_installed_acceptance != true && inputs.macos_installed_probe != true
     permissions:
       contents: read
       actions: read
@@ -31,7 +79,7 @@ jobs:
 
   preflight:
     name: Check pinned engine and release state
-    if: github.event_name != 'workflow_dispatch' || inputs.updater_candidate_pin == ''
+    if: github.event_name != 'workflow_dispatch' || (inputs.updater_candidate_pin == '' && inputs.linux_installed_acceptance != true && inputs.macos_installed_probe != true)
     runs-on: ubuntu-latest
     outputs:
       engine_sha: ${{ steps.engine.outputs.sha }}

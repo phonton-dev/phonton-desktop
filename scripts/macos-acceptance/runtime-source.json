@@ -1,0 +1,8 @@
+{
+  "version": "0.34.2",
+  "assetId": 571251035,
+  "name": "ollama-darwin.tgz",
+  "bytes": 158526160,
+  "sha256": "f33b2a5aa59bc6c961ed3ec23ba9dc646ca6d99ced8d2a0d46eb3a522167dd3f",
+  "url": "https://github.com/ollama/ollama/releases/download/v0.34.2/ollama-darwin.tgz"
+}

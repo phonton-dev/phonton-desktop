@@ -1,0 +1,73 @@
+name: Accept installed macOS DMG candidate
+on:
+  workflow_call:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: macos-installed-probe-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  probe:
+    name: Check ARM64 DMG model, review, Apply and retained profile
+    runs-on: macos-latest
+    timeout-minutes: 130
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - name: Record disposable native environment
+        run: |
+          test "$(uname -m)" = arm64
+          sw_vers
+          xcodebuild -version
+          clang --version
+      - name: Compile independent native process identity helper
+        run: |
+          cc -std=c11 -Wall -Wextra -Werror scripts/macos-acceptance/process-identity.c -o "$RUNNER_TEMP/phonton-process-identity"
+          "$RUNNER_TEMP/phonton-process-identity" "$$"
+      - name: Verify exact accepted macOS artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/macos-acceptance/prepare-source.mjs
+      - uses: actions/checkout@v4
+        with:
+          repository: phonton-dev/phonton-cli
+          ref: ${{ steps.source.outputs.engine_sha }}
+          path: phonton-dev
+          persist-credentials: false
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: phonton-dev
+          shared-key: macos-installed-cli
+          cache-on-failure: true
+      - name: Check source contracts
+        env:
+          PHONTON_TEST_MACOS_IDENTITY: '1'
+        run: |
+          node --test scripts/macos-acceptance.test.mjs
+          python3 -B scripts/macos-acceptance/extract_runtime_test.py
+      - name: Build exact external CLI
+        run: cargo build --manifest-path phonton-dev/Cargo.toml --release --locked -p phonton-cli -j 2
+      - name: Copy unchanged app from read-only DMG
+        run: node scripts/macos-acceptance/install.mjs
+      - name: Verify pinned external Darwin runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/macos-acceptance/prepare-runtime.mjs
+      - name: Exercise native model, consent, Apply, retained profile and rollback
+        run: node scripts/macos-acceptance/run-full.mjs
+      - name: Retain native capability evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installed-probe-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7

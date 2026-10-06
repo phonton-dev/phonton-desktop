@@ -4,6 +4,98 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Enter the Mac cloud fixture path through its native editable value
+  interface and require exact text and focus readback before confirming it.
+
+- [fixed] Remove owned cloud updater environment values with a true CLR null,
+  preserving exact absence checks on current PowerShell and .NET versions.
+
+- [fixed] Keep cloud updater instrumentation available after Windows recreates the
+  restart environment, with exact runner-user fixture paths, per-executable
+  loopback debugging and ownership-checked cleanup. Default app data stays intact.
+
+- [fixed] Bound cloud updater TLS setup and record trust stages, using an exact
+  temporary certificate in the disposable runner's machine store with verified cleanup.
+
+- [fixed] Read consistent native Linux folder-entry text, caret and focus before
+  Open, using an explicit directory separator and retaining unsettled observations.
+
+- [fixed] Review a fresh Linux acceptance plan after model setup, checking that
+  the draft survives while the old model-bound plan and approvals are cleared.
+
+- [fixed] Measure Linux acceptance disk headroom at the owned external runtime's
+  configured model directory; retain the product's unverified-store disclosure.
+
+- [fixed] Refresh stale native chooser accessibility during close observation;
+  require the same live app and independent native-window absence before passing.
+
+- [fixed] Navigate the native Linux chooser out of Recent before selecting a
+  repository; verify entry caret and focus, then wait for its enabled Open action.
+
+- [fixed] Query supported AT-SPI interfaces for the native GTK location entry,
+  record its identity, and check API availability before cloud compilation.
+  Retain compiler caches when later native acceptance fails.
+
+- [fixed] Bind native AppImage mount type and source to the actual packaged
+  runtime basename, preserving read-only mount, executable hash and daemon checks.
+
+- [fixed] Wait through an empty loopback proxy connection during Linux native
+  driver startup while retaining strict HTTP/JSON checks and a bounded deadline.
+
+- [fixed] Require both chooser PID and title during Linux native acceptance;
+  record and recheck window ownership and focus before keyboard input.
+
+- [added] Separate full native acceptance through the exact AppImage, with its
+  own packaged executable hash, read-only FUSE mount and daemon identity, normal
+  unmount on close, and retained default profile after a fresh launch.
+
+- [added] Cloud acceptance for the exact installed Debian candidate with an
+  external local runtime: native repository selection, explicit context consent,
+  calibration, verified changes, Apply, retained receipt and exact rollback.
+  Keep AppImage and other platforms as separate acceptance gates.
+  Read candidate build evidence through GitHub CLI's sanitized log command.
+  Select GCC12 for the pinned CLI's native dependency on Ubuntu22.04 and retain
+  compiler identity plus a compile-only FP16 capability probe in cloud evidence.
+
+- [fixed] Confirm the cloud Mac repository picker with one guarded native Return
+  after exact path readback, then require the actual folder selection to finish.
+
+- [fixed] Bound Mac cloud runtime startup independently of its initial GPU
+  discovery watchdog and retain HTTP readiness evidence before native testing.
+
+- [added] Full cloud macOS acceptance for native model download, calibration,
+  repository selection, explicit consent, verified review, Apply and rollback
+  across a normal Quit and reopen of the default profile. Execution remains a
+  separate gate; the harness alone does not establish Mac release readiness.
+
+- [fixed] Bound native macOS folder-dialog inspection by explicitly omitting the
+  unrelated sidebar descendants while retaining path, Open and Cancel controls.
+
+- [fixed] Use the observed native Mac checkbox role for pressed theme controls
+  and verify that exactly one theme reports its selected state.
+
+- [added] Bounded native Mac observation of scope, permissions, model controls and
+  repository path navigation, with retained drafts and no model or file mutation.
+
+- [fixed] Limit native Mac accessibility metadata reads to relevant control roles
+  while retaining the complete hierarchy, text, geometry and action prerequisites.
+  Distinguish unqueried fields from unavailable attributes in retained evidence.
+
+- [fixed] Scope native Mac chooser checks to the uniquely owned dialog, retaining
+  window ancestry, strict controls and partial operation logs on bounded failures.
+
+- [added] Native macOS accessibility control checks for draft retention, Settings,
+  theme controls and folder-picker Cancel, with owned-process and original-screen evidence.
+
+- [fixed] Probe native Mac accessibility through actual owned-window queries;
+  remove an invalid scripting-property lookup without changing permissions.
+
+- [fixed] Identify macOS acceptance processes through native executable paths and
+  kernel start times; retain independent file, mapping, ownership and Quit checks.
+
+- [added] Separate cloud probe for unchanged ARM64 DMG installation, native
+  accessibility and normal Quit, with explicit limits on full journey/signing claims.
+
 - [fixed] Bundle native-scrollbar hiding styles for custom scroll areas, removing
   duplicate tracks in packaged Settings while retaining native scrolling.
 

@@ -1,0 +1,109 @@
+name: Accept native Linux package candidate
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: Debian installation or mounted AppImage
+        type: string
+        required: false
+        default: debian
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: linux-installed-acceptance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  debian:
+    name: Check native ${{ inputs.package }} app and external local runtime
+    runs-on: ubuntu-22.04
+    timeout-minutes: 130
+    env:
+      PHONTON_ACCEPTANCE_PACKAGE: ${{ inputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@1.99.0
+      - run: npm ci
+      - name: Verify exact accepted Linux artifact
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/linux-acceptance/prepare-source.mjs
+      - uses: actions/checkout@v4
+        with:
+          repository: phonton-dev/phonton-cli
+          ref: ${{ steps.source.outputs.engine_sha }}
+          path: phonton-dev
+          persist-credentials: false
+      - name: Check acceptance contracts
+        run: |
+          node --test scripts/*.test.mjs
+          python3 -m unittest discover -s scripts/linux-acceptance -p '*_test.py'
+          python3 -c "import ast,pathlib; [ast.parse(p.read_text()) for p in pathlib.Path('scripts/linux-acceptance').glob('*.py')]"
+      - name: Install native cloud desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-0 webkit2gtk-driver libgtk-3-0 libssl-dev pkg-config \
+            xvfb xauth openbox dbus-x11 at-spi2-core libatk-adaptor python3-gi gir1.2-atspi-2.0 \
+            xdotool wmctrl imagemagick libfuse2 zstd gcc-12 g++-12
+      - name: Verify native accessibility API before compilation
+        run: |
+          python3 - <<'PY'
+          import gi
+          gi.require_version('Atspi', '2.0')
+          from gi.repository import Atspi
+          for method in ['clear_cache', 'get_interfaces', 'get_editable_text_iface', 'get_text_iface', 'get_action_iface', 'get_process_id', 'get_state_set', 'get_child_at_index', 'get_child_count', 'get_name', 'get_role']:
+              assert hasattr(Atspi.Accessible, method), method
+          assert hasattr(Atspi.EditableText, 'set_text_contents')
+          for method in ['get_text', 'set_caret_offset', 'get_caret_offset']:
+              assert hasattr(Atspi.Text, method), method
+          for method in ['get_action_name', 'get_n_actions', 'do_action']:
+              assert hasattr(Atspi.Action, method), method
+          print('Required native AT-SPI APIs are available; UI behavior remains untested.')
+          PY
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: phonton-dev
+          shared-key: linux-installed-cli
+          cache-on-failure: true
+      - name: Build exact external CLI and pinned WebDriver
+        env:
+          CC: gcc-12
+          CXX: g++-12
+        run: |
+          "$CC" --version | tee acceptance-evidence/c-compiler.log
+          "$CXX" --version | tee acceptance-evidence/cxx-compiler.log
+          # NumKong7.7 requires GCC12+; prove its FP16 target attribute before Cargo.
+          "$CC" -x c -c -o "$RUNNER_TEMP/phonton-fp16-probe.o" - <<'C'
+          #include <immintrin.h>
+          __attribute__((target("avx512fp16"))) __m512h phonton_fp16_probe(void) { return _mm512_setzero_ph(); }
+          C
+          cargo build --manifest-path phonton-dev/Cargo.toml --release --locked -p phonton-cli -j 2
+          cargo install tauri-driver --version 2.1.0 --locked
+      - name: Prepare exact package and external runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/linux-acceptance/prepare-environment.mjs
+      - name: Exercise installed native app, consent, Apply, reopen and rollback
+        env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+        run: xvfb-run --auto-servernum --server-args='-screen 0 1440x1000x24' dbus-run-session -- node scripts/linux-acceptance/run.mjs
+      - name: Retain bounded native evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installed-${{ inputs.package }}-evidence
+          path: acceptance-evidence/
+          if-no-files-found: warn
+          retention-days: 7

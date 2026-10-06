@@ -26,16 +26,19 @@ if ((Get-FileHash -LiteralPath $env:PHONTON_ACCEPTANCE_APP).Hash.ToLowerInvarian
 if ((Get-FileHash -LiteralPath (Join-Path $installDirectory 'local-engine/phonton.exe')).Hash.ToLowerInvariant() -ne $bootstrap.engine.sha256) { throw 'Installed bootstrap engine differs' }
 Copy-Item -LiteralPath acceptance-candidate/candidate.json -Destination acceptance-evidence/candidate.json
 New-Item -ItemType Directory -Path $stateDirectory | Out-Null
-# These must be inherited by the first bootstrap, its installer and automatic restart.
+# The elevated installer recreates its child environment from the runner profile.
+# Persist only these named test paths and a per-executable debugger policy, with
+# ownership/readback cleanup; the app still chooses its own default WebView profile.
 $env:PHONTON_LOCAL_STATE = Join-Path $stateDirectory 'local-models.json'
 $env:PHONTON_CONFIG_PATH = Join-Path $stateDirectory 'config.toml'
 $env:PHONTON_ACCEPTANCE_UPGRADE_NATIVE = 'true'
 $env:PHONTON_ACCEPTANCE_CONTROLLED_UPDATER = 'true'
 $env:PHONTON_ACCEPTANCE_FULL_JOURNEY = 'true'
-& ./scripts/windows-acceptance/updater-tls.ps1 -Action create
 $driver = $null
 $replacementDriver = $null
 try {
+    & ./scripts/windows-acceptance/updater-user-environment.ps1 -Action create
+    & ./scripts/windows-acceptance/updater-tls-command.ps1 -Action create
     $driver = Start-Process tauri-driver -ArgumentList @('--native-driver', ('"' + $env:PHONTON_EDGE_DRIVER + '"')) -PassThru -WindowStyle Hidden -RedirectStandardOutput acceptance-evidence/updater-driver.log -RedirectStandardError acceptance-evidence/updater-driver-error.log
     $replacementDriver = Start-Process tauri-driver -ArgumentList @('--port', '4446', '--native-port', '4447', '--native-driver', ('"' + $env:PHONTON_EDGE_DRIVER + '"')) -PassThru -WindowStyle Hidden -RedirectStandardOutput acceptance-evidence/updater-replacement-driver.log -RedirectStandardError acceptance-evidence/updater-replacement-driver-error.log
     node scripts/windows-acceptance/updater-journey.mjs
@@ -51,5 +54,6 @@ try {
     }
     if ($null -ne $driver -and !$driver.HasExited) { Stop-Process -InputObject $driver }
     if ($null -ne $replacementDriver -and !$replacementDriver.HasExited) { Stop-Process -InputObject $replacementDriver }
-    & ./scripts/windows-acceptance/updater-tls.ps1 -Action cleanup
+    try { & ./scripts/windows-acceptance/updater-tls-command.ps1 -Action cleanup }
+    finally { & ./scripts/windows-acceptance/updater-user-environment.ps1 -Action cleanup }
 }

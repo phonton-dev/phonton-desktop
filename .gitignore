@@ -5,6 +5,10 @@ dist/
 .env
 .env.*
 
+# Python acceptance-test caches
+__pycache__/
+*.py[cod]
+
 # Local screenshot captures
 screenshots/
 

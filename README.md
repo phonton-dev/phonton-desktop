@@ -123,6 +123,19 @@ macOS/Linux installed behavior or updater installation; retain those release
 gates until their own evidence exists. NSIS and MSI have separate manifests and
 fresh runners; one installer's result cannot certify the other. MSI checks its
 registered product identity as well as the installed app and engine bytes.
+Separate manual modes reuse exact candidate artifacts for controlled Windows
+updating (`updater_candidate_pin`), installed Linux (`linux_installed_acceptance`
+with `linux_package` set to `debian` or `appimage`), and native ARM64 macOS
+(`macos_installed_probe`). Choose one mode per dispatch. Platform source pins and
+artifact hashes identify the product independently of the acceptance harness.
+The Mac mode uses a separately verified external Ollama runtime and native
+controls for repository selection, model download and calibration, consent,
+review, Apply and rollback across a normal Quit and reopen. It retains original
+screenshots, process identities, receipt bytes and default WebKit profile identity.
+Shared interface checks retain the packaged scrollbar assertions in every journey
+that uses them. A reviewed passing run proves only its recorded platform and
+harness; new combined checks require their own execution. Trusted publisher
+signing and signed-byte provenance remain separate public-beta gates.
 Engine resources are staged with their actual installed filenames because WiX
 preserves source basenames. This keeps MSI and NSIS runtime layouts consistent.
 For this beta, Windows MSI metadata uses `0.4.0.1`; the app and release assets

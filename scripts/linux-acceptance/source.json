@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "repository": "phonton-dev/phonton-desktop",
+  "commit": "7df0388e9fb0af5fba72b6aed5621408f81c3176",
+  "runId": 37406742033,
+  "buildJobId": 112085912950,
+  "artifact": {
+    "id": 11387673213,
+    "name": "release-candidate-ubuntu-22.04",
+    "sha256": "785978e7fc126e89264b860bb59f06f27f42663a9ad9f311576e33f43ca46718"
+  },
+  "desktopSha256": "7af2193564543586a88eda857232cf6baa515d675e9363affb21de7052b208e7",
+  "deb": {
+    "name": "Phonton_0.4.0-beta.1_amd64.deb",
+    "sha256": "edd59d62ddc38ccbfa335657f776854658ef3e320eae2441e1957d99efd29a37"
+  },
+  "appImage": {
+    "name": "Phonton_0.4.0-beta.1_amd64.AppImage",
+    "sha256": "ffcb5b831d87ec1ba88950abddb92f0cb406e2e1f65dabae11a6faf323f2e0d0",
+    "payloadSha256": "d17eafd24dbe4a46ce3778f2da670ddb55ca78f52e4769f070e5b5afe0528fa6",
+    "appRunSha256": "eb0b254ac0dae6543e6dd7cd02e1baf40a060de95b927313122d6b46323c00aa"
+  },
+  "engine": {
+    "repository": "phonton-dev/phonton-cli",
+    "commit": "157c2893136266f3a29473b89aa10355fa251e54",
+    "version": "0.22.0"
+  },
+  "ollama": {
+    "version": "0.34.2",
+    "assetId": 571258151,
+    "bytes": 1427542079,
+    "sha256": "e155b83589986d2c581fdbf1381ea3ebdb16549883679cd5a0627f7cdc05b12b",
+    "url": "https://github.com/ollama/ollama/releases/download/v0.34.2/ollama-linux-amd64.tar.zst"
+  }
+}

@@ -11,7 +11,17 @@ if (!$directory.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { th
 $statePath = Join-Path $directory 'state.json'
 $certificatePath = Join-Path $directory 'localhost.pem'
 $keyPath = Join-Path $directory 'localhost-key.pem'
-$store = [Security.Cryptography.X509Certificates.X509Store]::new('Root', 'CurrentUser')
+$principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+if (!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Disposable hosted runner administrator required; no elevation or user-store fallback' }
+function Write-TlsStage([string]$Stage) {
+    @{ schema=1; action=$Action; stage=$Stage; runId=$env:GITHUB_RUN_ID; runAttempt=$env:GITHUB_RUN_ATTEMPT;
+        store='LocalMachine/Root'; utc=[DateTimeOffset]::UtcNow.ToString('o') } |
+        ConvertTo-Json -Compress | Add-Content -LiteralPath 'acceptance-evidence/updater-tls-stages.jsonl' -Encoding utf8
+}
+# CurrentUser/Root can show a modal trust prompt. This disposable machine store
+# is changed only for the exact short-lived fixture identity and removed below.
+Write-TlsStage 'open-store'
+$store = [Security.Cryptography.X509Certificates.X509Store]::new('Root', 'LocalMachine')
 $store.Open([Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
 try {
     if ($Action -eq 'create') {
@@ -41,17 +51,20 @@ try {
             if ($store.Certificates.Find('FindByThumbprint', $public.Thumbprint, $false).Count -ne 0) { throw 'Certificate already trusted' }
             $state = [ordered]@{ schema=1; runId=$env:GITHUB_RUN_ID; runAttempt=$env:GITHUB_RUN_ATTEMPT; thumbprint=$public.Thumbprint;
                 certificateSha256=$public.GetCertHashString([Security.Cryptography.HashAlgorithmName]::SHA256).ToLowerInvariant();
-                store='CurrentUser/Root'; subject=$public.Subject; notBefore=$public.NotBefore.ToUniversalTime().ToString('o');
+                store='LocalMachine/Root'; subject=$public.Subject; notBefore=$public.NotBefore.ToUniversalTime().ToString('o');
                 notAfter=$public.NotAfter.ToUniversalTime().ToString('o'); privateKeyInStore=$false }
             # Save removal identity before trusting it, so cleanup can recover a later failure.
             $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding utf8
             [IO.File]::WriteAllText($certificatePath, $public.ExportCertificatePem())
             [IO.File]::WriteAllText($keyPath, $rsa.ExportPkcs8PrivateKeyPem())
+            Write-TlsStage 'trust-add-start'
             $store.Add($public)
+            Write-TlsStage 'trust-add-returned'
             $added = $true
             $trusted = $store.Certificates.Find('FindByThumbprint', $public.Thumbprint, $false)
             if ($trusted.Count -ne 1 -or $trusted[0].HasPrivateKey) { throw 'Public TLS trust readback failed' }
             $state | ConvertTo-Json | Set-Content -LiteralPath 'acceptance-evidence/updater-tls-created.json' -Encoding utf8
+            Write-TlsStage 'trust-readback-passed'
         } catch {
             if ($added -and $null -ne $public) { $store.Remove($public) }
             if (Test-Path -LiteralPath $keyPath) { Remove-Item -LiteralPath $keyPath }
@@ -67,12 +80,14 @@ try {
         if (!(Test-Path -LiteralPath $statePath)) { throw 'TLS cleanup identity is missing' }
         $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
         if ($state.schema -ne 1 -or $state.runId -ne $env:GITHUB_RUN_ID -or $state.runAttempt -ne $env:GITHUB_RUN_ATTEMPT -or
-            $state.store -ne 'CurrentUser/Root' -or $state.thumbprint -notmatch '^[A-F0-9]{40}$' -or
+            $state.store -ne 'LocalMachine/Root' -or $state.thumbprint -notmatch '^[A-F0-9]{40}$' -or
             $state.certificateSha256 -notmatch '^[a-f0-9]{64}$') { throw 'TLS cleanup identity mismatch' }
         $matches = $store.Certificates.Find('FindByThumbprint', $state.thumbprint, $false)
         foreach ($entry in $matches) {
             if ($entry.GetCertHashString([Security.Cryptography.HashAlgorithmName]::SHA256).ToLowerInvariant() -ne $state.certificateSha256 -or $entry.HasPrivateKey) { throw 'Refusing to remove an unexpected certificate' }
+            Write-TlsStage 'trust-remove-start'
             $store.Remove($entry)
+            Write-TlsStage 'trust-remove-returned'
         }
         if ($store.Certificates.Find('FindByThumbprint', $state.thumbprint, $false).Count -ne 0) { throw 'TLS trust cleanup failed' }
         # Delete only our exact files, never recursively delete a computed directory.
@@ -85,7 +100,8 @@ try {
             }
         }
         Remove-Item -LiteralPath $directory
-        @{ schema=1; thumbprint=$state.thumbprint; publicTrustRemoved=$true; privateKeyFileRemoved=$true } |
+        @{ schema=1; store='LocalMachine/Root'; thumbprint=$state.thumbprint; publicTrustRemoved=$true; privateKeyFileRemoved=$true } |
             ConvertTo-Json | Set-Content -LiteralPath 'acceptance-evidence/updater-tls-cleanup.json' -Encoding utf8
+        Write-TlsStage 'cleanup-readback-passed'
     }
 } finally { $store.Dispose() }

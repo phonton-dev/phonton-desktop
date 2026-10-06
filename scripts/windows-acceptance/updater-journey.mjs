@@ -89,7 +89,7 @@ async function rpc(method) {
   const value = await response.json(); assert.ok(!value.error, JSON.stringify(value.error));
   return value.result;
 }
-async function observe(expected) {
+async function observeInstalled(expected) {
   assert.equal(hash(app), expected.desktopSha256);
   assert.equal(hash(path.join(path.dirname(app), 'local-engine/phonton.exe')), expected.engine.sha256);
   assert.deepEqual(read(path.join(path.dirname(app), 'local-engine/manifest.json')), expected.engine);
@@ -100,15 +100,19 @@ async function observe(expected) {
   for (const listener of processes.listeners) {
     assert.equal(listener.LocalAddress, '127.0.0.1'); assert.equal(listener.OwningProcess, processes.engines[0].ProcessId);
   }
-  const profile = observeDefaultProfile();
-  assert.equal(profile.appProcessId, processes.apps[0].ProcessId);
   const configuration = await rpc('config.get'), models = await rpc('models.status');
   verifyUpdaterEnginePaths(configuration, models, process.env);
   const registration = powershell('read-nsis-registration');
   validateNsisRegistration(registration, expected.version, path.dirname(app));
-  return { processes, ...profile, page: await execute('return {href:location.href,origin:location.origin}'),
+  return { processes,
     configPath: configuration.path, managedStorage: models.managed_storage, registration,
     desktopSha256: hash(app), engineSha256: expected.engine.sha256 };
+}
+async function observe(expected) {
+  const installed = await observeInstalled(expected);
+  const profile = observeDefaultProfile();
+  assert.equal(profile.appProcessId, installed.processes.apps[0].ProcessId);
+  return { ...installed, ...profile, page: await execute('return {href:location.href,origin:location.origin}') };
 }
 const preferences = () => execute('return Object.fromEntries(arguments[0].map(key => [key,localStorage.getItem(key)]))', Object.keys(seed.preferences));
 function unchangedSource() { for (const [file, digest] of seed.sourceHashes) assert.equal(hash(path.join(fixture, file)), digest, file); }
@@ -214,11 +218,20 @@ try {
     const state = powershell('native-process', ['-AllowMissingApp']);
     if (state.apps.some(process => process.ProcessId === seed.bootstrapProcessId)) return false;
     return state.apps.length === 1 && state.apps[0].ProcessId !== seed.bootstrapProcessId &&
-      state.engines.length === 1 && state.engines[0].ParentProcessId === state.apps[0].ProcessId && state.debugListeners.length ? state : false;
+      state.engines.length === 1 && state.engines[0].ParentProcessId === state.apps[0].ProcessId &&
+      state.listeners.length && state.listeners.every(listener => listener.LocalAddress === '127.0.0.1' && listener.OwningProcess === state.engines[0].ProcessId) ? state : false;
   }, 'updater exits bootstrap and automatically restarts candidate', 180000);
   seed.restartedProcessId = replacement.apps[0].ProcessId;
-  assert.equal(hash(app), candidate.desktopSha256, 'Restarted app must be the exact accepted candidate');
   record('independent automatic replacement observed before attach', { replacement, transport: completedPayload('candidate', pin.installerSha256) });
+  const installedReplacement = await observeInstalled(candidate);
+  assert.equal(installedReplacement.processes.apps[0].ProcessId, seed.restartedProcessId);
+  record('automatic replacement bytes, engine paths and registration verified before debugger attach', installedReplacement);
+  await until(() => {
+    const state = native();
+    assert.equal(state.apps.length, 1);
+    assert.equal(state.apps[0].ProcessId, seed.restartedProcessId, 'The automatically restarted app must survive until attachment');
+    return state.debugListeners.length && state.debugListeners.every(listener => listener.LocalAddress === '127.0.0.1') ? state : false;
+  }, 'automatically restarted candidate exposes runner-only loopback debugging', 60000);
   // Do not quit the old session while its replacement lives. A second owned
   // driver attaches independently, so old-session teardown cannot affect proof.
   oldSession = session;
