@@ -4,6 +4,9 @@ Private desktop shell for Phonton.
 
 Settings buttons use contrasting accent foregrounds in Graphite, Cursor Dark,
 Light and High contrast, including their hover states.
+Settings fields have associated labels, theme and configuration-scope choices
+expose their selection, and local run, file-change and Doctor outcomes have concise
+screen-reader announcements. Model actions identify the model they affect.
 
 The unreleased local workspace now opens without an account. Its dark monospace
 composer shows repository, selected local model, explicit file scope and execution

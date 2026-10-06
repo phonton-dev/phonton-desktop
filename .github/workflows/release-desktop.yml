@@ -142,6 +142,14 @@ jobs:
         with:
           workspaces: src-tauri
 
+      - name: Cache pinned Windows engine dependencies
+        if: matrix.platform == 'windows-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: phonton-dev
+          shared-key: desktop-windows-engine
+          cache-on-failure: true
+
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
