@@ -5,14 +5,34 @@ import { interfaceJourney } from './windows-acceptance/interface-journey.mjs';
 
 // This models asynchronous DOM metadata for the acceptance harness itself.
 // It is not native product/runtime evidence; the installed cloud journey supplies that.
-function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false } = {}) {
-  const state = { view: 'workbench', section: 'Account', theme: 'nebula', ready: false, approved: false };
+function harness({ changeConsent = false, neverReady = false, unreadableLabel = null, settlingTheme = false, accentProblem = null, generalDelay = false } = {}) {
+  const state = { view: 'workbench', section: 'Account', theme: 'nebula', ready: false, approved: false, hovered: false, generalReady: !generalDelay };
   const records = [];
+  const screenshots = [];
+  let generalWaits = 0;
   let metadataWaits = 0;
   let appearanceWaits = 0;
   let colorsReady = !settlingTheme;
+  const surface = { parentElement: null };
+  const saveGeneral = { textContent: 'Save general', parentElement: surface,
+    get disabled() { return accentProblem === 'disabled'; },
+    checkVisibility: () => accentProblem !== 'hidden', matches: selector => { assert.equal(selector, ':hover'); return state.hovered; } };
+  const colors = {
+    nebula: { foreground: [16,32,24], fill: [169,205,185], surface: [20,22,22] },
+    'cursor-dark': { foreground: [6,19,33], fill: [55,148,255], surface: [30,30,30] },
+    light: { foreground: [255,255,255], fill: [107,76,230], surface: [246,247,251] },
+    'high-contrast': { foreground: [0,0,0], fill: [255,255,0], surface: [0,0,0] },
+  };
   const document = {
     body: {},
+    createElement(tag) {
+      assert.equal(tag, 'canvas');
+      const context = { clearRect() {}, fillRect() {}, getImageData() {
+        const match = /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/.exec(context.fillStyle); assert.ok(match);
+        return {data:[Number(match[1]),Number(match[2]),Number(match[3]),Math.round(Number(match[4])*255)]};
+      } };
+      return { getContext: kind => { assert.equal(kind, '2d'); return context; } };
+    },
     documentElement: { get dataset() { return { theme: state.theme }; }, scrollWidth: 1280 },
     querySelector(selector) {
       const fields = {
@@ -30,6 +50,10 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
       return fields[selector];
     },
     querySelectorAll(selector) {
+      if (selector === '.settings-page button') {
+        if (state.section !== 'General' || !state.generalReady || accentProblem === 'absent') return [];
+        return accentProblem === 'ambiguous' ? [saveGeneral, saveGeneral] : [saveGeneral];
+      }
       if (selector === '.settings-page h2') {
         return [{ textContent: ({ MCP: 'MCP servers', Updates: 'App updates' })[state.section] || state.section }];
       }
@@ -40,10 +64,19 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
   };
   const context = vm.createContext({ document, innerWidth: 1280,
     localStorage: { getItem: () => 'C:\\fixture' },
-    getComputedStyle: element => ({
+    getComputedStyle: element => {
+      if (element === saveGeneral || element === surface) {
+        const palette = colors[state.theme];
+        const unreadable = accentProblem === 'normal-contrast' && !state.hovered || accentProblem === 'hover-contrast' && state.hovered;
+        const foreground = unreadable ? palette.fill : palette.foreground;
+        return {opacity:'1',filter:'none',mixBlendMode:'normal',backgroundImage:'none',
+          color:`rgba(${foreground.join(',')},1)`,
+          backgroundColor:`rgba(${(element === surface ? palette.surface : palette.fill).join(',')},${element === saveGeneral && state.hovered ? 0.9 : 1})`};
+      }
+      return {
       color: state.theme === 'light' && (!colorsReady || element.textContent === unreadableLabel) ? 'rgb(238, 238, 232)' : 'rgb(20, 24, 40)',
       backgroundColor: state.theme === 'light' ? 'rgb(246, 247, 251)' : 'rgb(20, 22, 22)',
-    }),
+    }; },
   });
   const execute = async (script, ...args) => {
     const result = vm.runInContext(`(function(){${script}})`, context)(...args);
@@ -61,6 +94,7 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
         appearanceWaits++;
         colorsReady = true; // Color transitions finish; an unreadableLabel stays wrong.
       }
+      if (description === 'General action ready' && generalDelay) { generalWaits++; state.generalReady = true; }
     }
     throw new Error(`Timed out: ${description}`);
   };
@@ -70,13 +104,27 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
       const match = payload.value.match(/normalize-space\(\.\)=("[^"]*")/);
       assert.ok(match);
       pending = { label: JSON.parse(match[1]), section: payload.value.includes('Settings sections') };
+      if (pending.label === 'Save general') assert.equal(state.generalReady, true, 'Wait for rendered control before native element lookup');
       return { 'element-6066-11e4-a52e-4f735466cecf': 'button' };
     }
     if (method === 'GET') return true;
+    if (route === '/actions') {
+      if (method === 'DELETE') return;
+      assert.equal(method, 'POST');
+      const pointer = payload.actions[0]; assert.equal(pointer.type, 'pointer'); assert.equal(pointer.parameters.pointerType, 'mouse');
+      assert.equal(pointer.actions.length, 1); assert.equal(pointer.actions[0].type, 'pointerMove');
+      const origin = pointer.actions[0].origin;
+      if (origin === 'viewport') state.hovered = false;
+      else { assert.equal(origin['element-6066-11e4-a52e-4f735466cecf'], 'button'); state.hovered = true; }
+      return;
+    }
     assert.equal(route, '/element/button/click');
-    if (pending.section) state.section = pending.label;
+    assert.notEqual(pending.label, 'Save general', 'Contrast inspection must never save configuration');
+    if (pending.section) { state.section = pending.label; if (state.section === 'General') state.generalReady = !generalDelay; }
     else if (pending.label === 'Light') state.theme = 'light';
     else if (pending.label === 'Graphite') state.theme = 'nebula';
+    else if (pending.label === 'Cursor Dark') state.theme = 'cursor-dark';
+    else if (pending.label === 'High contrast') state.theme = 'high-contrast';
     else if (pending.label === 'Open online workspace') state.view = 'online';
     else if (['Back', '← Return to local workspace'].includes(pending.label)) {
       state.view = 'workbench'; state.ready = false; // Focus refresh drops old metadata.
@@ -86,9 +134,9 @@ function harness({ changeConsent = false, neverReady = false, unreadableLabel = 
   return {
     run: () => interfaceJourney({ command, execute, until,
       click: async selector => { assert.match(selector, /Settings/); state.view = 'settings'; },
-      screenshot: async () => {}, record: (...args) => records.push(args),
+      screenshot: async name => screenshots.push(name), record: (...args) => records.push(args),
     }),
-    records, waits: () => metadataWaits, appearanceWaits: () => appearanceWaits,
+    records, screenshots, waits: () => metadataWaits, appearanceWaits: () => appearanceWaits, generalWaits: () => generalWaits,
   };
 }
 
@@ -96,14 +144,14 @@ test('installed navigation waits for late and refreshed machine metadata at ever
   const app = harness();
   await app.run();
   assert.equal(app.waits(), 3, 'Initial, Settings-return and online-return snapshots must each wait');
-  assert.equal(app.records.length, 2);
+  assert.equal(app.records.length, 3);
 });
 
 test('metadata readiness does not hide a changed consent state after navigation', async () => {
   const app = harness({ changeConsent: true });
   await assert.rejects(app.run(), /Optional setup must preserve the complete local draft/);
   assert.equal(app.waits(), 3);
-  assert.equal(app.records.length, 1, 'No success record for changed state');
+  assert.equal(app.records.length, 2, 'No success record for changed state');
 });
 
 test('missing machine metadata fails rather than comparing incomplete plan text', async () => {
@@ -116,7 +164,7 @@ test('installed appearance acceptance rejects unreadable inherited Settings labe
   for (const unreadableLabel of ['Settings', 'Appearance', 'Back', 'Account', 'Graphite']) {
     const app = harness({ unreadableLabel });
     await assert.rejects(app.run(), /Timed out: readable Light Settings labels/);
-    assert.equal(app.records.length, 1, 'Unreadable labels must not produce a successful appearance record');
+    assert.equal(app.records.length, 2, 'Unreadable labels must not produce a successful appearance record');
   }
 });
 
@@ -124,7 +172,29 @@ test('installed appearance acceptance waits for theme transitions before checkin
   const app = harness({ settlingTheme: true });
   await app.run();
   assert.equal(app.appearanceWaits(), 1);
-  assert.equal(app.records.length, 2);
-  assert.equal(app.records[1][1].lightSettings.labels.length, 18);
-  assert.ok(app.records[1][1].lightSettings.labels.every(label => label.color === 'rgb(20, 24, 40)'));
+  assert.equal(app.records.length, 3);
+  assert.equal(app.records[2][1].lightSettings.labels.length, 18);
+  assert.ok(app.records[2][1].lightSettings.labels.every(label => label.color === 'rgb(20, 24, 40)'));
+});
+
+test('enabled native accent acceptance waits for General and records all four normal and hover states without saving', async () => {
+  const app = harness({generalDelay:true}); await app.run();
+  assert.equal(app.generalWaits(), 4);
+  assert.equal(app.screenshots.filter(name => name.startsWith('ui-accent-')).length, 8);
+  const checked = app.records[1][1]; assert.equal(checked.length, 4);
+  for (const entry of checked) { assert.equal(entry.normal.hovered, false); assert.equal(entry.hover.hovered, true); assert.ok(entry.normal.ratio >= 4.5 && entry.hover.ratio >= 4.5); }
+});
+test('accent acceptance rejects missing, disabled, hidden or ambiguous actions', async () => {
+  for (const accentProblem of ['absent','disabled','hidden','ambiguous']) {
+    const app = harness({accentProblem});
+    await assert.rejects(app.run(), /Timed out: General action ready/);
+    assert.equal(app.records.length, 1, 'No accent success without the unique enabled action');
+  }
+});
+test('accent acceptance rejects unreadable normal and hovered paint', async () => {
+  for (const accentProblem of ['normal-contrast','hover-contrast']) {
+    const app = harness({accentProblem});
+    await assert.rejects(app.run(), /enabled action contrast/);
+    assert.equal(app.records.length, 1, 'No accent success for unreadable paint');
+  }
 });
