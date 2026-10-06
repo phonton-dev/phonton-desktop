@@ -11,7 +11,7 @@ import {
 
 import { getActiveProject } from "./projects";
 import { ensureBundledSidecar } from "./bundled-sidecar-start";
-import { spawnObservedShellChild } from "./shell-child-lifecycle";
+import { spawnObservedShellChild, unixServeArgs } from "./shell-child-lifecycle";
 import { withDesktopWork } from "./app-update-lock";
 
 let sidecarWorkspace: string | null = null;
@@ -105,10 +105,7 @@ async function spawnViaShell(launch: ReturnType<typeof getPhontonLaunchSpec>, re
       : launch?.kind === "node"
         ? launch.script
         : resolved;
-  await spawnNamed("unix-phonton-serve-resolved", [
-    "-c",
-    `'${cmd.replace(/'/g, "'\\''")}' serve`,
-  ]);
+  await spawnNamed("unix-phonton-serve-resolved", unixServeArgs(cmd));
 }
 
 async function verifyRustSidecar(): Promise<boolean> {

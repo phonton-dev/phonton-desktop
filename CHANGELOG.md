@@ -4,6 +4,9 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Stop the owned Unix CLI when Desktop closes by replacing its shell
+  wrapper with the actual engine process; preserve separately started runtimes.
+
 - [fixed] Review a fresh Linux acceptance plan after model setup, checking that
   the draft survives while the old model-bound plan and approvals are cleared.
 
