@@ -4,6 +4,13 @@ All notable changes to Phonton Desktop are documented here.
 
 ## 0.4.0-beta.1 — candidate
 
+- [fixed] Associate Settings fields with their labels, expose selected theme and
+  configuration scope, announce local-run and diagnostic outcomes, and identify
+  each model in its action labels. Installed checks inspect the real label links
+  and selected states.
+- [changed] Cache pinned Windows engine dependencies separately from the Desktop
+  Rust build while retaining locked source and package verification.
+
 - [added] Installed Windows checks and original screenshots for enabled Settings
   button contrast in every theme, including real pointer hover without saving settings.
 

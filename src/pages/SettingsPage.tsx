@@ -95,6 +95,8 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
   const [localPreview, setLocalPreview] = useState<boolean | null>(null);
   const update = useManualAppUpdate();
   const [doctorJson, setDoctorJson] = useState("{}");
+  const [doctorBusy, setDoctorBusy] = useState(false);
+  const [doctorStatus, setDoctorStatus] = useState("");
   const [extScope, setExtScope] = useState<"user" | "workspace">("user");
   const [extFile, setExtFile] = useState("steering.toml");
   const [extContent, setExtContent] = useState("");
@@ -154,6 +156,23 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
       setConfigStatus("Saved");
     } catch (err) {
       setConfigStatus(String(err));
+    }
+  };
+
+  const runDoctor = async () => {
+    if (doctorBusy) return;
+    setDoctorBusy(true);
+    setDoctorStatus("Checking the local engine and provider…");
+    try {
+      const result = await doctorRun(true);
+      setDoctorJson(JSON.stringify(result, null, 2));
+      setDoctorStatus("Doctor finished. Review the diagnostic results below.");
+    } catch {
+      const message = "Doctor could not connect to the local engine. Reconnect and try again.";
+      setDoctorJson(message);
+      setDoctorStatus(message);
+    } finally {
+      setDoctorBusy(false);
     }
   };
 
@@ -325,6 +344,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                     <button
                       key={preset.id}
                       type="button"
+                      aria-pressed={themeId === preset.id}
                       onClick={() => {
                         onThemeChange(preset.id);
                         applyTheme(preset.id);
@@ -352,7 +372,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Provider</h2>
                 <div className="space-y-2">
-                  <Label>Provider</Label>
+                  <Label htmlFor="settings-provider">Provider</Label>
                   <Select
                     value={config.provider.name}
                     onValueChange={(name: string | null) => {
@@ -360,7 +380,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                       setConfig({ ...config, provider: { ...config.provider, name } });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="settings-provider">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -373,8 +393,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Model</Label>
+                  <Label htmlFor="settings-provider-model">Model</Label>
                   <Input
+                    id="settings-provider-model"
                     value={config.provider.model ?? ""}
                     onChange={(e) =>
                       setConfig({
@@ -385,8 +406,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>API key {config.provider.has_api_key ? "(saved)" : ""}</Label>
+                  <Label htmlFor="settings-provider-key">API key {config.provider.has_api_key ? "(saved)" : ""}</Label>
                   <Input
+                    id="settings-provider-key"
                     type="password"
                     placeholder={config.provider.has_api_key ? "••••••••" : "sk-…"}
                     onChange={(e) =>
@@ -398,8 +420,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Base URL</Label>
+                  <Label htmlFor="settings-provider-url">Base URL</Label>
                   <Input
+                    id="settings-provider-url"
                     value={config.provider.base_url ?? ""}
                     onChange={(e) =>
                       setConfig({
@@ -410,8 +433,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Account ID (Cloudflare)</Label>
+                  <Label htmlFor="settings-provider-account">Account ID (Cloudflare)</Label>
                   <Input
+                    id="settings-provider-account"
                     value={config.provider.account_id ?? ""}
                     onChange={(e) =>
                       setConfig({
@@ -431,8 +455,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Budget</h2>
                 <div className="space-y-2">
-                  <Label>Max tokens per session</Label>
+                  <Label htmlFor="settings-budget-tokens">Max tokens per session</Label>
                   <Input
+                    id="settings-budget-tokens"
                     type="number"
                     value={config.budget.max_tokens ?? ""}
                     onChange={(e) =>
@@ -447,8 +472,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Max USD cents per session</Label>
+                  <Label htmlFor="settings-budget-cents">Max USD cents per session</Label>
                   <Input
+                    id="settings-budget-cents"
                     type="number"
                     value={config.budget.max_usd_cents ?? ""}
                     onChange={(e) =>
@@ -472,7 +498,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Index</h2>
                 <div className="space-y-2">
-                  <Label>Backend</Label>
+                  <Label htmlFor="settings-index-backend">Backend</Label>
                   <Select
                     value={config.index.backend}
                     onValueChange={(backend: string | null) => {
@@ -480,7 +506,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                       setConfig({ ...config, index: { ...config.index, backend } });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="settings-index-backend">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -490,8 +516,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Qdrant URL</Label>
+                  <Label htmlFor="settings-index-url">Qdrant URL</Label>
                   <Input
+                    id="settings-index-url"
                     value={config.index.qdrant_url ?? ""}
                     disabled={config.index.backend === "local-hnsw"}
                     onChange={(e) =>
@@ -503,8 +530,9 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Qdrant collection</Label>
+                  <Label htmlFor="settings-index-collection">Qdrant collection</Label>
                   <Input
+                    id="settings-index-collection"
                     value={config.index.qdrant_collection ?? ""}
                     disabled={config.index.backend === "local-hnsw"}
                     onChange={(e) =>
@@ -525,7 +553,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Permissions</h2>
                 <div className="space-y-2">
-                  <Label>Default mode</Label>
+                  <Label htmlFor="settings-permission-mode">Default mode</Label>
                   <Select
                     value={config.permissions.mode ?? "ask"}
                     onValueChange={(mode: string | null) => {
@@ -533,7 +561,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                       setConfig({ ...config, permissions: { mode } });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="settings-permission-mode">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -583,6 +611,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                 <div className="flex gap-2">
                   <Button
                     variant={extScope === "user" ? "secondary" : "outline"}
+                    aria-pressed={extScope === "user"}
                     size="sm"
                     onClick={() => setExtScope("user")}
                   >
@@ -590,6 +619,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                   </Button>
                   <Button
                     variant={extScope === "workspace" ? "secondary" : "outline"}
+                    aria-pressed={extScope === "workspace"}
                     size="sm"
                     disabled={!projectOpen}
                     onClick={() => setExtScope("workspace")}
@@ -632,7 +662,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
                     Refresh
                   </Button>
                 </div>
-                {extStatus ? <p className="text-xs text-muted-foreground">{extStatus}</p> : null}
+                <p role="status" aria-atomic="true" className="text-sm text-muted-foreground">{extStatus}</p>
               </section>
             ) : null}
 
@@ -640,12 +670,12 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup, onOp
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Doctor</h2>
                 <Button
-                  onClick={() =>
-                    void doctorRun(true).then((r) => setDoctorJson(JSON.stringify(r, null, 2))).catch(() => setDoctorJson("Doctor could not connect to the local engine. Reconnect and try again."))
-                  }
+                  disabled={doctorBusy}
+                  onClick={() => void runDoctor()}
                 >
-                  Run doctor (with provider probe)
+                  {doctorBusy ? "Running doctor…" : "Run doctor (with provider probe)"}
                 </Button>
+                <p role="status" aria-atomic="true" className="text-sm text-muted-foreground">{doctorStatus}</p>
                 <pre className="json-block max-h-[480px] overflow-auto">{doctorJson}</pre>
               </section>
             ) : null}
