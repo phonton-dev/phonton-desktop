@@ -21,6 +21,29 @@ const RUN_KEY = "phonton.local.lastRun";
 const MODEL_STATUS_REFRESH_MS = 20_000;
 const MODEL_STATUS_STALE_MS = 45_000;
 const label = (state: string) => state.replaceAll("_", " ");
+
+/** One plain sentence for a finished run, matching the CLI's wording. */
+function runOutcome(receipt: LocalReceipt): { tone: "pass" | "warn" | "fail"; text: string } | null {
+  const none = " Nothing was applied to your repository.";
+  switch (receipt.state) {
+    case "review_ready":
+      return { tone: "pass", text: `✓ Candidate ${receipt.selected_candidate ?? ""} passed your checks. Review the diff below, then apply it.` };
+    case "review_unverified":
+      return { tone: "warn", text: "◇ A candidate is ready, but no checks ran on it. Review it as unverified." };
+    case "no_verified_candidate":
+      return { tone: "fail", text: "✗ No candidate passed your checks." + none };
+    case "budget_exhausted":
+      return { tone: "fail", text: "✗ The run budget ran out before a candidate passed your checks." + none };
+    case "search_stopped":
+      return { tone: "fail", text: "✗ The search stopped without a candidate that passed." + none };
+    case "resource_pressure":
+      return { tone: "fail", text: "✗ Not enough free memory to keep the model loaded." + none };
+    case "dependency_unavailable":
+      return { tone: "fail", text: "✗ Check dependencies could not be prepared offline." + none };
+    default:
+      return null;
+  }
+}
 function Checks({ checks }: { checks: CheckEvidence[] }) {
   return <div className="lw-checks">{checks.map((check, i) => <details key={i}>
     <summary><span data-status={check.status}>{check.status === "passed" ? "✓" : check.status === "failed" ? "×" : "·"} {check.purpose === "preparation" ? "Setup" : "Check"} · {label(check.status)}</span> {check.check ? formatLocalRunCommand(check.check) : "Verification"}</summary>
@@ -396,6 +419,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
           {busy ? <button disabled={cancelRequested} onClick={() => void cancel()}>{cancelRequested ? "Cancel requested…" : "Cancel run"}</button> : <button disabled={restoring && !restoreError || applying} onClick={() => { setReceipt(null); setAttempt(null); setApplyStatus(null); setMutationRecovery(null); setRunId(""); setCancelRequested(false); setGoal(""); setFiles(""); setNewFile(""); setEditableExisting(""); setCheckText(""); setVerificationOpen(false); setHostApproved(false); setError(null); setRestoreError(null); setEndedWithoutReceipt(false); setMachine(null); setMachineRefresh(value => value + 1); invalidatePlan(); localStorage.removeItem(RUN_KEY); }}>New goal</button>}</div>
         {starting && cancelRequested && <p role="status">Cancellation will be sent when the local engine accepts this run.</p>}
         <h1>{receipt?.request.goal ?? attempt?.goal ?? (restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped before a receipt" : "Saved goal unavailable" : "Loading local evidence…" : goal)}</h1>
+        {receipt && !busy && (() => { const outcome = runOutcome(receipt); return outcome && <p className="lw-outcome" data-tone={outcome.tone} role="status">{outcome.text}</p>; })()}
         {receipt && <><p className="lw-run-repository">Run repository: <code>{receipt.request.repository}</code></p>{!repositorySelection.allowed && <p className="lw-run-repository" role="status">Current repository: <code>{repository || "none selected"}</code>. {repositorySelection.reason} {(!repository.trim() || currentRepositoryCheck?.matches === false || currentRepositoryCheck?.error) && <button onClick={() => selectRepository(receipt.request.repository)}>Switch to run repository →</button>}{currentRepositoryCheck?.error && <button onClick={() => setRepositoryCheckAttempt(value => value + 1)}>Retry repository check →</button>}</p>}</>}
         {restoring && restoreError && <><p>{endedWithoutReceipt ? attempt?.state === "ended_before_receipt" ? "The goal failed before its first receipt. No project check or model generation is recorded. Review the error and start a new goal." : "The engine stopped before its first receipt. No project check or model generation is recorded for this attempt. Review the error and start a new goal." : "Retry loading the saved receipt, or start a new goal."}</p>{!endedWithoutReceipt && <button disabled={!connected} onClick={() => { setError(null); setRestoreAttempt(value => value + 1); }}>Retry loading</button>}<details><summary>Recovery details</summary><p>Run {runId}{attempt ? ` · ${attempt.model}` : ""}</p><pre>{restoreError}</pre></details></>}
         {receipt && <>
