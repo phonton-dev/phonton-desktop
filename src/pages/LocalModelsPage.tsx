@@ -19,6 +19,17 @@ function rememberStartedOperation(id: string | null): void {
   if (typeof sessionStorage !== "undefined") writeOwnedModelOperation(sessionStorage, id);
 }
 
+/** Short labels for calibration probe names. */
+function probeLabel(name: string): string {
+  const labels: Record<string, string> = {
+    "SearchReplace edit": "search/replace edit",
+    "UnifiedDiff edit": "unified diff edit",
+    "Structured create": "new file",
+    "Tool call format": "tool call",
+  };
+  return labels[name] ?? name;
+}
+
 export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnect }: Props) {
   const [status, setStatus] = useState<ModelStatus | null>(null);
   const managedRuntimeSupported = status?.managed_runtime_supported === true;
@@ -226,7 +237,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
 
   return <main className="local-models" aria-labelledby="models-title">
     <div className="model-page-heading"><button onClick={onBack} disabled={submitting}>← Workspace</button><span>Connects over loopback</span></div>
-    <header><h1 id="models-title">A local coding brain.</h1><p>Install a model, measure how it edits, then select its tested settings.</p></header>
+    <header><h1 id="models-title">Local models</h1><p>Install a model, measure which edits it gets right on this machine, then select it. Inference stays on 127.0.0.1.</p></header>
     {!connected && <p role="status">{connectionIssue ?? "Connect the Phonton engine to inspect your machine and manage models."} <button onClick={() => void onReconnect()}>Reconnect engine</button></p>}
     {error && <div className="model-error" role="alert"><strong>Couldn’t finish that step.</strong><p>{error}</p><button onClick={() => { setError(null); void onReconnect().then(() => void refresh()); }} disabled={loading}>Reconnect engine</button></div>}
 
@@ -238,7 +249,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
         <div><dt>Runtime</dt><dd>{status.runtime_version ? `Ollama ${status.runtime_version}` : "Not connected"} · {status.endpoint}</dd></div>
         {status.managed_storage && <div><dt>Local storage</dt><dd>Models: {showPath(status.managed_storage.models_path)}<br />Run evidence: {showPath(status.managed_storage.runs_path)}<br />{memorySize(status.managed_storage.available_bytes)} free on the managed-files volume</dd></div>}
       </dl> : <p>{loading ? "Measuring available resources…" : "Hardware has not been measured."}</p>}
-      {status?.managed_storage && <p className="model-note">{status.managed_storage.source === "chosen" ? "This folder is saved for Phonton-managed runtime, models, and new coding-run evidence." : status.managed_storage.source === "override" ? "This engine uses an isolated local state path; its managed files and run evidence stay beside that state." : "Phonton-managed files and new run evidence currently use the default drive."} {status.managed_storage.reason}</p>}
+      {status?.managed_storage && status.managed_storage.source !== "default" && <p className="model-note">{status.managed_storage.source === "chosen" ? "This folder is saved for Phonton-managed runtime, models, and new coding-run evidence." : status.managed_storage.source === "override" ? "This engine uses an isolated local state path; its managed files and run evidence stay beside that state." : "Phonton-managed files and new run evidence currently use the default drive."} {status.managed_storage.reason}</p>}
       {status?.managed_storage?.changeable && status.storage_control && <div className="managed-storage-choice">
         <button disabled={busy} onClick={() => void chooseManagedStorage()}>Choose empty storage folder</button>
         <p className="model-note">Sets the folder for future Phonton-managed runtime and models, plus new coding-run evidence. A separately running Ollama keeps its own model store.</p>
@@ -258,7 +269,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
           <button onClick={() => void refresh()} disabled={busy}>Refresh status</button>
         </div>}
       {status?.runtime_version && !managedRecovery && (status.model_store?.status === "verified_managed"
-        ? <p className="model-note">Phonton verified its managed Ollama process and model store. {memorySize(status.model_store.available_bytes)} is currently free for model downloads; available space can change during a download.</p>
+        ? <p className="model-verified" role="status">✓ Runtime verified: started by Phonton, files hash-checked, cloud models off · {memorySize(status.model_store.available_bytes)} free for models</p>
         : <p className="model-note">Model store unverified: {status.model_store?.reason ?? "This engine did not report a managed-store binding."} Phonton sends requests to this loopback endpoint, but a separately running Ollama service may use its own model store, cloud settings and resource limits.</p>)}
       {status?.hardware.warnings.map(w => <p className="model-note" key={w}>{w}</p>)}
       {status?.runtime_version && status.runtime_error && <div className="runtime-install" role="alert"><p className="model-note">The runtime responded, but installed models could not be read: {status.runtime_error}</p><button onClick={() => void refresh()} disabled={loading}>Retry model inventory</button></div>}
@@ -268,7 +279,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
           <p className="model-note">{status.runtime_error}</p>
           {status.endpoint === MANAGED_ENDPOINT && managedRuntimeSupported && (
             <>
-              <p>Phonton can install its own verified Ollama runtime. About 1.5 GB to download; allow 6 GB of disk space. No account needed.</p>
+              <p>Phonton can install its own verified Ollama runtime: about 1.5 GB to download (160 MB on macOS); allow 6 GB of disk space. No account needed.</p>
               <p className="model-note">Choose storage before setup: Phonton cannot move this folder after managed files are used. Browse coding models below to check their registry sizes; model weights need space beyond the runtime allowance.</p>
               {firstTryModel && firstTryStorage && <p className="model-note" role="status">The first-try model, {firstTryModel.name}, has a conservative runtime-and-model planning allowance of {memorySize(firstTryStorage.requiredBytes)} on this drive, including setup headroom and the model pull reserve. This folder has {memorySize(firstTryStorage.availableBytes)} free. {firstTryStorage.shortfallBytes > 0 ? `About ${storageShortfallSize(firstTryStorage.shortfallBytes)} short. Choose a roomier storage folder before setup, or pick a smaller model. Runtime setup alone could pass while this model download fails.` : "Free space and registry sizes can change; Phonton checks again when each download starts."}</p>}
               <p className="model-note">If setup is interrupted, run it again. Phonton preserves unfamiliar files and reports anything that needs inspection.</p>
@@ -277,7 +288,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
           )}
           {status.endpoint === MANAGED_ENDPOINT && !managedRuntimeSupported && (
             <>
-              <p>Managed runtime setup currently supports Windows x64. Install and start Ollama on this platform, then refresh the runtime status. Phonton connects to the loopback origin shown above.</p>
+              <p>Managed runtime setup is not available on this platform. Install and start Ollama, then refresh the runtime status. Phonton connects to the loopback origin shown above.</p>
               <p className="model-note">If Ollama uses another local port, set its loopback origin under Advanced settings.</p>
               <div className="model-actions">
                 <a href="https://ollama.com/download" target="_blank" rel="noreferrer">Get Ollama ↗</a>
@@ -323,17 +334,18 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
     <section aria-labelledby="installed-title"><div className="model-section-heading"><h2 id="installed-title">Installed models</h2>{status?.active_model && <button disabled={busy || !connected} onClick={() => void start("deselect", status.active_model!)}>Deselect model</button>}</div>
       {status?.active_model && <p className="model-note">Deselecting keeps its downloaded weights and calibration. Remove the model separately to reclaim storage.</p>}
         {status?.calibration_attempt && <details className="model-attempt"><summary>Incomplete calibration · {status.calibration_attempt.model} · {status.calibration_attempt.probes.length} completed {status.calibration_attempt.probes.length === 1 ? "probe" : "probes"}</summary><p className="model-note">This attempt is diagnostic only and cannot be selected. It survives an engine exit; Calibrate starts a new attempt. Any earlier passing profile is kept separately. Probe identity is unverified until calibration completes.</p><p className="model-note">Started {new Date(status.calibration_attempt.started_at_unix * 1000).toLocaleString()} · {status.calibration_attempt.context_tokens.toLocaleString()} context · {status.calibration_attempt.endpoint}</p>{status.calibration_attempt.probes.map((probe, index) => <div className="model-probe" key={`${index}-${probe.name}`}><strong>{probe.status} — {probe.name}</strong><p>{probe.detail}</p><p>{probe.input_tokens ?? "?"} input / {probe.output_tokens ?? "?"} output tokens · {(probe.elapsed_ms / 1000).toFixed(1)}s</p><pre>{probe.output || "No model output"}</pre></div>)}<p className="model-digest">Starting digest {status.calibration_attempt.starting_digest} · runtime {status.calibration_attempt.runtime_version}</p></details>}
-      {status?.models.length ? status.models.map(({ model, fit, model_context_limit, context_error, profile, profile_error, calibration_evidence, creation_status }) => {
+      {status?.models.length ? status.models.map(({ model, fit, model_context_limit, context_error, profile, profile_error, calibration_evidence }) => {
         const evidence = profile ?? calibration_evidence;
         const selected = selectedRows === 1 && sameInstalledModel(status.active_model, model.name);
         return <article className="model-row" key={model.name}>
         <div className="model-row-title"><h3>{model.name}</h3>{selected && <span className="model-selected">{profile ? "✓ Selected" : "Selected · not ready"}</span>}</div>
         <p>{memorySize(model.size_bytes)} · {model.quantization ?? "Unknown quantization"} · {fitLabel[fit.status]} at {fit.context_tokens.toLocaleString()} context (cold load)</p>
-        <p className="model-note">{fit.explanation}</p>
-        <p className="model-note">Cold-load automatic context: {fit.suggested_context == null ? "unavailable from current readings" : `${fit.suggested_context.toLocaleString()} tokens`}{model_context_limit != null ? ` · model limit ${model_context_limit.toLocaleString()}` : ""}. Calibration rechecks RAM and any exact loaded-model retry before every probe; a loaded model is also checked separately before a goal.</p>
+        {evidence && <ul className="model-probes" aria-label="Calibration results">{evidence.probes.map(probe => <li key={probe.name} className={`probe-${probe.status}`}>{probe.status === "passed" ? "✓" : probe.status === "failed" ? "✗" : "–"} {probeLabel(probe.name)}</li>)}</ul>}
+        {profile?.protocol && <p className="model-note">Phonton asks this model for {profile.protocol === "search_replace" ? "search/replace" : profile.protocol.replace(/_/g, " ")} edits only.</p>}
+        <details className="model-fit"><summary>Fit details</summary><p className="model-note">{fit.explanation}</p>
+        <p className="model-note">Cold-load automatic context: {fit.suggested_context == null ? "unavailable from current readings" : `${fit.suggested_context.toLocaleString()} tokens`}{model_context_limit != null ? ` · model limit ${model_context_limit.toLocaleString()}` : ""}. Calibration rechecks RAM before every probe, and a loaded model is checked again before a goal.</p></details>
         {context_error && <p className="model-note" role="status">Context metadata: {context_error}{profile && " Saved calibration remains visible; Select and local goals recheck metadata before inference."}</p>}
         {profile_error && <p className="model-note" role="status">Calibration not ready: {profile_error}</p>}
-        {profile && <p className="model-note">New-file format: {creation_status === "passed" ? "passed probe" : !creation_status || creation_status === "not_run" ? "not measured" : creation_status}. Existing-file editing has separate probe evidence.</p>}
         <div className="model-actions"><button disabled={busy || (context != null && model_context_limit != null && context > model_context_limit)} onClick={() => void start("calibrate", model.name)}>Calibrate</button><button disabled={busy || !profile?.protocol || selected} onClick={() => void start("select", model.name)}>Select model</button><button disabled={busy || selected} onClick={() => setRemove(model.name)}>Remove…</button></div>
         {remove === model.name && <div className="model-confirm"><p>Remove {model.name} from this runtime? Other models may still share its downloaded layers.</p><button disabled={busy} onClick={() => void start("remove", model.name)}>Remove this model</button><button onClick={() => setRemove(null)}>Keep model</button></div>}
         {evidence && <details><summary>{profile ? "Calibration evidence" : "Saved probe evidence · not selectable"} · {evidence.context_tokens.toLocaleString()} context · {evidence.protocol ?? "no edit format passed"} · {evidence.thinking === "off" ? "think:false request" : "runtime-default thinking"}</summary><p className="model-note">{profile ? "Small fixed probes measure compatibility, not general coding quality. Coding requests reuse this thinking setting." : "Saved probes are diagnostic only. Refresh after a temporary runtime error; recalibrate after fixing failed edit probes or a stale profile."}</p>{evidence.probes.map(probe => <div className="model-probe" key={probe.name}><strong>{probe.status} — {probe.name}</strong><p>{probe.detail}</p><p>{probe.input_tokens ?? "?"} input / {probe.output_tokens ?? "?"} output tokens · {(probe.elapsed_ms / 1000).toFixed(1)}s</p><pre>{probe.output || "No model output"}</pre></div>)}<p className="model-digest">Digest {evidence.digest}</p></details>}
@@ -342,7 +354,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
     </section>
 
     <section aria-labelledby="catalog-title"><div className="model-section-heading"><h2 id="catalog-title">Find a model</h2><button disabled={!status || loading || catalogLoading} onClick={() => void browse()}>{catalogLoading ? "Reading registry…" : catalog ? "Refresh registry" : "Browse coding models"}</button></div>
-      <p className="model-note">Browsing contacts the public Ollama registry for real download sizes. Fit is a conservative memory estimate; compatibility is measured after installation. A first-try marker uses browse-time memory, not a coding-quality ranking.</p>
+      <p className="model-note">Sizes come from the public Ollama registry. Fit is a conservative memory estimate; calibration measures the rest after download.</p>
       {catalog && <p className="model-note" role="status">Catalog fit reading: {memorySize(catalog.hardware.ram_available_bytes)} free RAM; {catalog.hardware.gpus.length ? catalog.hardware.gpus.map(gpu => `${gpu.name}: ${memorySize(gpu.available_bytes)} free GPU memory`).join("; ") : "no GPU reported"}. Installed-model fits above use the separate Your machine reading. Refresh readings clears this catalog.</p>}
       {catalog?.hardware.warnings.map(w => <p className="model-note" key={`catalog-${w}`}>Catalog reading: {w}</p>)}
       {catalog && !catalog.models.some(model => model.first_try_reason) && <p className="model-note" role="status">No first-try suggestion from this browse. Registry sizes or memory readings may be unavailable, or no entry fits with reserve. Review each entry; you can still choose a model explicitly. Refresh the registry after memory changes.</p>}
