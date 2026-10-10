@@ -2,7 +2,12 @@
 
 All notable changes to Phonton Desktop are documented here.
 
-## Unreleased
+## 0.4.0 - Local workbench
+
+Desktop opens into a local workbench: install and calibrate a local model,
+run a goal against a repository, and review candidates checked by your own
+tests. No account. Release notes: `release-notes/v0.4.0.md`. Details:
+
 
 - [fixed] The bundled verifier accepts a colored direct pytest pass and no
   longer treats `-m pytest` after a Python script as a direct runner command.
