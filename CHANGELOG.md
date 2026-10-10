@@ -19,6 +19,7 @@ tests. No account. Release notes: `release-notes/v0.4.0.md`. Details:
   quoted) instead of JSON arrays.
 - [changed] A finished run opens with one plain outcome line: passed,
   unverified, or why no candidate passed and that nothing was applied.
+- [added] Licensed under MIT OR Apache-2.0, the same as the CLI.
 - [fixed] The workspace title names the open repository instead of always
   saying "phonton".
 - [fixed] Managed runtime setup no longer says it supports Windows x64 only.

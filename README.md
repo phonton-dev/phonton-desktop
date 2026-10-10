@@ -43,3 +43,9 @@ npm run tauri:build
 Implementation notes: [docs/local-workbench-notes.md](docs/local-workbench-notes.md).
 Release signing: [docs/RELEASE_SIGNING.md](docs/RELEASE_SIGNING.md).
 
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT](LICENSE-MIT), at your option, the same as the
+[Phonton CLI](https://github.com/phonton-dev/phonton-cli).
