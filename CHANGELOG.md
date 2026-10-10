@@ -8,6 +8,21 @@ Desktop opens into a local workbench: install and calibrate a local model,
 run a goal against a repository, and review candidates checked by your own
 tests. No account. Release notes: `release-notes/v0.4.0.md`. Details:
 
+- [changed] Local models shows each calibration probe as pass or fail next to
+  the model, and which edit format Phonton will ask for. Fit and context notes
+  fold under Fit details; a verified runtime is one line.
+- [changed] Approving the plan's checks sits next to Run. Reviewing a plan
+  still clears an earlier approval, so the button now says "Run without
+  checks" until you approve; before, the composer's checkbox was cleared out
+  of sight and runs came back unverified.
+- [changed] Checks show as command lines (arguments with spaces or quotes are
+  quoted) instead of JSON arrays.
+- [changed] A finished run opens with one plain outcome line: passed,
+  unverified, or why no candidate passed and that nothing was applied.
+- [fixed] The workspace title names the open repository instead of always
+  saying "phonton".
+- [fixed] Managed runtime setup no longer says it supports Windows x64 only.
+
 
 - [fixed] The bundled verifier accepts a colored direct pytest pass and no
   longer treats `-m pytest` after a Python script as a direct runner command.
