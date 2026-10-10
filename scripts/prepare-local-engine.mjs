@@ -15,8 +15,13 @@ if (args.some(arg => !['--debug', '--tauri'].includes(arg)) ||
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workspace = path.resolve(process.env.PHONTON_ENGINE_SOURCE_DIR || path.resolve(desktop, '../phonton-dev'));
 const fromTauri = args.includes('--tauri');
-if (fromTauri && !['true', 'false'].includes(process.env.TAURI_ENV_DEBUG)) {
-  throw new Error('Tauri did not provide TAURI_ENV_DEBUG; engine build profile is unknown.');
+// Tauri 2 sets TAURI_ENV_DEBUG=true for --debug builds and leaves it unset for
+// release builds; any other value is unexpected.
+if (fromTauri && ![undefined, 'true', 'false'].includes(process.env.TAURI_ENV_DEBUG)) {
+  throw new Error(`Unexpected TAURI_ENV_DEBUG=${process.env.TAURI_ENV_DEBUG}; engine build profile is unknown.`);
+}
+if (fromTauri && !process.env.TAURI_ENV_PLATFORM) {
+  throw new Error('Run this from a Tauri build hook (TAURI_ENV_PLATFORM is missing).');
 }
 if (!existsSync(path.join(workspace, 'Cargo.toml'))) {
   throw new Error('Windows Desktop packaging requires the matching phonton-dev source beside phonton-desktop.');
