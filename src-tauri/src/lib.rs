@@ -1,13 +1,13 @@
+mod bundled_engine;
+#[cfg(windows)]
+mod listener_owner;
 mod serve_proxy;
 mod sidecar_spawn;
 
 use std::sync::Mutex;
 
 use serve_proxy::{serve_health, serve_rpc};
-use sidecar_spawn::{
-    kill_serve_port_listeners, phonton_sidecar_alive, spawn_phonton_serve, stop_phonton_serve,
-    SidecarChild,
-};
+use sidecar_spawn::{phonton_sidecar_alive, spawn_phonton_serve, stop_phonton_serve, SidecarChild};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -34,10 +34,10 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            bundled_engine::bundled_phonton_engine,
             spawn_phonton_serve,
             stop_phonton_serve,
             phonton_sidecar_alive,
-            kill_serve_port_listeners,
             serve_health,
             serve_rpc,
         ])

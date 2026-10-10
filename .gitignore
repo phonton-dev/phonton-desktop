@@ -5,8 +5,12 @@ dist/
 .env
 .env.*
 
+# Local screenshot captures
+screenshots/
+
 # Rust / Tauri
 src-tauri/target/
+src-tauri/binaries/
 src-tauri/.tauri-signing.key
 
 # IDE

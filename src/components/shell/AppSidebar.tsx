@@ -15,18 +15,16 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import type { TaskSummary } from "@/lib/config";
-import { formatRelativeTime, historyStatusLabel } from "@/lib/format-relative";
+import { displayGoalTitle, formatRelativeTime, historyStatusLabel } from "@/lib/format-relative";
 import { getRecentProjects, projectLabel } from "@/lib/projects";
 import { taskStatusTone } from "@/lib/types/global-state";
 import type { GoalSession } from "@/hooks/useSessions";
-import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
 import { FolderOpen, Pin, Plus, Stethoscope } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export type SidebarTab = "sessions" | "history";
 
 type Props = {
-  projectPath: string | null;
   hasProject: boolean;
   sidebarTab: SidebarTab;
   onSidebarTabChange: (tab: SidebarTab) => void;
@@ -35,7 +33,6 @@ type Props = {
   history: TaskSummary[];
   onOpenProject: () => void;
   onOpenRecent: (path: string) => void;
-  onClearProject: () => void;
   onNewSession: () => void;
   onSelectSession: (id: string) => void;
   onTogglePin: (id: string) => void;
@@ -60,7 +57,6 @@ function historyStatusDot(status: unknown): string {
 }
 
 export function AppSidebar({
-  projectPath,
   hasProject,
   sidebarTab,
   onSidebarTabChange,
@@ -69,7 +65,6 @@ export function AppSidebar({
   history,
   onOpenProject,
   onOpenRecent,
-  onClearProject,
   onNewSession,
   onSelectSession,
   onTogglePin,
@@ -96,12 +91,6 @@ export function AppSidebar({
     return (
       <Sidebar collapsible="icon" className="border-r border-border/60">
         <SidebarHeader className="gap-2 p-3">
-          <ProjectSwitcher
-            compact
-            projectPath={projectPath}
-            onOpenProject={onOpenProject}
-            onOpenRecent={onOpenRecent}
-          />
           <Button size="sm" className="w-full justify-start gap-2" onClick={onOpenProject}>
             <FolderOpen className="size-4" />
             Open project
@@ -150,13 +139,6 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon" className="border-r border-border/60">
       <SidebarHeader className="gap-2 p-3">
-        <ProjectSwitcher
-          compact
-          projectPath={projectPath}
-          onOpenProject={onOpenProject}
-          onOpenRecent={onOpenRecent}
-          onClearProject={onClearProject}
-        />
         <Button size="sm" className="w-full justify-start gap-2" onClick={onNewSession}>
           <Plus className="size-4" />
           New goal
@@ -200,7 +182,9 @@ export function AppSidebar({
                         <div className="flex w-full items-center gap-2">
                           <span className={`size-2 shrink-0 rounded-full ${sessionStatusDot(session)}`} />
                           {session.pinned ? <Pin className="size-3 shrink-0 text-primary" /> : null}
-                          <span className="truncate flex-1 text-left text-sm">{session.title}</span>
+                          <span className="truncate flex-1 text-left text-sm">
+                            {displayGoalTitle(session.title)}
+                          </span>
                           <span className="text-[10px] text-muted-foreground shrink-0">
                             {formatRelativeTime(session.createdAt)}
                           </span>
@@ -236,7 +220,9 @@ export function AppSidebar({
                       >
                         <div className="flex w-full items-center gap-2">
                           <span className={`size-2 shrink-0 rounded-full ${historyStatusDot(task.status)}`} />
-                          <span className="truncate flex-1 text-left text-sm">{task.goal_text}</span>
+                          <span className="truncate flex-1 text-left text-sm">
+                            {displayGoalTitle(task.goal_text)}
+                          </span>
                         </div>
                         <div className="flex w-full items-center gap-2 pl-4 text-[10px] text-muted-foreground">
                           <span>{historyStatusLabel(task.status)}</span>

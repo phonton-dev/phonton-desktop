@@ -387,16 +387,22 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Inspect and hash-check the engine packaged with this application.",
+          "type": "string",
+          "const": "allow-bundled-engine",
+          "markdownDescription": "Inspect and hash-check the engine packaged with this application."
+        },
+        {
           "description": "Proxy HTTP to phonton serve (bypasses webview CORS on /rpc).",
           "type": "string",
           "const": "allow-serve-proxy",
           "markdownDescription": "Proxy HTTP to phonton serve (bypasses webview CORS on /rpc)."
         },
         {
-          "description": "Sidecar health checks and stale port cleanup on Windows.",
+          "description": "Inspect the process started by this application.",
           "type": "string",
           "const": "allow-sidecar-lifecycle",
-          "markdownDescription": "Sidecar health checks and stale port cleanup on Windows."
+          "markdownDescription": "Inspect the process started by this application."
         },
         {
           "description": "Spawn vendor phonton.exe as the local serve sidecar.",

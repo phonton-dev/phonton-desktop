@@ -4,18 +4,65 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag to build, for example v0.2.0'
-        required: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-desktop-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  preflight:
+    name: Check pinned engine and release state
+    runs-on: ubuntu-latest
+    outputs:
+      engine_sha: ${{ steps.engine.outputs.sha }}
+      engine_version: ${{ steps.engine.outputs.version }}
+    steps:
+      - name: Checkout tagged Desktop source
+        uses: actions/checkout@v4
+
+      - name: Read pinned CLI source
+        id: engine
+        shell: bash
+        run: |
+          sha=$(jq -r '.commit' engine-source.json)
+          version=$(jq -r '.version' engine-source.json)
+          repository=$(jq -r '.repository' engine-source.json)
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+             [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][A-Za-z0-9.-]+)?$ ]] ||
+             [ "$repository" != 'phonton-dev/phonton-cli' ]; then
+            echo '::error::Tag source must pin a public CLI commit and engine version in engine-source.json.'
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse to reuse an existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo '::error::Unsupported release tag.'
+            exit 1
+          fi
+          status=$(curl --silent --show-error --output release.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME")
+          if [ "$status" = 200 ]; then
+            echo '::error::This tag already has a release, including drafts; refusing to reuse its assets.'
+            exit 1
+          elif [ "$status" != 404 ]; then
+            echo "::error::Could not verify release state (HTTP $status)."
+            exit 1
+          fi
+
   build:
     name: Build (${{ matrix.platform }})
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
@@ -31,6 +78,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout pinned Windows engine source
+        if: matrix.platform == 'windows-latest'
+        uses: actions/checkout@v4
+        with:
+          repository: phonton-dev/phonton-cli
+          ref: ${{ needs.preflight.outputs.engine_sha }}
+          path: phonton-dev
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -67,21 +122,11 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Resolve tag
-        id: tag
-        shell: bash
-        run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Load release notes
         id: notes
         shell: bash
         run: |
-          NOTES_FILE="release-notes/${{ steps.tag.outputs.value }}.md"
+          NOTES_FILE="release-notes/${GITHUB_REF_NAME}.md"
           if [ -f "$NOTES_FILE" ]; then
             {
               echo 'body<<EOF'
@@ -98,41 +143,32 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          PHONTON_ENGINE_SOURCE_DIR: ${{ github.workspace }}/phonton-dev
+          PHONTON_ENGINE_EXPECTED_VERSION: ${{ needs.preflight.outputs.engine_version }}
         with:
-          tagName: ${{ steps.tag.outputs.value }}
-          releaseName: 'Phonton Desktop ${{ steps.tag.outputs.value }}'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Phonton Desktop ${{ github.ref_name }}'
           releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
   checksums:
-    name: Publish checksums
+    name: Add checksums to draft
     needs: build
-    if: always() && needs.build.result != 'cancelled'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Resolve tag
-        id: tag
-        shell: bash
-        run: |
-          if [ -n "${{ inputs.tag }}" ]; then
-            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Download release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p dist
-          gh release download "${{ steps.tag.outputs.value }}" \
+          gh release download "${GITHUB_REF_NAME}" \
             --repo "${{ github.repository }}" \
             --dir dist \
             --pattern '*.exe' \
@@ -142,23 +178,35 @@ jobs:
             --pattern '*.deb' \
             --pattern '*.tar.gz' \
             --pattern '*.sig' \
-            --pattern '*.json' || true
+            --pattern '*.json'
 
       - name: Write SHA256SUMS
         working-directory: dist
         run: |
           shopt -s nullglob
           files=(*.exe *.msi *.dmg *.AppImage *.deb *.tar.gz)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No installer assets found to checksum."
-            exit 0
+          windows=(*.exe *.msi)
+          macos=(*.dmg)
+          linux=(*.AppImage *.deb)
+          if [ ${#windows[@]} -eq 0 ] || [ ${#macos[@]} -eq 0 ] || [ ${#linux[@]} -eq 0 ]; then
+            echo 'Missing installer assets for one or more required platforms.' >&2
+            exit 1
           fi
           sha256sum "${files[@]}" > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Upload checksums
-        if: hashFiles('dist/SHA256SUMS.txt') != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ steps.tag.outputs.value }}" dist/SHA256SUMS.txt --clobber
+          gh release upload "${GITHUB_REF_NAME}" dist/SHA256SUMS.txt --clobber
+
+  publish:
+    name: Publish complete release
+    needs: [build, checksums]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish verified draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --draft=false

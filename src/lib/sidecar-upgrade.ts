@@ -1,7 +1,8 @@
 import { ensurePhontonCli } from "./cli-install";
 import { isServeVersionSupported, MIN_SERVE_CLI_VERSION } from "./cli-version";
-import { checkServeHealth, ping, waitForPing } from "./serve";
-import { clearStaleServePort, restartSidecar, stopSidecar } from "./sidecar";
+import { supportsLocalHarnessCapabilities } from "./engine-capabilities";
+import { checkServeHealth, ping, waitForPing, type EnginePing } from "./serve";
+import { isTauri, restartSidecar, stopSidecar } from "./sidecar";
 
 export type SidecarConnectResult =
   | { ok: true; version: string; handoffSchema: string }
@@ -12,7 +13,7 @@ export type SidecarConnectResult =
       installedVersion?: string;
     };
 
-async function pingSidecar(): Promise<{ version: string; handoff_schema: string } | null> {
+async function pingSidecar(): Promise<EnginePing | null> {
   if (!(await checkServeHealth())) return null;
   try {
     return await ping();
@@ -21,19 +22,53 @@ async function pingSidecar(): Promise<{ version: string; handoff_schema: string 
   }
 }
 
+function supportsRequestedWork(info: EnginePing, requireLocalHarness: boolean): boolean {
+  return isServeVersionSupported(info.version)
+    && (!requireLocalHarness || supportsLocalHarnessCapabilities(info));
+}
+
+function incompatibleEngine(info: EnginePing, requireLocalHarness: boolean): SidecarConnectResult {
+  return {
+    ok: false,
+    reason: "upgrade_required",
+    installedVersion: info.version,
+    error: !isServeVersionSupported(info.version)
+      ? `The installed engine is v${info.version}. Desktop serve RPC needs v${MIN_SERVE_CLI_VERSION} or newer.`
+      : requireLocalHarness
+        ? `Engine v${info.version} does not advertise the current local model catalog, storage and coding-run APIs. Connect the bundled Phonton local engine, then reconnect.`
+        : `Engine v${info.version} does not support this Desktop session.`,
+  };
+}
+
 /**
  * Ensure phonton serve responds with a CLI version that supports desktop RPC.
- * Kills stale listeners, upgrades npm package when needed, and restarts sidecar.
+ * Local startup only connects. Explicit upgrade may install and restart the
+ * app-owned sidecar; it never terminates an unrelated port listener.
  */
 export async function ensureSidecarReady(
   bootstrap = false,
   onProgress?: (message: string) => void,
+  allowInstall = false,
+  requireLocalHarness = false,
 ): Promise<SidecarConnectResult> {
   onProgress?.("Checking sidecar…");
   let info = await pingSidecar();
+  // A live native child may still be binding its server after the short
+  // process-liveness check. Wait for readiness before settling offline.
+  if (!info && isTauri()) {
+    onProgress?.("Waiting for local engine…");
+    info = await waitForPing(bootstrap);
+  }
 
-  if (info && isServeVersionSupported(info.version)) {
+  if (info && supportsRequestedWork(info, requireLocalHarness)) {
     return { ok: true, version: info.version, handoffSchema: info.handoff_schema };
+  }
+
+  if (!allowInstall) {
+    return info
+      ? incompatibleEngine(info, requireLocalHarness)
+      : { ok: false, reason: "offline",
+          error: "No local engine responded. Start the installed phonton serve, then reconnect. No download was started." };
   }
 
   if (info && !isServeVersionSupported(info.version)) {
@@ -42,7 +77,6 @@ export async function ensureSidecarReady(
     );
   }
 
-  await clearStaleServePort();
   await stopSidecar();
 
   const upgrade = await ensurePhontonCli(onProgress);
@@ -75,14 +109,7 @@ export async function ensureSidecarReady(
     };
   }
 
-  if (!isServeVersionSupported(info.version)) {
-    return {
-      ok: false,
-      reason: "upgrade_required",
-      error: `Sidecar is v${info.version}; Phonton Desktop requires phonton-cli v${MIN_SERVE_CLI_VERSION}+. Run: npm install -g phonton-cli@${MIN_SERVE_CLI_VERSION}`,
-      installedVersion: info.version,
-    };
-  }
+  if (!supportsRequestedWork(info, requireLocalHarness)) return incompatibleEngine(info, requireLocalHarness);
 
   return { ok: true, version: info.version, handoffSchema: info.handoff_schema };
 }

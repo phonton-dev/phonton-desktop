@@ -11,7 +11,7 @@ export function TokensFocus({ session }: Props) {
   if (!state && !usage && !receipt) {
     return (
       <p className="text-sm text-muted-foreground">
-        Cost and token buckets appear during and after a run. Compare actual dollars vs the frontier estimate here.
+        Cost and token buckets appear during and after a run. Compare estimated model spend with the frontier estimate here.
       </p>
     );
   }
@@ -24,22 +24,24 @@ export function TokensFocus({ session }: Props) {
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
-        <Stat label="Actual cost" value={receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"} />
+        <Stat label="Cost estimate" value={receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"} />
         <Stat
           label="Frontier estimate"
           value={receipt ? formatUsdMicros(receipt.frontier_equivalent_usd_micros) : "-"}
         />
         <Stat
-          label="Saved vs frontier"
+          label="Est. saved vs frontier"
           value={receipt && saved != null ? `${formatUsdMicros(receipt.saved_usd_micros)} (${saved}%)` : "-"}
         />
         <Stat label="Tokens used" value={used.toLocaleString()} />
         <Stat label="Naive token baseline" value={baseline.toLocaleString()} />
         <Stat label="Tokens saved vs naive" value={savedTok.toLocaleString()} />
       </div>
-      {receipt && !receipt.pricing_known ? (
+      {receipt ? (
         <p className="text-xs text-muted-foreground">
-          Dollar figures are estimated from published list prices for the model tier, not a live invoice.
+          {receipt.pricing_known
+            ? "Dollar figures use registered model rates and token counts. Discounts and cache pricing may change the billed amount."
+            : "Dollar figures use a model-tier price proxy because complete model pricing was unavailable. They are not a bill."}
         </p>
       ) : null}
       {usage ? (

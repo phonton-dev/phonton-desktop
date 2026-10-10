@@ -10,8 +10,8 @@ import {
 } from "./cli-install";
 
 import { getActiveProject } from "./projects";
-
-const SERVE_PORT = 47831;
+import { ensureBundledSidecar } from "./bundled-sidecar-start";
+import { spawnObservedShellChild } from "./shell-child-lifecycle";
 
 let sidecarWorkspace: string | null = null;
 
@@ -28,6 +28,15 @@ let rustSpawned = false;
 
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export async function sidecarProcessAlive(): Promise<boolean> {
+  if (child) return true;
+  try {
+    return await invoke<boolean>("phonton_sidecar_alive");
+  } catch {
+    return false;
+  }
 }
 
 function isWindows(): boolean {
@@ -54,13 +63,13 @@ function spawnDetail(launch: ReturnType<typeof getPhontonLaunchSpec>): string {
   return `cmd ${launch.cmd}`;
 }
 
-async function spawnNamed(name: string, args: string[]) {
-  return Command.create(name, args).spawn();
+async function spawnNamed(name: string, args: string[]): Promise<void> {
+  await spawnObservedShellChild(Command.create(name, args), () => child, (value) => { child = value; });
 }
 
 async function spawnExeViaShell(exe: string): Promise<void> {
   const pathPrefix = await getPathSetPrefix();
-  child = await spawnNamed("win-phonton-serve-resolved", [
+  await spawnNamed("win-phonton-serve-resolved", [
     "/c",
     `${pathPrefix}${quoteWindowsArg(exe)} serve`,
   ]);
@@ -74,11 +83,11 @@ async function spawnViaShell(launch: ReturnType<typeof getPhontonLaunchSpec>, re
       return;
     }
     if (launch) {
-      child = await spawnNamed("win-phonton-serve-resolved", await windowsLaunchServeArgs(launch));
+      await spawnNamed("win-phonton-serve-resolved", await windowsLaunchServeArgs(launch));
       return;
     }
     const pathPrefix = await getPathSetPrefix();
-    child = await spawnNamed("win-phonton-serve-resolved", windowsServeArgsFromCmd(resolved, pathPrefix));
+    await spawnNamed("win-phonton-serve-resolved", windowsServeArgsFromCmd(resolved, pathPrefix));
     return;
   }
 
@@ -88,7 +97,7 @@ async function spawnViaShell(launch: ReturnType<typeof getPhontonLaunchSpec>, re
       : launch?.kind === "node"
         ? launch.script
         : resolved;
-  child = await spawnNamed("unix-phonton-serve-resolved", [
+  await spawnNamed("unix-phonton-serve-resolved", [
     "-c",
     `'${cmd.replace(/'/g, "'\\''")}' serve`,
   ]);
@@ -103,18 +112,21 @@ async function verifyRustSidecar(): Promise<boolean> {
   }
 }
 
-export async function clearStaleServePort(): Promise<void> {
-  if (!isTauri() || !isWindows()) return;
-  try {
-    await invoke<number>("kill_serve_port_listeners", { port: SERVE_PORT });
-  } catch {
-    /* ignore */
-  }
-}
-
 export async function startSidecar(): Promise<void> {
   if (!isTauri()) return;
-  if (child || rustSpawned) return;
+  const bundled = await invoke<{ path: string; version: string; sha256: string } | null>("bundled_phonton_engine");
+  if (child) return;
+  if (bundled) {
+    await ensureBundledSidecar(rustSpawned, {
+      health: () => invoke<boolean>("serve_health"),
+      spawn: async () => { await invoke<number>("spawn_phonton_serve", { exe: bundled.path, workspaceDir: resolveWorkspaceDir() }); },
+      alive: verifyRustSidecar,
+    });
+    rustSpawned = true;
+    return;
+  }
+  if (rustSpawned && !await invoke<boolean>("phonton_sidecar_alive")) rustSpawned = false;
+  if (rustSpawned) return;
 
   const launch = getPhontonLaunchSpec();
   const resolved = getResolvedPhontonCmd();
@@ -157,7 +169,7 @@ export async function startSidecar(): Promise<void> {
   if (isWindows()) {
     try {
       const pathPrefix = await getPathSetPrefix();
-      child = await spawnNamed("win-phonton-serve-resolved", [
+      await spawnNamed("win-phonton-serve-resolved", [
         "/c",
         `${pathPrefix}${quoteWindowsArg("phonton.cmd")} serve`,
       ]);

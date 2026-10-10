@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { getVersion } from "@tauri-apps/api/app";
+import { getName, getVersion } from "@tauri-apps/api/app";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useState } from "react";
 import { checkForAppUpdate } from "@/lib/app-updater";
@@ -43,7 +43,8 @@ import {
 } from "@/lib/license";
 import { getActiveProject } from "@/lib/projects";
 import { isTauri } from "@/lib/sidecar";
-import { themePresets, type ThemeId, applyTheme } from "@/themes/presets";
+import { themePresets, themeSwatches, type ThemeId, applyTheme } from "@/themes/presets";
+import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
 type SettingsSection =
@@ -89,6 +90,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   const [upgradeBusy, setUpgradeBusy] = useState(false);
   const [tokenInput, setTokenInput] = useState(getStoredCloudToken() ?? "");
   const [appVersion, setAppVersion] = useState("");
+  const [localPreview, setLocalPreview] = useState<boolean | null>(null);
   const [updateStatus, setUpdateStatus] = useState("");
   const [updateBusy, setUpdateBusy] = useState(false);
   const [doctorJson, setDoctorJson] = useState("{}");
@@ -115,9 +117,13 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   }, []);
 
   const upgradeCli = async () => {
+    if (await getName() === "Phonton Preview") {
+      setConfigStatus("Rebuild or reinstall this preview to restore its bundled engine.");
+      return;
+    }
     setUpgradeBusy(true);
     setConfigStatus("Upgrading phonton-cli…");
-    const result = await ensureSidecarReady(true, (msg) => setConfigStatus(msg));
+    const result = await ensureSidecarReady(true, (msg) => setConfigStatus(msg), true);
     setUpgradeBusy(false);
     if (result.ok) {
       await loadConfig();
@@ -129,7 +135,10 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
 
   useEffect(() => {
     void loadConfig();
-    if (isTauri()) void getVersion().then(setAppVersion).catch(() => undefined);
+    if (isTauri()) {
+      void getVersion().then(setAppVersion).catch(() => undefined);
+      void getName().then(name => setLocalPreview(name === "Phonton Preview")).catch(() => undefined);
+    }
   }, [loadConfig]);
 
   const persistConfig = async (patch: Partial<PhontonConfig>) => {
@@ -210,9 +219,10 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                   Settings need phonton-cli v{MIN_SERVE_CLI_VERSION}+ with desktop serve RPC (
                   <code className="mono text-xs">config.get</code>). Your sidecar is too old or stale.
                 </p>
-                <Button className="mt-3" size="sm" disabled={upgradeBusy} onClick={() => void upgradeCli()}>
-                  {upgradeBusy ? "Upgrading…" : "Upgrade CLI and restart sidecar"}
-                </Button>
+                {localPreview === true ? <p className="mt-3 text-sm">Rebuild or reinstall this preview to restore its bundled engine.</p> : localPreview === false ?
+                  <Button className="mt-3" size="sm" disabled={upgradeBusy} onClick={() => void upgradeCli()}>
+                    {upgradeBusy ? "Upgrading…" : "Upgrade CLI and restart sidecar"}
+                  </Button> : null}
               </Alert>
             ) : null}
             {section === "account" ? (
@@ -294,26 +304,32 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
             {section === "appearance" ? (
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Appearance</h2>
-                <Label>Theme</Label>
-                <Select
-                  value={themeId}
-                  onValueChange={(id) => {
-                    const next = id as ThemeId;
-                    onThemeChange(next);
-                    applyTheme(next);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {themePresets.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <p className="text-sm text-muted-foreground">Applies immediately. You can change this anytime.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  {themePresets.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        onThemeChange(preset.id);
+                        applyTheme(preset.id);
+                      }}
+                      className={cn(
+                        "rounded-xl border p-3 text-left transition-colors",
+                        themeId === preset.id
+                          ? "border-primary ring-2 ring-primary/25"
+                          : "border-border hover:bg-accent/50",
+                      )}
+                    >
+                      <div className="mb-2 grid h-10 grid-cols-4 overflow-hidden rounded-md border border-border/60">
+                        {themeSwatches[preset.id].map((color) => (
+                          <span key={color} className="block" style={{ background: color }} />
+                        ))}
+                      </div>
+                      <span className="text-sm font-medium">{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
               </section>
             ) : null}
 
@@ -538,7 +554,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                 </Button>
                 {onShowSetup ? (
                   <Button variant="ghost" onClick={onShowSetup}>
-                    Show setup again
+                    Online account setup
                   </Button>
                 ) : null}
               </section>
@@ -625,9 +641,10 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                   {appVersion ? `Phonton Desktop v${appVersion}` : "Phonton Desktop"}
                   {updateStatus ? ` · ${updateStatus}` : ""}
                 </p>
-                <Button disabled={updateBusy} onClick={() => void handleCheckUpdates()}>
-                  {updateBusy ? "Checking…" : "Check for updates"}
-                </Button>
+                {localPreview === true ? <p className="text-sm text-muted-foreground">This local preview is updated by rebuilding it.</p> : localPreview === false ?
+                  <Button disabled={updateBusy} onClick={() => void handleCheckUpdates()}>
+                    {updateBusy ? "Checking…" : "Check for updates"}
+                  </Button> : null}
               </section>
             ) : null}
 
