@@ -37,7 +37,7 @@ test("malformed or excessive checks fail before preview", () => {
 
 test("review text preserves argument boundaries when an argument contains spaces", () => {
   assert.equal(
-    formatLocalRunCommand({ program: "node", args: ["--test-name-pattern", "safe case"] }),
-    '["node","--test-name-pattern","safe case"]',
+    formatLocalRunCommand({ program: "node", args: ["--test-name-pattern", "safe case", "a\nb", "", "--x=1"] }),
+    'node --test-name-pattern "safe case" "a\\nb" "" --x=1',
   );
 });

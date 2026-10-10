@@ -19,6 +19,10 @@ export function parseLocalRunChecks(input: string): Check[] {
 }
 
 /** Show the exact executable and argument boundaries reviewed by the engine. */
+/** A shell-like command line that keeps argument boundaries: an argument
+ * with spaces, quotes, escapes or control characters is JSON-quoted. */
 export function formatLocalRunCommand(check: Check): string {
-  return JSON.stringify([check.program, ...check.args]);
+  return [check.program, ...check.args]
+    .map(arg => arg !== "" && /^[^\s"'\\`$\u0000-\u001f\u007f]+$/.test(arg) ? arg : JSON.stringify(arg))
+    .join(" ");
 }
