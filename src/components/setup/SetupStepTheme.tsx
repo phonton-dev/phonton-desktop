@@ -1,11 +1,4 @@
-import { applyTheme, themePresets, type ThemeId } from "../../themes/presets";
-
-const swatchColors: Record<ThemeId, string[]> = {
-  nebula: ["#07070c", "#9b6cff", "#16161f", "#5ed4f7"],
-  "cursor-dark": ["#1e1e1e", "#3794ff", "#2d2d2d", "#4ec9b0"],
-  light: ["#f6f7fb", "#6b4ce6", "#ffffff", "#0ea5e9"],
-  "high-contrast": ["#000000", "#ffff00", "#111111", "#00ffff"],
-};
+import { applyTheme, themePresets, themeSwatches, type ThemeId } from "../../themes/presets";
 
 type Props = {
   themeId: ThemeId;
@@ -29,7 +22,7 @@ export function SetupStepTheme({ themeId, onThemeChange }: Props) {
             }}
           >
             <div className="theme-swatch" aria-hidden>
-              {swatchColors[preset.id].map((color) => (
+              {themeSwatches[preset.id].map((color) => (
                 <span key={color} style={{ background: color }} />
               ))}
             </div>

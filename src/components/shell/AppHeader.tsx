@@ -1,13 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -15,7 +8,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { Cloud, MoreHorizontal, Settings } from "lucide-react";
+import { Cloud, Settings } from "lucide-react";
 import { pricingUrl, sessionPlan } from "@/lib/license";
 import { isTauri } from "@/lib/sidecar";
 import type { SidecarState } from "@/hooks/useSidecar";
@@ -24,6 +17,7 @@ type Props = {
   sidecar: SidecarState;
   projectPath: string | null;
   onOpenSettings: () => void;
+  onOpenModels: () => void;
   onOpenProject: () => void;
   onOpenRecent: (path: string) => void;
   onClearProject: () => void;
@@ -71,6 +65,7 @@ export function AppHeader({
   sidecar,
   projectPath,
   onOpenSettings,
+  onOpenModels,
   onOpenProject,
   onOpenRecent,
   onClearProject,
@@ -116,31 +111,21 @@ export function AppHeader({
         {sessionPlan()}
       </Badge>
       <div className="flex-1" />
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon" aria-label="More actions" />}
-        >
-          <MoreHorizontal className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={() => {
-              const url = pricingUrl();
-              if (isTauri()) void openExternal(url);
-              else window.open(url, "_blank");
-            }}
-          >
-            <Cloud className="size-4" />
-            Cloud plans
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onOpenSettings}>
-            <Settings className="size-4" />
-            Settings
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Button variant="ghost" size="icon" onClick={onOpenSettings} aria-label="Settings" className="lg:hidden">
+      <Button variant="ghost" size="sm" onClick={onOpenModels}>Local models</Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="hidden sm:inline-flex"
+        onClick={() => {
+          const url = pricingUrl();
+          if (isTauri()) void openExternal(url);
+          else window.open(url, "_blank");
+        }}
+      >
+        <Cloud className="size-4" />
+        Cloud
+      </Button>
+      <Button variant="ghost" size="icon" onClick={onOpenSettings} aria-label="Settings">
         <Settings className="size-4" />
       </Button>
     </header>

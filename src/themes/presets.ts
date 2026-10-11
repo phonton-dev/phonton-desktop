@@ -11,6 +11,13 @@ export type ThemePreset = {
 
 export const THEME_STORAGE_KEY = "phonton.theme";
 
+export const themeSwatches: Record<ThemeId, string[]> = {
+  nebula: ["#07070c", "#2ec9b4", "#16161f", "#5ed4f7"],
+  "cursor-dark": ["#1e1e1e", "#3794ff", "#2d2d2d", "#4ec9b0"],
+  light: ["#f6f7fb", "#6b4ce6", "#ffffff", "#0ea5e9"],
+  "high-contrast": ["#000000", "#ffff00", "#111111", "#00ffff"],
+};
+
 const modalGlass = {
   "--ph-blur": "blur(16px)",
 };

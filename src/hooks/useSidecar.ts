@@ -18,6 +18,8 @@ type Options = {
   enabled?: boolean;
   /** Longer ping window after fresh CLI install / vendor download. */
   bootstrap?: boolean;
+  /** Require the local model and coding-run API used by the local workbench. */
+  requireLocalHarness?: boolean;
 };
 
 function applyConnectResult(
@@ -43,7 +45,7 @@ function applyConnectResult(
   setState({ status: "offline", error: result.error });
 }
 
-export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) {
+export function useSidecar({ enabled = true, bootstrap = false, requireLocalHarness = false }: Options = {}) {
   const [state, setState] = useState<SidecarState>(
     enabled ? { status: "connecting" } : { status: "idle" },
   );
@@ -54,11 +56,18 @@ export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) 
       return;
     }
     setState({ status: "connecting", message: "Connecting to sidecar…" });
+    try {
+      await startSidecar();
+    } catch (err) {
+      setState({ status: "offline",
+        error: `spawn failed: ${err instanceof Error ? err.message : String(err)}` });
+      return;
+    }
     const result = await ensureSidecarReady(bootstrap, (message) => {
       setState({ status: "connecting", message });
-    });
+    }, false, requireLocalHarness);
     applyConnectResult(setState, result);
-  }, [bootstrap, enabled]);
+  }, [bootstrap, enabled, requireLocalHarness]);
 
   useEffect(() => {
     if (!enabled) {
@@ -82,14 +91,14 @@ export function useSidecar({ enabled = true, bootstrap = false }: Options = {}) 
       }
       const result = await ensureSidecarReady(bootstrap, (message) => {
         if (!cancelled) setState({ status: "connecting", message });
-      });
+      }, false, requireLocalHarness);
       if (!cancelled) applyConnectResult(setState, result);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [bootstrap, enabled]);
+  }, [bootstrap, enabled, requireLocalHarness]);
 
   return { state, refresh };
 }

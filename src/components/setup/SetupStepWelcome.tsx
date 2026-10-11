@@ -71,6 +71,12 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
       <img src="/phonton-logo.png" alt="Phonton" className="setup-logo" />
       <h1>Phonton Desktop</h1>
       <p>Give Phonton a goal. It starts cheap, verifies, and shows the cost.</p>
+      <ol className="setup-loop" aria-label="How Phonton works">
+        <li>Goal</li>
+        <li>Plan</li>
+        <li>Verify</li>
+        <li>Receipt</li>
+      </ol>
 
       {isTauri() ? (
         <div className="setup-update-banner">
@@ -96,8 +102,8 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
         </div>
       ) : null}
 
-      <div className="toolbar" style={{ justifyContent: "center", marginTop: 12 }}>
-        <button type="button" className="btn" onClick={onGetStarted}>
+      <div className="toolbar" style={{ justifyContent: "center", marginTop: 8 }}>
+        <button type="button" className="btn setup-cta" onClick={onGetStarted}>
           Get started
         </button>
       </div>

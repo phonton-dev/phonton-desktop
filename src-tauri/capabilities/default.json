@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "allow-bundled-engine",
     "allow-spawn-phonton-serve",
     "allow-stop-phonton-serve",
     "allow-serve-proxy",

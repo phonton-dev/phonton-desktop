@@ -1,4 +1,5 @@
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+import { getName } from "@tauri-apps/api/app";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { isTauri } from "./sidecar";
 
@@ -29,6 +30,7 @@ export async function checkForAppUpdate(
   if (!isTauri()) return { status: "skipped" };
 
   try {
+    if (await getName() === "Phonton Preview") return { status: "skipped" };
     const update = await check();
     if (!update) return { status: "current" };
 

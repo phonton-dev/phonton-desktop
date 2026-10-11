@@ -12,6 +12,11 @@ export function formatRelativeTime(timestampMs: number): string {
   return new Date(timestampMs).toLocaleDateString();
 }
 
+/** Sidebar/history titles: strip markdown heading prefixes from stored goal text. */
+export function displayGoalTitle(text: string): string {
+  return text.replace(/^#+\s*/, "").replace(/\s+/g, " ").trim();
+}
+
 /** Parse task status from history row for display. */
 export function historyStatusLabel(status: unknown): string {
   if (!status) return "Unknown";

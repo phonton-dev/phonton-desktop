@@ -43,18 +43,14 @@ export function EconomicsStrip({ session }: Props) {
   const saved = savedPercent(receipt);
   const verify = verificationSummary(session);
   const verifyOk = verify !== "-" && verify !== "Failed" && verify !== "Failed checks";
-  const idle = !receipt && (!session?.goal || session.goal.trim() === "");
 
   return (
     <div className="border-b border-border/60 bg-card/40 px-4 py-2.5">
-      {idle ? (
-        <p className="mb-2 text-[11px] text-muted-foreground">Run a goal to fill cost and checks.</p>
-      ) : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Cell label="Task" value={taskHeadline(session)} />
         <Cell label="Models" value={routeLabels(session)} />
         <Cell
-          label="Cost"
+          label="Est. cost"
           value={receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"}
         />
         <div className="min-w-0">
@@ -70,7 +66,7 @@ export function EconomicsStrip({ session }: Props) {
           </div>
         </div>
         <Cell
-          label="Saved vs frontier"
+          label="Est. saved vs frontier"
           value={
             receipt && saved != null
               ? `${formatUsdMicros(receipt.saved_usd_micros)} (${saved}%)`

@@ -116,6 +116,58 @@
   line-height: 1.5;
 }
 
+.setup-loop {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 18px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-loop li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ph-muted);
+}
+
+.setup-loop li:not(:last-child)::after {
+  content: "→";
+  margin-left: 6px;
+  color: var(--ph-faint);
+  font-weight: 400;
+}
+
+.setup-cta {
+  min-width: 180px;
+  padding: 11px 22px;
+  font-size: 15px;
+  box-shadow: var(--ph-btn-glow);
+}
+
+.setup-token-details {
+  margin-top: 18px;
+  border-top: 1px solid var(--ph-glass-border);
+  padding-top: 12px;
+}
+
+.setup-token-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ph-muted);
+  user-select: none;
+}
+
+.setup-token-details summary:hover {
+  color: var(--ph-text);
+}
+
 .setup-section-title {
   margin: 0 0 6px;
   font-size: 20px;
@@ -271,6 +323,15 @@
   background: var(--ph-accent);
   color: var(--ph-bg, #07070c);
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn.secondary {
@@ -285,8 +346,10 @@
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
+  box-shadow: none;
+  filter: grayscale(0.25);
 }
 
 .field {
@@ -317,7 +380,12 @@
 
 @media (prefers-reduced-motion: reduce) {
   .setup-step-pill,
-  .theme-card {
+  .theme-card,
+  .btn {
     transition: none;
+  }
+
+  .btn:active:not(:disabled) {
+    transform: none;
   }
 }

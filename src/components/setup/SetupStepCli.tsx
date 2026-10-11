@@ -6,7 +6,7 @@ import { ensureSidecarReady } from "../../hooks/useSidecar";
 import { ensurePhontonCli } from "../../lib/cli-install";
 import { installDocsUrl } from "../../lib/license";
 import { checkServeHealth, waitForPing } from "../../lib/serve";
-import { clearStaleServePort, isTauri, restartSidecar } from "../../lib/sidecar";
+import { isTauri, startSidecar } from "../../lib/sidecar";
 
 type Props = {
   onConnectedChange: (connected: boolean) => void;
@@ -43,11 +43,12 @@ export function SetupStepCli({ onConnectedChange }: Props) {
         setPhase("done");
         return true;
       }
-      await clearStaleServePort();
     }
 
     try {
-      await restartSidecar();
+      // Setup can be reopened while a local goal is running. Startup must
+      // reuse an owned engine rather than stopping it after a transient ping.
+      await startSidecar();
     } catch (err) {
       setInstallError(`spawn failed: ${err instanceof Error ? err.message : String(err)}`);
       setSidecar({

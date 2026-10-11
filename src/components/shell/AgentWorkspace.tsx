@@ -14,6 +14,9 @@ type Props = {
   sidecar: SidecarState;
   projectLabel?: string | null;
   providerModel?: string | null;
+  workspaceTrusted: boolean | null;
+  trustError: string | null;
+  onTrustProject: () => void;
   onGoalChange: (goal: string) => void;
   onPreviewPlan: () => void;
   onRunGoal: () => void;
@@ -23,9 +26,12 @@ type Props = {
 };
 
 const EXAMPLE_GOALS = [
-  "Make add_one return n + 1 so the unit tests in src/lib.rs pass.",
-  "Add input validation to the config loader",
-  "Refactor sidebar layout without changing behavior",
+  {
+    label: "Fix add_one tests",
+    goal: "Make add_one return n + 1 so the unit tests in src/lib.rs pass.",
+  },
+  { label: "Validate config input", goal: "Add input validation to the config loader" },
+  { label: "Refactor sidebar", goal: "Refactor sidebar layout without changing behavior" },
 ];
 
 export function AgentWorkspace({
@@ -33,6 +39,9 @@ export function AgentWorkspace({
   sidecar,
   projectLabel,
   providerModel,
+  workspaceTrusted,
+  trustError,
+  onTrustProject,
   onGoalChange,
   onPreviewPlan,
   onRunGoal,
@@ -63,18 +72,26 @@ export function AgentWorkspace({
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-border/60 p-4 md:p-6">
         <div className="mx-auto w-full max-w-3xl space-y-4">
+          {sidecar.status === "ready" && workspaceTrusted === false ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+              <p className="max-w-xl text-xs leading-relaxed text-foreground/80">
+                Trust {projectLabel ?? "this project"} before running a goal. Phonton can read and edit its files, run checks, and use your configured provider. MCP actions remain denied by default.
+              </p>
+              <Button size="sm" variant="secondary" onClick={onTrustProject}>Trust project</Button>
+              {trustError ? <p className="w-full text-xs text-destructive">{trustError}</p> : null}
+            </div>
+          ) : null}
           {idle ? (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Sparkles className="size-4 text-primary" />
               <p className="text-sm">
-                What should we build
                 {projectLabel ? (
                   <>
-                    {" "}
-                    in <span className="text-foreground font-medium">{projectLabel}</span>?
+                    What should we build in{" "}
+                    <span className="text-foreground font-medium">{projectLabel}</span>?
                   </>
                 ) : (
-                  "?"
+                  "What should we build?"
                 )}
               </p>
             </div>
@@ -113,7 +130,7 @@ export function AgentWorkspace({
                 <Button
                   size="sm"
                   onClick={onRunGoal}
-                  disabled={running || sidecar.status !== "ready"}
+                  disabled={running || sidecar.status !== "ready" || workspaceTrusted !== true}
                 >
                   {running ? "Running…" : "Run goal"}
                 </Button>
@@ -124,12 +141,12 @@ export function AgentWorkspace({
             <div className="flex flex-wrap gap-2">
               {EXAMPLE_GOALS.map((example) => (
                 <button
-                  key={example}
+                  key={example.goal}
                   type="button"
                   className="rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={() => onGoalChange(example)}
+                  onClick={() => onGoalChange(example.goal)}
                 >
-                  {example}
+                  {example.label}
                 </button>
               ))}
             </div>
@@ -150,9 +167,6 @@ export function AgentWorkspace({
                 Retry
               </button>
             </p>
-          ) : null}
-          {sidecar.status === "connecting" ? (
-            <p className="text-xs text-muted-foreground">{sidecar.message ?? "Connecting…"}</p>
           ) : null}
         </div>
       </div>

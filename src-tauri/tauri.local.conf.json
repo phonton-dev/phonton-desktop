@@ -1,0 +1,16 @@
+{
+  "productName": "Phonton Preview",
+  "identifier": "dev.phonton.desktop.preview",
+  "plugins": {
+    "deep-link": { "desktop": { "schemes": ["phonton-preview"] } },
+    "updater": { "endpoints": [] }
+  },
+  "bundle": {
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "binaries/phonton-engine.exe": "local-engine/phonton.exe",
+      "binaries/local-engine.json": "local-engine/manifest.json"
+    }
+  }
+}

@@ -1,7 +1,8 @@
 [package]
 name = "phonton-desktop"
-version = "0.3.4"
-description = "Phonton Desktop — commercial control room"
+version = "0.4.0"
+description = "Phonton Desktop: a local workbench for the Phonton engine"
+license = "MIT OR Apache-2.0"
 edition = "2021"
 
 [build-dependencies]
@@ -17,8 +18,15 @@ tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 [lib]
 name = "phonton_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dev-dependencies]
+tempfile = "3"
