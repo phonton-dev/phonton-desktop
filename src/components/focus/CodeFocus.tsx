@@ -18,7 +18,7 @@ export function CodeFocus({ session }: Props) {
     <ScrollArea className="h-full max-h-[calc(100vh-16rem)]">
       <ul className="space-y-3 pr-3">
         {files.map((f) => (
-          <li key={f.path} className="rounded-lg border bg-muted/20 p-3">
+          <li key={f.path} className="border p-3">
             <div className="font-mono text-xs font-medium">{f.path}</div>
             <div className="mt-2 text-xs text-muted-foreground whitespace-pre-wrap">
               {f.summary || `+${f.added_lines} / -${f.removed_lines} lines`}

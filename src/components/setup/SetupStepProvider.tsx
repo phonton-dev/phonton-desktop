@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { Glyph } from "../ascii/ascii";
 import { useEffect, useState } from "react";
 import { fetchConfig, KNOWN_PROVIDERS, saveConfig, type PhontonConfig } from "../../lib/config";
 import { doctorRun } from "../../lib/serve";
@@ -116,16 +116,7 @@ export function SetupStepProvider({ onReadyChange }: Props) {
     }
   };
 
-  const icon = ready ? (
-    <CheckCircle2 size={20} color="var(--ph-ok)" />
-  ) : error ? (
-    <XCircle size={20} color="var(--ph-danger)" />
-  ) : busy ? (
-    // sloplint-disable-next-line UI-008 -- status icons share one 20px box, so nothing shifts
-    <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
-  ) : (
-    <XCircle size={20} color="var(--ph-warn)" />
-  );
+  const icon = <Glyph state={ready ? "pass" : error ? "fail" : busy ? "busy" : "warn"} />;
 
   return (
     <div>
@@ -142,7 +133,7 @@ export function SetupStepProvider({ onReadyChange }: Props) {
         <p className="cli-status-detail">{status}</p>
       </div>
       {config ? (
-        <div className="field" style={{ marginTop: 16 }}>
+        <div className="field">
           <label htmlFor="setup-provider">Provider</label>
           <select
             id="setup-provider"
@@ -184,7 +175,7 @@ export function SetupStepProvider({ onReadyChange }: Props) {
       ) : (
         <p className="cli-hint">Waiting for config from phonton serve…</p>
       )}
-      <div className="toolbar" style={{ marginTop: 12 }}>
+      <div className="toolbar">
         <button type="button" className="btn" onClick={() => void persistAndProbe()} disabled={busy || !config}>
           {busy ? "Working…" : "Save and probe"}
         </button>
@@ -193,7 +184,7 @@ export function SetupStepProvider({ onReadyChange }: Props) {
         </button>
       </div>
       {error ? (
-        <p className="cli-hint" style={{ color: "var(--ph-danger)" }}>
+        <p className="cli-hint" role="alert">
           {error}
         </p>
       ) : (

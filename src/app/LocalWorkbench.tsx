@@ -15,6 +15,7 @@ import { sameInstalledModel } from "@/lib/model-download-availability";
 import { localApplyEligibility, localMutationConfirmed, localMutationNeedsRecheck, localRollbackEligibility, localRunRepositorySelection } from "@/lib/local-run-apply";
 import { localEngineErrorMessage, RpcRemoteError } from "@/lib/serve";
 import { LocalModelsPage } from "@/pages/LocalModelsPage";
+import { AsciiLogo, Frame, Glyph, Spinner } from "@/components/ascii/ascii";
 import "./local-workbench.css";
 
 const RUN_KEY = "phonton.local.lastRun";
@@ -44,9 +45,15 @@ function runOutcome(receipt: LocalReceipt): { tone: "pass" | "warn" | "fail"; te
       return null;
   }
 }
+/** A unified diff with added, removed and hunk lines marked. */
+function Diff({ diff, label }: { diff: string; label: string }) {
+  const kind = (line: string) => line.startsWith("+++") || line.startsWith("---") ? "d-file" : line.startsWith("+") ? "d-add" : line.startsWith("-") ? "d-del" : line.startsWith("@@") ? "d-hunk" : undefined;
+  return <pre className="lw-diff" aria-label={label}>{diff.split("\n").map((line, i) => <span key={i} className={kind(line)}>{line}{"\n"}</span>)}</pre>;
+}
+
 function Checks({ checks }: { checks: CheckEvidence[] }) {
   return <div className="lw-checks">{checks.map((check, i) => <details key={i}>
-    <summary><span data-status={check.status}>{check.status === "passed" ? "✓" : check.status === "failed" ? "×" : "·"} {check.purpose === "preparation" ? "Setup" : "Check"} · {label(check.status)}</span> {check.check ? formatLocalRunCommand(check.check) : "Verification"}</summary>
+    <summary><span data-status={check.status}><Glyph state={check.status === "passed" ? "pass" : check.status === "failed" ? "fail" : "idle"} /> {check.purpose === "preparation" ? "Setup" : "Check"} · {label(check.status)}</span> {check.check ? formatLocalRunCommand(check.check) : "Verification"}</summary>
     <p>{check.detail}</p>{check.stdout && <pre>{check.stdout}</pre>}{check.stderr && <pre>{check.stderr}</pre>}
   </details>)}</div>;
 }
@@ -409,13 +416,13 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
   if (modelsOpen) return <div className="local-workbench"><LocalModelsPage connected={connected} connectionIssue={engine.status === "offline" || engine.status === "upgrade_required" ? engine.error : undefined} onBack={() => setModelsOpen(false)} onReconnect={refresh} /></div>;
   return <div className="local-workbench tabular-nums">
     <header className="lw-header"><span className="lw-wordmark">phonton<span aria-hidden="true">_</span></span>
-      <span className="lw-engine">{connected ? `engine ${engine.version}` : label(engine.status)}</span>
+      <span className="lw-engine"><Glyph state={connected ? "pass" : engine.status === "connecting" ? "busy" : "fail"} /> {connected ? <><span className="lw-engine-word">engine </span>{engine.version}</> : label(engine.status)}</span>
       <nav aria-label="Workspace"><button onClick={openModels}>Local models</button><button onClick={onSettings}>Settings</button></nav>
     </header>
     <main className={`lw-main ${receipt || busy || restoring ? "has-run" : ""}`}>
-      {!receipt && !busy && !restoring && <div className="lw-intro"><p>LOCAL DEVELOPMENT ENVIRONMENT</p><h1>{repository ? `What should we build in ${repository.split(/[\\/]/).filter(Boolean).pop()}?` : "What should we build?"}</h1></div>}
+      {!receipt && !busy && !restoring && <div className="lw-intro"><AsciiLogo sweep={connected ? engine.version : undefined} /><p>local development environment</p><h1>{repository ? `What should we build in ${repository.split(/[\\/]/).filter(Boolean).pop()}?` : "What should we build?"}</h1></div>}
       {(receipt || busy || restoring) && <section className="lw-run" aria-label="Local goal progress">
-        <div className="lw-run-heading"><span>{restoring && restoreError ? "×" : busy || restoring ? "●" : receipt?.selected_candidate ? "◇" : "·"} {receipt ? label(receipt.state) : restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped" : "Recovery needs attention" : "Restoring saved goal" : "Preparing local goal"}</span>
+        <div className="lw-run-heading"><span><Glyph state={restoring && restoreError ? "fail" : busy || restoring ? "busy" : receipt?.selected_candidate ? "pending" : receipt && runOutcome(receipt)?.tone === "fail" ? "fail" : "idle"} /> {receipt ? label(receipt.state) : restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped" : "Recovery needs attention" : "Restoring saved goal" : "Preparing local goal"}</span>
           {busy ? <button disabled={cancelRequested} onClick={() => void cancel()}>{cancelRequested ? "Cancel requested…" : "Cancel run"}</button> : <button disabled={restoring && !restoreError || applying} onClick={() => { setReceipt(null); setAttempt(null); setApplyStatus(null); setMutationRecovery(null); setRunId(""); setCancelRequested(false); setGoal(""); setFiles(""); setNewFile(""); setEditableExisting(""); setCheckText(""); setVerificationOpen(false); setHostApproved(false); setError(null); setRestoreError(null); setEndedWithoutReceipt(false); setMachine(null); setMachineRefresh(value => value + 1); invalidatePlan(); localStorage.removeItem(RUN_KEY); }}>New goal</button>}</div>
         {starting && cancelRequested && <p role="status">Cancellation will be sent when the local engine accepts this run.</p>}
         <h1>{receipt?.request.goal ?? attempt?.goal ?? (restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped before a receipt" : "Saved goal unavailable" : "Loading local evidence…" : goal)}</h1>
@@ -437,12 +444,14 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
           </div>)}</details>}
           {receipt.git_index && <details><summary>Git staging integrity · {label(receipt.git_index.status)}</summary><p>{receipt.git_index.detail}</p><p>Observed at: {receipt.git_index.stage}</p><pre>{`Index: ${receipt.git_index.path}\nBefore: ${receipt.git_index.before_sha256 ?? "index absent"}\nAfter: ${receipt.git_index.after_sha256 ?? (receipt.git_index.status === "not_run" ? "not checked" : receipt.git_index.status === "unavailable" ? "not available" : "index absent")}`}</pre></details>}
           {receipt.contract && <details><summary>Accepted plan</summary>{receipt.contract.acceptance_criteria.map(criterion => <p key={criterion}>{criterion}</p>)}<p>Scope: {receipt.contract.likely_files.join(", ")}</p></details>}
-          {receipt.candidates.map(candidate => <article className="lw-candidate" key={candidate.number}>
-            <div className="lw-candidate-heading"><span>{receipt.selected_candidate === candidate.number ? "→" : "├"} Candidate {candidate.number} · {candidate.approach}</span><span>{candidate.output_tokens ?? "?"} output tokens</span></div>
+          {receipt.candidates.map(candidate => <Frame className="lw-candidate" key={candidate.number} aria-label={`Candidate ${candidate.number}`}
+            tone={receipt.selected_candidate === candidate.number ? "ok" : candidate.rejection ? "danger" : undefined}
+            title={<><Glyph state={receipt.selected_candidate === candidate.number ? "pass" : candidate.rejection ? "fail" : "idle"} /> candidate {candidate.number} · {candidate.approach}</>}
+            meta={`${candidate.output_tokens ?? "?"} output tokens`}>
             {candidate.stage === "creation_pending_edit" && <p>Staged new file. The existing edit and combined checks have not run; this candidate cannot be applied.</p>}
             {candidate.rejection && <p className="lw-error">{candidate.rejection}</p>}
             {candidate.decision && <p>{candidate.decision.parent_candidate ? `From candidate ${candidate.decision.parent_candidate}. ` : ""}{candidate.decision.action === "initial" ? "Started from captured source." : candidate.decision.reason}</p>}
-            {candidate.diff && <pre className="lw-diff" aria-label={`Candidate ${candidate.number} diff`}>{candidate.diff}</pre>}
+            {candidate.diff && <Diff diff={candidate.diff} label={`Candidate ${candidate.number} diff`} />}
             <Checks checks={candidate.checks} />
             {candidate.context && <details><summary>Source seen by the model · {candidate.context.excerpts.length} {candidate.context.excerpts.length === 1 ? "excerpt" : "excerpts"}</summary>
               <p>{candidate.context.selected_source_bytes.toLocaleString()} of {candidate.context.source_bytes_scanned.toLocaleString()} source bytes selected · {candidate.context.elapsed_ms}ms retrieval</p>
@@ -453,7 +462,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
               <p>Admission: {candidate.context.prompt_bytes.toLocaleString()} prompt bytes + {candidate.context.constraint_bytes.toLocaleString()} constraint bytes + {candidate.context.output_tokens_reserved} reserved output tokens + 256 framing allowance within {candidate.context.context_capacity.toLocaleString()} context. This conservative bound is separate from runtime token measurements.</p>
             </details>}
             <details><summary>Candidate evidence</summary><p>Saved at {candidate.directory}</p><p>SHA-256 {candidate.content_sha256 ?? "not available"}</p><p>Input tokens {candidate.input_tokens ?? "not reported"} · output tokens {candidate.output_tokens ?? "not reported"}</p><pre>{candidate.raw_output}</pre></details>
-          </article>)}
+          </Frame>)}
           {receipt.state === "review_ready" && selected && <section className="lw-apply" aria-label="Apply selected change">
             <h2>{applyStatus?.state === "rolled_back" ? mixingEdits ? "Created file removed and source restored" : creatingFile ? "Created file removed" : "Original files restored" : applyStatus?.state === "rollback_prepared" ? mixingEdits ? "Resume combined rollback" : creatingFile ? "Resume created-file rollback" : "Resume original-file restore" : "Apply selected change"}</h2>
             {mutationRecovery && <p role="status">The {mutationRecovery.action} reply was lost and its result is not confirmed. Check the saved journal before another file change. <button disabled={!connected || applying} onClick={() => void recheckMutation()}>Recheck saved journal →</button></p>}
@@ -461,7 +470,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
               <p>Selected commands reported a pass on this exact candidate. Candidate code can terminate a test runner or forge its output; inspect the diff and captured logs before applying.</p>
               <p>{mixingEdits ? `This creates ${receipt.request.new_file} and replaces the reviewed existing edits as one changeset. Apply checks the candidate, original source, empty target, and Git index; interrupted work can be rolled forward from its journal.` : creatingFile ? `This creates only ${receipt.request.new_file}. Phonton refuses an occupied path and checks the saved candidate, existing source, and Git index before publishing.` : `This replaces ${changedFileCount} reviewed source ${changedFileCount === 1 ? "file" : "files"}. Original bytes stay in per-file run backups; Phonton does not stage or commit them.`}</p>
               {applyStatus?.state === "prepared" && <p>{mixingEdits ? "An earlier combined apply stopped before confirmation. Retry checks the created file, every changed source, saved temporaries, backups, and Git index; unknown bytes require manual recovery." : creatingFile ? "An earlier creation stopped before confirmation. Retry checks the new file, saved temporary, existing source, and Git index; unknown bytes require manual recovery." : "Earlier application stopped before confirmation. Some files may already contain the candidate. Retry checks every source file and the Git index before continuing; unknown edits require manual recovery."}</p>}
-              {!applyEligibility.allowed ? <p role="status">{applyEligibility.reason}</p> : changedFileCount > 0 ? <button className="lw-primary" disabled={applying || !connected || mutationBlocked("apply")} onClick={() => void applySelected()}>{applying ? "Checking source and Git index…" : mutationRecovery?.retryReady ? "Retry guarded Apply →" : applyStatus?.state === "prepared" ? "Resume guarded apply →" : "Apply selected changes →"}</button> : <p>No source changes are available to apply.</p>}
+              {!applyEligibility.allowed ? <p role="status">{applyEligibility.reason}</p> : changedFileCount > 0 ? <button className="lw-primary" disabled={applying || !connected || mutationBlocked("apply")} onClick={() => void applySelected()}>{applying ? <><Spinner /> Checking source and Git index…</> : mutationRecovery?.retryReady ? "Retry guarded Apply →" : applyStatus?.state === "prepared" ? "Resume guarded apply →" : "Apply selected changes →"}</button> : <p>No source changes are available to apply.</p>}
             </>}
             {applyStatus && applyStatus.state !== "rolled_back" && <>
               {rollbackEligibility.allowed ? <><p>{mixingEdits ? "Restore the reviewed existing edits from their original-byte backups, then remove the witnessed created file. Source, file identity, and Git staging must still match the saved evidence; unknown edits need manual review." : creatingFile ? "Remove the witnessed created file only while its identity, bytes, current source, and Git staging still match. A different-file replacement is refused; an ambiguous interrupted deletion needs manual review." : "Restore the original existing-file bytes from this run’s backups. Current source and Git staging must still match the saved states; observed later edits are refused."}</p><button disabled={applying || !connected || mutationBlocked("rollback")} onClick={() => void rollbackSelected()}>{applying ? creatingFile ? "Checking file identity…" : "Checking backups and source…" : mutationRecovery?.retryReady ? "Retry guarded Rollback →" : applyStatus.state === "rollback_prepared" ? "Resume guarded rollback →" : mixingEdits ? "Restore source and remove file →" : creatingFile ? "Remove created file →" : "Restore original files →"}</button></> : (applyStatus.state === "applied" || applyStatus.state === "rollback_prepared") && <p role="status">{rollbackEligibility.reason}</p>}
@@ -491,7 +500,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
           <p>Version and build commands are diagnostic. Choose a test that exercises the candidate; review direct scripts before trusting their result.</p>
           <p>After you review the plan, you approve running its exact checks on this machine.</p>
         </details>
-          {plan && <div className="lw-plan tabular-nums">
+          {plan && <Frame className="lw-plan tabular-nums" aria-label="Reviewed plan" title={<><Glyph state="pending" /> plan</>} meta={`${plan.files.length + (plan.creation ? 1 : 0)} ${plan.files.length + (plan.creation ? 1 : 0) === 1 ? "file" : "files"} · ${plan.request.checks.length} ${plan.request.checks.length === 1 ? "check" : "checks"}`}>
             <p>1. Snapshot {repository} without changing its files or Git index.{machine?.managed_storage && <> Save copies and receipts under <code>{machine.managed_storage.runs_path}</code> ({memorySize(machine.managed_storage.available_bytes)} currently free on the managed-files volume).</>}</p>
             {plan.files.map(file => <p key={file.path}>{localPlanFileAction(plan.request, file.path)} {file.path} — {file.reason}</p>)}
             {plan.creation && <p>CREATE {plan.creation.path} — {plan.creation.reason}</p>}
@@ -505,10 +514,10 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
             {!planModelCurrent && selectedModelReady && plan.model_selection && <p role="status">The selected model or runtime no longer matches this plan. Review the plan again.</p>}
             <label className="lw-approval"><input type="checkbox" checked={hostApproved} disabled={checkingReadiness} onChange={e => setHostApproved(e.target.checked)} />Run these checks on my machine. Project code runs without filesystem or network isolation. Without this, the candidate comes back unverified.</label>
             {runtimeGate.requiresConsent && <label className="lw-approval"><input type="checkbox" checked={unverifiedRuntimeApproved} disabled={checkingReadiness} onChange={e => setUnverifiedRuntimeApproved(e.target.checked)} />Allow this unverified loopback runtime to receive repository context. Phonton cannot tell whether it relays that context outside this machine.</label>}
-            <button className="lw-primary" disabled={checkingReadiness || !connected || !selectedModelReady || !plan.model_selection || !planModelCurrent || runtimeGate.blocked || (runtimeGate.requiresConsent && !unverifiedRuntimeApproved)} onClick={() => void start()}>{checkingReadiness ? "Checking runtime…" : hostApproved ? "Run local goal →" : "Run without checks →"}</button>
-            <button disabled={planning || checkingReadiness || !connected} onClick={() => void review()}>{planning ? "Inspecting repository…" : "Review plan again"}</button>
-          </div>}
-        {!plan && <div className="lw-submit"><span>{machine?.runtime_error ? `Model inventory unavailable: ${machine.runtime_error}` : machine ? `${memorySize(machine.hardware.ram_available_bytes)} RAM available` : "Hardware readings pending"}</span><button className="lw-primary" disabled={planning || !connected || !repository || !goal.trim()} onClick={() => void review()}>{planning ? "Inspecting repository…" : "Review plan →"}</button></div>}
+            <button className="lw-primary" disabled={checkingReadiness || !connected || !selectedModelReady || !plan.model_selection || !planModelCurrent || runtimeGate.blocked || (runtimeGate.requiresConsent && !unverifiedRuntimeApproved)} onClick={() => void start()}>{checkingReadiness ? <><Spinner /> Checking runtime…</> : hostApproved ? "Run local goal →" : "Run without checks →"}</button>
+            <button disabled={planning || checkingReadiness || !connected} onClick={() => void review()}>{planning ? <><Spinner /> Inspecting repository…</> : "Review plan again"}</button>
+          </Frame>}
+        {!plan && <div className="lw-submit"><span>{machine?.runtime_error ? `Model inventory unavailable: ${machine.runtime_error}` : machine ? `${memorySize(machine.hardware.ram_available_bytes)} RAM available` : "Hardware readings pending"}</span><button className="lw-primary" disabled={planning || !connected || !repository || !goal.trim()} onClick={() => void review()}>{planning ? <><Spinner /> Inspecting repository…</> : "Review plan →"}</button></div>}
         <section className="lw-recent" aria-label="Recent saved runs">
           <div className="lw-recent-heading"><h2>Recent runs</h2><button disabled={!connected} onClick={() => setRecentRunsRefresh(value => value + 1)}>Refresh</button></div>
           {recentRuns?.runs.length ? <ul>{recentRuns.runs.map(run => <li key={run.id}><button disabled={!connected} onClick={() => openSavedRunId(run.id)} title={run.goal}><span className="lw-recent-goal">{run.goal}</span><span className="lw-recent-meta">{run.model} · {run.recorded_at_unix_ms ? new Date(run.recorded_at_unix_ms).toLocaleString() : run.id.slice(0, 8)} · Open →</span></button></li>)}</ul> : <p>{recentRunsError ? `Saved runs unavailable: ${recentRunsError}` : recentRuns ? "No saved runs yet." : connected ? "Loading saved runs…" : "Connect the engine to show saved runs."}</p>}
@@ -517,6 +526,6 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
         <details className="lw-saved"><summary>Open by run ID</summary><label htmlFor="saved-run-id">Run ID from a previous receipt</label><div><input id="saved-run-id" value={savedRunId} onChange={e => setSavedRunId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /><button disabled={!connected || !savedRunId.trim()} onClick={openSavedRun}>Open evidence →</button></div></details>
       </section>}
     </main>
-    <footer className="lw-footer"><span>{runtimePresentation.footer} · explicit execution · inspectable evidence</span><span>phonton</span></footer>
+    <footer className="lw-footer"><span>{runtimePresentation.footer} · explicit execution · inspectable evidence</span><span className="lw-version">phonton desktop v{__APP_VERSION__}</span></footer>
   </div>;
 }

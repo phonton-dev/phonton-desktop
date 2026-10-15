@@ -25,7 +25,7 @@ export function ProblemsFocus({ session }: Props) {
     <ScrollArea className="h-full max-h-[calc(100vh-16rem)]">
       <div className="space-y-4 pr-3 text-sm">
         {failed ? (
-          <section className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
+          <section className="border border-destructive/40 bg-destructive/5 p-3">
             <h3 className="font-medium text-destructive">Task failed</h3>
             <p className="mt-1 text-muted-foreground">{failed.reason}</p>
           </section>

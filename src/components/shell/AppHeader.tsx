@@ -6,7 +6,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
-import { Settings } from "lucide-react";
+import { Glyph } from "@/components/ascii/ascii";
 import { isTauri } from "@/lib/sidecar";
 import type { SidecarState } from "@/hooks/useSidecar";
 
@@ -69,19 +69,11 @@ export function AppHeader({
   onSidecarAction,
 }: Props) {
   const meta = sidecarMeta(sidecar);
-  const dotClass =
-    meta.tone === "ok"
-      ? "bg-emerald-500"
-      : meta.tone === "warn"
-        ? "bg-amber-500"
-        : meta.tone === "err"
-          ? "bg-red-500"
-          : "bg-muted-foreground animate-pulse";
+  const glyph = <Glyph state={meta.tone === "ok" ? "pass" : meta.tone === "warn" ? "warn" : meta.tone === "err" ? "fail" : "busy"} />;
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border/60 bg-background/80 px-4 backdrop-blur-md">
-      <img src="/phonton-logo.png" alt="" className="h-6 w-6" aria-hidden />
-      <span className="font-semibold tracking-tight hidden sm:inline">Phonton</span>
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 sm:gap-3 sm:px-4">
+      <span className="shrink-0 text-[15px]">phonton<span className="text-primary" aria-hidden="true">_</span></span>
       <ProjectSwitcher
         projectPath={projectPath}
         onOpenProject={onOpenProject}
@@ -91,24 +83,22 @@ export function AppHeader({
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger
-            className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted/50"
+            className="flex items-center gap-1.5 px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground"
             onClick={
               sidecar.status === "upgrade_required" || sidecar.status === "offline"
                 ? onSidecarAction
                 : undefined
             }
           >
-            <span className={`size-2 rounded-full ${dotClass}`} />
+            {glyph}
             <span className="hidden md:inline">{meta.label}</span>
           </TooltipTrigger>
           <TooltipContent>{meta.detail}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
       <div className="flex-1" />
-      <Button variant="ghost" size="sm" onClick={onOpenModels}>Local models</Button>
-      <Button variant="ghost" size="icon" onClick={onOpenSettings} aria-label="Settings">
-        <Settings className="size-4" />
-      </Button>
+      <Button variant="ghost" size="sm" className="shrink-0" onClick={onOpenModels}>Local models</Button>
+      <Button variant="ghost" size="sm" className="shrink-0" onClick={onOpenSettings}>Settings</Button>
     </header>
   );
 }

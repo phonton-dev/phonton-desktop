@@ -2,6 +2,37 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## Unreleased - ASCII workbench and themes
+
+- [changed] One ASCII design language across the workbench, setup, shell,
+  focus panes, Local models and Settings: the ANSI Shadow logo, single-line
+  framed panels, state glyphs (✓ ✗ ◇ ▶), a braille spinner and text progress
+  bars. Motion runs only on a state change and stops under reduced motion.
+- [changed] Themes apply to the local workbench and Local models, which
+  previously kept hardcoded colors.
+- [changed] Settings opens on Appearance.
+- [changed] The `cursor-dark` preset is now **Graphite**; a stored
+  `cursor-dark` choice opens as Graphite.
+- [added] Settings → Appearance theme editor: accent, background, foreground
+  and the remaining palette colors, density (comfortable or compact), and font
+  (system monospace, sans for prose, or an installed font by name), with live
+  contrast ratios.
+- [added] Import terminal palettes from base16 YAML, iTerm2 `.itermcolors`,
+  Ghostty config and Windows Terminal JSON (a scheme or `settings.json`), by
+  file or pasted text. Export the current theme as JSON and import it back.
+- [added] Playwright end-to-end tests on the production build with a mocked
+  engine (goal, plan, run, apply, restore, rejected run, cancel, offline, setup
+  theme step, theme editor), plus screenshot baselines for every preset at
+  desktop and 390px widths.
+- [fixed] The provider-key shell's sidebar no longer covers the header, and
+  the header fits at 390px.
+- [fixed] Settings is usable at 390px.
+- [fixed] The sidebar showed a stale v0.3.4; it now shows the build version.
+- [fixed] Setup's finish step showed a check mark for steps that were not
+  ready.
+- [added] README steps for opening unsigned installers past SmartScreen and
+  Gatekeeper.
+
 ## 0.4.1 - No account anywhere
 
 Release notes: `release-notes/v0.4.1.md`.

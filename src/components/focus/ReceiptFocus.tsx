@@ -25,15 +25,15 @@ function EconomicsBlock({ session }: { session: GoalSession | undefined }) {
   return (
     <>
       <section className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg border bg-card/40 px-3 py-2">
+        <div className="border px-3 py-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost estimate</p>
           <p className="text-lg font-semibold tabular-nums">
             {receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"}
           </p>
         </div>
-        <div className="rounded-lg border bg-card/40 px-3 py-2">
+        <div className="border px-3 py-2">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Est. saved vs frontier</p>
-          <p className="text-lg font-semibold tabular-nums text-emerald-400">
+          <p className="text-lg font-semibold tabular-nums text-ok">
             {receipt && saved != null
               ? `${formatUsdMicros(receipt.saved_usd_micros)} (${saved}%)`
               : "-"}
@@ -76,7 +76,7 @@ function ReceiptBody({
           <h4 className="text-sm font-medium mb-2">Changed files</h4>
           <ul className="space-y-2 text-sm">
             {packet.changed_files.map((f) => (
-              <li key={f.path} className="rounded-md border px-3 py-2">
+              <li key={f.path} className="border px-3 py-2">
                 <div className="font-mono text-xs">{f.path}</div>
                 <div className="text-muted-foreground text-xs mt-1">
                   +{f.added_lines} / -{f.removed_lines}
@@ -96,7 +96,7 @@ function ReceiptBody({
             </Badge>
           ))}
           {packet.verification.findings.map((f) => (
-            <p key={f} className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+            <p key={f} className="text-xs text-warn mt-1">
               {f}
             </p>
           ))}
@@ -122,7 +122,7 @@ function ReceiptBody({
         </section>
       ) : null}
       {packet.known_gaps.length > 0 ? (
-        <section className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3">
+        <section className="border border-warn/40 bg-warn/5 p-3">
           <h4 className="text-sm font-medium mb-1">Known gaps</h4>
           <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-1">
             {packet.known_gaps.map((g) => (

@@ -73,7 +73,7 @@ export function AgentWorkspace({
       <div className="border-b border-border/60 p-4 md:p-6">
         <div className="mx-auto w-full max-w-3xl space-y-4">
           {sidecar.status === "ready" && workspaceTrusted === false ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border border-warn/40 bg-warn/5 px-4 py-3">
               <p className="max-w-xl text-xs leading-relaxed text-foreground/80">
                 Trust {projectLabel ?? "this project"} before running a goal. Phonton can read and edit its files, run checks, and use your configured provider. MCP actions remain denied by default.
               </p>
@@ -96,7 +96,7 @@ export function AgentWorkspace({
               </p>
             </div>
           ) : null}
-          <div className="rounded-2xl border bg-card/50 shadow-sm focus-within:ring-2 focus-within:ring-ring/40 transition-shadow">
+          <div className="border bg-card focus-within:ring-2 focus-within:ring-ring/40 transition-shadow">
             <Textarea
               placeholder={
                 projectLabel
@@ -152,7 +152,7 @@ export function AgentWorkspace({
             </div>
           ) : null}
           {sidecar.status === "upgrade_required" ? (
-            <p className="text-xs text-amber-500">
+            <p className="text-xs text-warn">
               Engine needs phonton-cli v{MIN_SERVE_CLI_VERSION}+
               {sidecar.installedVersion ? ` (found v${sidecar.installedVersion})` : ""}.{" "}
               <button type="button" className="underline" onClick={onUpgradeSidecar ?? onRetrySidecar}>
@@ -161,7 +161,7 @@ export function AgentWorkspace({
             </p>
           ) : null}
           {sidecar.status === "offline" ? (
-            <p className="text-xs text-amber-500">
+            <p className="text-xs text-warn">
               {sidecar.error}{" "}
               <button type="button" className="underline" onClick={onRetrySidecar}>
                 Retry

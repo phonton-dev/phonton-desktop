@@ -3,7 +3,7 @@ import type { SidecarState } from "@/hooks/useSidecar";
 import { MIN_SERVE_CLI_VERSION } from "@/lib/cli-version";
 import { projectLabel } from "@/lib/projects";
 import { isTauri } from "@/lib/sidecar";
-import { FolderOpen } from "lucide-react";
+import { AsciiLogo, Frame, Glyph } from "@/components/ascii/ascii";
 
 type Props = {
   recentProjects: string[];
@@ -33,13 +33,8 @@ export function WelcomeShell({
     <div className="shell-muted-scroll flex h-full flex-col overflow-y-auto p-6 md:p-10">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
         <div className="text-center space-y-3">
-          <img
-            src="/phonton-logo.png"
-            alt=""
-            className="mx-auto size-14 rounded-2xl shell-surface p-2"
-            aria-hidden
-          />
-          <h1 className="text-2xl font-semibold tracking-tight">Open a project to start</h1>
+          <AsciiLogo className="mb-4" sweep={sidecar.status === "ready" ? sidecar.version : undefined} />
+          <h1 className="text-xl font-medium">Open a project to start</h1>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
             Phonton is a local-first ADE. Open your repo, describe a goal, and
             review a verified receipt: models, checks, and cost versus frontier.
@@ -53,17 +48,17 @@ export function WelcomeShell({
         </div>
 
         {sidecarIssue ? (
-          <div className="shell-surface rounded-xl border border-amber-500/30 px-4 py-3 text-sm">
+          <div role="alert" className="border border-warn/40 px-4 py-3 text-sm">
             {sidecar.status === "upgrade_required" ? (
-              <p className="text-amber-500">
-                Engine needs phonton-cli v{MIN_SERVE_CLI_VERSION}+.{" "}
+              <p className="text-warn">
+                <Glyph state="warn" /> Engine needs phonton-cli v{MIN_SERVE_CLI_VERSION}+.{" "}
                 <button type="button" className="underline" onClick={onSidecarAction}>
                   Upgrade CLI
                 </button>
               </p>
             ) : (
-              <p className="text-amber-500">
-                {sidecar.error}{" "}
+              <p className="text-warn">
+                <Glyph state="fail" /> {sidecar.error}{" "}
                 <button type="button" className="underline" onClick={onSidecarAction}>
                   Retry engine
                 </button>
@@ -72,25 +67,21 @@ export function WelcomeShell({
           </div>
         ) : null}
 
-        <div className="shell-surface rounded-2xl border p-6 text-center space-y-4">
-          <Button size="lg" className="gap-2" onClick={onOpenProject}>
-            <FolderOpen className="size-4" />
-            Open project folder
-          </Button>
+        <Frame title="project" className="space-y-3 text-center">
+          <Button size="lg" onClick={onOpenProject}>Open project folder →</Button>
           <p className="text-xs text-muted-foreground">
             Choose a git repo or workspace folder on your machine.
           </p>
-        </div>
+        </Frame>
 
         {recentProjects.length > 0 ? (
-          <div className="space-y-3">
-            <p className="shell-section-label">Recent projects</p>
+          <Frame title="recent projects">
             <div className="grid gap-2 sm:grid-cols-2">
               {recentProjects.slice(0, 6).map((path) => (
                 <button
                   key={path}
                   type="button"
-                  className="shell-surface rounded-xl border px-4 py-3 text-left transition-colors hover:bg-accent/50"
+                  className="px-3 py-2 text-left hover:bg-accent"
                   onClick={() => onOpenRecent(path)}
                   title={path}
                 >
@@ -99,14 +90,13 @@ export function WelcomeShell({
                 </button>
               ))}
             </div>
-          </div>
+          </Frame>
         ) : null}
 
-        <div className="space-y-3">
-          <p className="shell-section-label">Getting started</p>
-          <ol className="grid gap-3 sm:grid-cols-3">
+        <Frame title="getting started">
+          <ol className="grid gap-4 sm:grid-cols-3">
             {STEPS.map((step, i) => (
-              <li key={step.title} className="shell-surface rounded-xl border p-4 space-y-2">
+              <li key={step.title} className="space-y-1">
                 <p className="text-sm font-medium">
                   <span className="text-primary tabular-nums">{i + 1}.</span> {step.title}
                 </p>
@@ -114,7 +104,7 @@ export function WelcomeShell({
               </li>
             ))}
           </ol>
-        </div>
+        </Frame>
       </div>
     </div>
   );

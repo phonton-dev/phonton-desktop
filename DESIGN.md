@@ -7,16 +7,23 @@ The interface is for operating on repositories. Use near-black surfaces,
 monospace type, quiet separators and compact textual state. Preserve substantial
 empty space around the central goal composer. Reveal detailed evidence on demand.
 
-The model-management surface uses these scoped tokens:
+Every surface reads the theme tokens that `src/themes/presets.ts` sets on the
+root element; no component hardcodes a color. Nebula is the default preset:
 
-| Token | Value | Purpose |
+| Token | Nebula | Purpose |
 |---|---|---|
-| `--model-bg` | `#0b0c0e` | Main surface |
-| `--model-surface` | `#141518` | Controls and code output |
-| `--model-line` | `#303238` | Group boundaries |
-| `--model-ink` | `#e4e5e7` | Primary text |
-| `--model-muted` | `#a2a5ad` | Secondary text |
-| `--model-accent` | `#b8d8c2` | Selection and primary action |
+| `--ph-bg` | `#0a0b0d` | Main surface |
+| `--ph-surface` | `#121418` | Controls and code output |
+| `--ph-line` | `#2a2e35` | Frames and group boundaries |
+| `--ph-fg` | `#e4e6e9` | Primary text |
+| `--ph-muted` | `#9aa1ab` | Secondary text (4.5:1 or better) |
+| `--ph-accent` | `#2ec9b4` | Selection, focus and primary action |
+| `--ph-ok` / `--ph-warn` / `--ph-danger` | `#6ee09a` / `#e8c06a` / `#ff8a82` | ✓ ◇ ✗ states |
+
+The ASCII kit (`src/components/ascii/ascii.tsx`) is the only source of the
+ANSI Shadow logo, frames, state glyphs, spinner and text progress bars. Never
+swap in the compact pixel-block logo. Motion runs once on a state change and
+stops under reduced motion.
 
 Use local monospace fonts with Cascadia Code/Consolas fallbacks; avoid automatic
 font network requests. Numerals are tabular. Controls have visible focus, hover,

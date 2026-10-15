@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AsciiBar } from "@/components/ascii/ascii";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cancelModelOperation, memorySize, modelCatalog, modelOperation, modelStatus, setManagedStorage, setModelEndpoint, startModelOperation, type CatalogSnapshot, type ModelOperation, type ModelStatus } from "@/lib/local-models";
 import { canCancelModelOperation, matchingModelOperation, readOwnedModelOperation, writeOwnedModelOperation } from "@/lib/model-operation-identity";
@@ -314,7 +315,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
       {calibrationResult === "unknown" && <p className="model-note">Refresh installed models to check whether this calibration produced a selectable profile.</p>}
       {ownedOperationId !== operation.id && <p className="model-note">Latest engine operation from another client. It cannot be cancelled from this window.</p>}
       {operation.running && !operation.cancelable && <p className="model-note">Selection, deselection and removal finish before Phonton reports their result. Refresh installed models if the connection drops.</p>}
-      {operation.progress?.total != null && operation.progress.total > 0 && <><progress aria-label="Download progress" max={operation.progress.total} value={operation.progress.completed ?? undefined} /><p>{memorySize(operation.progress.completed)} / {memorySize(operation.progress.total)}</p></>}
+      {operation.progress?.total != null && operation.progress.total > 0 && <><AsciiBar label="Download progress" max={operation.progress.total} value={operation.progress.completed} cells={32} /><p>{memorySize(operation.progress.completed)} / {memorySize(operation.progress.total)}</p></>}
       {canCancelModelOperation(ownedOperationId, operation) && <button onClick={() => void cancelModelOperation(operation.id).catch(e => setError(report(e)))}>Cancel operation</button>}
     </section>}
 

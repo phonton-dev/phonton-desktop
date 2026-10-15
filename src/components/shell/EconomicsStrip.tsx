@@ -24,9 +24,9 @@ function Cell({
 }) {
   const valueClass =
     tone === "ok"
-      ? "text-emerald-400"
+      ? "text-ok"
       : tone === "warn"
-        ? "text-amber-400"
+        ? "text-warn"
         : "text-foreground";
   return (
     <div className="min-w-0">

@@ -30,9 +30,7 @@ import { ensureSidecarReady } from "@/hooks/useSidecar";
 import { doctorRun } from "@/lib/serve";
 import { getActiveProject } from "@/lib/projects";
 import { isTauri } from "@/lib/sidecar";
-import { themePresets, themeSwatches, type ThemeId, applyTheme } from "@/themes/presets";
-import { cn } from "@/lib/utils";
-import { ArrowLeft } from "lucide-react";
+import { ThemeEditor } from "@/components/theme/ThemeEditor";
 
 type SettingsSection =
   | "appearance"
@@ -60,8 +58,6 @@ const NAV: { id: SettingsSection; label: string }[] = [
 ];
 
 type Props = {
-  themeId: ThemeId;
-  onThemeChange: (id: ThemeId) => void;
   onBack: () => void;
   onShowSetup?: () => void;
   /** Label for the `onShowSetup` button; it depends on what the caller does. */
@@ -69,13 +65,11 @@ type Props = {
 };
 
 export function SettingsPage({
-  themeId,
-  onThemeChange,
   onBack,
   onShowSetup,
   setupLabel = "Provider-key workbench setup",
 }: Props) {
-  const [section, setSection] = useState<SettingsSection>("provider");
+  const [section, setSection] = useState<SettingsSection>("appearance");
   const [config, setConfig] = useState<PhontonConfig | null>(null);
   const [configPath, setConfigPath] = useState<string | null>(null);
   const [configStatus, setConfigStatus] = useState("");
@@ -173,35 +167,31 @@ export function SettingsPage({
 
   return (
     <div className="flex h-screen flex-col bg-background">
-      <header className="flex h-12 items-center gap-3 border-b px-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          <ArrowLeft className="mr-1 size-4" />
-          Back
-        </Button>
-        <h1 className="text-lg font-semibold">Settings</h1>
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
+        <Button variant="ghost" size="sm" onClick={onBack}>← Back</Button>
+        <h1 className="text-sm font-medium">Settings</h1>
         {configPath ? (
-          <span className="text-xs text-muted-foreground truncate">Config: {configPath}</span>
+          <span className="hidden truncate text-xs text-muted-foreground sm:inline">Config: {configPath}</span>
         ) : null}
       </header>
-      <div className="flex min-h-0 flex-1">
-        <nav className="w-52 shrink-0 border-r p-3">
-          <ScrollArea className="h-full">
-            <div className="space-y-1">
-              {NAV.map((item) => (
-                <Button
-                  key={item.id}
-                  variant={section === item.id ? "secondary" : "ghost"}
-                  size="sm"
-                  className="w-full justify-start"
-                  onClick={() => setSection(item.id)}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
-          </ScrollArea>
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <nav aria-label="Settings sections" className="shrink-0 overflow-x-auto border-b p-2 md:w-52 md:border-b-0 md:border-r md:p-3">
+          <div className="flex gap-1 md:flex-col">
+            {NAV.map((item) => (
+              <Button
+                key={item.id}
+                variant={section === item.id ? "secondary" : "ghost"}
+                size="sm"
+                className="shrink-0 justify-start md:w-full"
+                aria-current={section === item.id ? "page" : undefined}
+                onClick={() => setSection(item.id)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
         </nav>
-        <ScrollArea className="min-h-0 flex-1 p-6">
+        <ScrollArea className="min-h-0 flex-1 p-4 md:p-6">
           <div className="mx-auto max-w-2xl space-y-6">
             {configUpgradeNeeded ? (
               <Alert variant="destructive">
@@ -220,32 +210,7 @@ export function SettingsPage({
             {section === "appearance" ? (
               <section className="space-y-4">
                 <h2 className="text-base font-medium">Appearance</h2>
-                <p className="text-sm text-muted-foreground">Applies immediately. You can change this anytime.</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {themePresets.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => {
-                        onThemeChange(preset.id);
-                        applyTheme(preset.id);
-                      }}
-                      className={cn(
-                        "rounded-xl border p-3 text-left transition-colors",
-                        themeId === preset.id
-                          ? "border-primary ring-2 ring-primary/25"
-                          : "border-border hover:bg-accent/50",
-                      )}
-                    >
-                      <div className="mb-2 grid h-10 grid-cols-4 overflow-hidden rounded-md border border-border/60">
-                        {themeSwatches[preset.id].map((color) => (
-                          <span key={color} className="block" style={{ background: color }} />
-                        ))}
-                      </div>
-                      <span className="text-sm font-medium">{preset.label}</span>
-                    </button>
-                  ))}
-                </div>
+                <ThemeEditor />
               </section>
             ) : null}
 

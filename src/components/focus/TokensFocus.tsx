@@ -1,5 +1,6 @@
 import type { GoalSession } from "@/hooks/useSessions";
 import { costReceiptFromSession, formatUsdMicros, savedPercent } from "@/lib/economics";
+import { AsciiBar } from "@/components/ascii/ascii";
 
 type Props = { session: GoalSession | undefined };
 
@@ -37,6 +38,12 @@ export function TokensFocus({ session }: Props) {
         <Stat label="Naive token baseline" value={baseline.toLocaleString()} />
         <Stat label="Tokens saved vs naive" value={savedTok.toLocaleString()} />
       </div>
+      {baseline > 0 ? (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>Tokens used against the naive baseline</p>
+          <AsciiBar label="Tokens used of the naive baseline" value={used} max={baseline} cells={32} />
+        </div>
+      ) : null}
       {receipt ? (
         <p className="text-xs text-muted-foreground">
           {receipt.pricing_known
@@ -45,7 +52,7 @@ export function TokensFocus({ session }: Props) {
         </p>
       ) : null}
       {usage ? (
-        <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1 tabular-nums">
+        <div className="border p-3 text-xs text-muted-foreground space-y-1 tabular-nums">
           <div>Input: {(usage.input_tokens ?? 0).toLocaleString()}</div>
           <div>Output: {(usage.output_tokens ?? 0).toLocaleString()}</div>
           <div>Cached: {(usage.cached_tokens ?? 0).toLocaleString()}</div>
@@ -57,7 +64,7 @@ export function TokensFocus({ session }: Props) {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-card/40 px-3 py-2">
+    <div className="border px-3 py-2">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold tabular-nums">{value}</div>
     </div>
