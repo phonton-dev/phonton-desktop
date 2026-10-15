@@ -121,6 +121,7 @@ export function SetupStepProvider({ onReadyChange }: Props) {
   ) : error ? (
     <XCircle size={20} color="var(--ph-danger)" />
   ) : busy ? (
+    // sloplint-disable-next-line UI-008 -- status icons share one 20px box, so nothing shifts
     <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
   ) : (
     <XCircle size={20} color="var(--ph-warn)" />

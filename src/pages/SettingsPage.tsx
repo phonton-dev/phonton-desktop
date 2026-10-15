@@ -12,9 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { getName, getVersion } from "@tauri-apps/api/app";
-import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useCallback, useEffect, useState } from "react";
 import { checkForAppUpdate } from "@/lib/app-updater";
 import {
@@ -30,17 +28,6 @@ import {
 import { isConfigGetError, MIN_SERVE_CLI_VERSION } from "@/lib/cli-version";
 import { ensureSidecarReady } from "@/hooks/useSidecar";
 import { doctorRun } from "@/lib/serve";
-import {
-  accountUrl,
-  clearCloudToken,
-  clearSessionToken,
-  getStoredCloudToken,
-  hasCloudSyncEntitlement,
-  isAuthenticated,
-  sessionPlan,
-  signInUrl,
-  storeCloudToken,
-} from "@/lib/license";
 import { getActiveProject } from "@/lib/projects";
 import { isTauri } from "@/lib/sidecar";
 import { themePresets, themeSwatches, type ThemeId, applyTheme } from "@/themes/presets";
@@ -48,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
 
 type SettingsSection =
-  | "account"
   | "appearance"
   | "provider"
   | "budget"
@@ -61,7 +47,6 @@ type SettingsSection =
   | "updates";
 
 const NAV: { id: SettingsSection; label: string }[] = [
-  { id: "account", label: "Account" },
   { id: "appearance", label: "Appearance" },
   { id: "provider", label: "Provider" },
   { id: "budget", label: "Budget" },
@@ -82,13 +67,12 @@ type Props = {
 };
 
 export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Props) {
-  const [section, setSection] = useState<SettingsSection>("account");
+  const [section, setSection] = useState<SettingsSection>("provider");
   const [config, setConfig] = useState<PhontonConfig | null>(null);
   const [configPath, setConfigPath] = useState<string | null>(null);
   const [configStatus, setConfigStatus] = useState("");
   const [configUpgradeNeeded, setConfigUpgradeNeeded] = useState(false);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
-  const [tokenInput, setTokenInput] = useState(getStoredCloudToken() ?? "");
   const [appVersion, setAppVersion] = useState("");
   const [localPreview, setLocalPreview] = useState<boolean | null>(null);
   const [updateStatus, setUpdateStatus] = useState("");
@@ -99,7 +83,6 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   const [extContent, setExtContent] = useState("");
   const [extStatus, setExtStatus] = useState("");
 
-  const cloudConnected = hasCloudSyncEntitlement(getStoredCloudToken());
   const projectOpen = Boolean(getActiveProject());
 
   const loadConfig = useCallback(async () => {
@@ -136,8 +119,8 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
   useEffect(() => {
     void loadConfig();
     if (isTauri()) {
-      void getVersion().then(setAppVersion).catch(() => undefined);
-      void getName().then(name => setLocalPreview(name === "Phonton Preview")).catch(() => undefined);
+      void getVersion().then(setAppVersion).catch(() => setAppVersion("unknown"));
+      void getName().then(name => setLocalPreview(name === "Phonton Preview")).catch(() => setLocalPreview(false));
     }
   }, [loadConfig]);
 
@@ -224,81 +207,6 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                     {upgradeBusy ? "Upgrading…" : "Upgrade CLI and restart sidecar"}
                   </Button> : null}
               </Alert>
-            ) : null}
-            {section === "account" ? (
-              <section className="space-y-4">
-                <h2 className="text-base font-medium">Account</h2>
-                <p className="text-sm text-muted-foreground">
-                  {isAuthenticated()
-                    ? `Signed in · ${sessionPlan()} plan`
-                    : "Not signed in"}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (isTauri()) void openExternal(signInUrl());
-                      else window.open(signInUrl(), "_blank");
-                    }}
-                  >
-                    Manage account
-                  </Button>
-                  {isAuthenticated() ? (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        clearSessionToken();
-                        onShowSetup?.();
-                      }}
-                    >
-                      Sign out
-                    </Button>
-                  ) : null}
-                </div>
-                <Separator />
-                <Label htmlFor="cloud-token">Cloud sync token</Label>
-                <Textarea
-                  id="cloud-token"
-                  rows={3}
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder="Paste token from phonton.dev/account"
-                />
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      const t = tokenInput.trim();
-                      if (hasCloudSyncEntitlement(t)) storeCloudToken(t);
-                    }}
-                  >
-                    Save token
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      clearCloudToken();
-                      setTokenInput("");
-                    }}
-                  >
-                    Clear
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (isTauri()) void openExternal(accountUrl());
-                      else window.open(accountUrl(), "_blank");
-                    }}
-                  >
-                    Open account
-                  </Button>
-                </div>
-                {cloudConnected ? (
-                  <Alert>
-                    <AlertTitle>Cloud sync connected</AlertTitle>
-                  </Alert>
-                ) : null}
-              </section>
             ) : null}
 
             {section === "appearance" ? (
@@ -554,7 +462,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                 </Button>
                 {onShowSetup ? (
                   <Button variant="ghost" onClick={onShowSetup}>
-                    Online account setup
+                    Provider-key workbench setup
                   </Button>
                 ) : null}
               </section>

@@ -235,7 +235,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
   const verifiedPreviousLaunch = existingRuntime && operation?.result != null && typeof operation.result === "object" &&
     "managed_origin" in operation.result && operation.result.managed_origin === "verified_previous_launch";
 
-  return <main className="local-models" aria-labelledby="models-title">
+  return <main className="local-models tabular-nums" aria-labelledby="models-title">
     <div className="model-page-heading"><button onClick={onBack} disabled={submitting}>← Workspace</button><span>Connects over loopback</span></div>
     <header><h1 id="models-title">Local models</h1><p>Install a model, measure which edits it gets right on this machine, then select it. Inference stays on 127.0.0.1.</p></header>
     {!connected && <p role="status">{connectionIssue ?? "Connect the Phonton engine to inspect your machine and manage models."} <button onClick={() => void onReconnect()}>Reconnect engine</button></p>}

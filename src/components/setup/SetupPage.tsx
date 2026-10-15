@@ -1,10 +1,8 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useSidecar } from "../../hooks/useSidecar";
-import { isAuthenticated } from "../../lib/license";
 import { completeSetup } from "../../lib/setup";
 import type { ThemeId } from "../../themes/presets";
 import { SetupHeader } from "./SetupHeader";
-import { SetupStepAuth } from "./SetupStepAuth";
 import { SetupStepCli } from "./SetupStepCli";
 import { SetupStepFinish } from "./SetupStepFinish";
 import { SetupStepProvider } from "./SetupStepProvider";
@@ -12,7 +10,7 @@ import { SetupStepTheme } from "./SetupStepTheme";
 import { SetupStepWelcome } from "./SetupStepWelcome";
 import "./setup.css";
 
-const STEPS = ["welcome", "auth", "theme", "cli", "provider", "finish"] as const;
+const STEPS = ["welcome", "theme", "cli", "provider", "finish"] as const;
 export type SetupStep = (typeof STEPS)[number];
 
 type Props = {
@@ -26,7 +24,6 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
   const [step, setStep] = useState<SetupStep>(initialStep);
   const [cliConnected, setCliConnected] = useState(false);
   const [providerReady, setProviderReady] = useState(false);
-  const authState = useMemo(() => crypto.randomUUID(), []);
   const sidecarEnabled = step === "provider" || step === "finish";
   const { state: sidecar } = useSidecar({ enabled: sidecarEnabled });
 
@@ -47,14 +44,7 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
     onComplete();
   };
 
-  const canContinue =
-    step === "auth"
-      ? isAuthenticated()
-      : step === "cli"
-        ? cliConnected
-        : step === "provider"
-          ? providerReady
-          : true;
+  const canContinue = step === "cli" ? cliConnected : step === "provider" ? providerReady : true;
 
   return (
     <div className="setup-page">
@@ -77,9 +67,6 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
 
         <div className="setup-body">
           {step === "welcome" ? <SetupStepWelcome onGetStarted={goNext} /> : null}
-          {step === "auth" ? (
-            <SetupStepAuth authState={authState} />
-          ) : null}
           {step === "theme" ? <SetupStepTheme themeId={themeId} onThemeChange={onThemeChange} /> : null}
           {step === "cli" ? <SetupStepCli onConnectedChange={setCliConnected} /> : null}
           {step === "provider" ? <SetupStepProvider onReadyChange={setProviderReady} /> : null}

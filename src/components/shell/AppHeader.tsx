@@ -1,4 +1,3 @@
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -7,9 +6,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ProjectSwitcher } from "@/components/shell/ProjectSwitcher";
-import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { Cloud, Settings } from "lucide-react";
-import { pricingUrl, sessionPlan } from "@/lib/license";
+import { Settings } from "lucide-react";
 import { isTauri } from "@/lib/sidecar";
 import type { SidecarState } from "@/hooks/useSidecar";
 
@@ -107,24 +104,8 @@ export function AppHeader({
           <TooltipContent>{meta.detail}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <Badge variant="secondary" className="capitalize hidden lg:inline-flex">
-        {sessionPlan()}
-      </Badge>
       <div className="flex-1" />
       <Button variant="ghost" size="sm" onClick={onOpenModels}>Local models</Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="hidden sm:inline-flex"
-        onClick={() => {
-          const url = pricingUrl();
-          if (isTauri()) void openExternal(url);
-          else window.open(url, "_blank");
-        }}
-      >
-        <Cloud className="size-4" />
-        Cloud
-      </Button>
       <Button variant="ghost" size="icon" onClick={onOpenSettings} aria-label="Settings">
         <Settings className="size-4" />
       </Button>
