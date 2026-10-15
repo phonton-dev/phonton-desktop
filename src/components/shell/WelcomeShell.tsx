@@ -3,7 +3,7 @@ import type { SidecarState } from "@/hooks/useSidecar";
 import { MIN_SERVE_CLI_VERSION } from "@/lib/cli-version";
 import { projectLabel } from "@/lib/projects";
 import { isTauri } from "@/lib/sidecar";
-import { FolderOpen, FolderKanban, Goal, ShieldCheck } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 
 type Props = {
   recentProjects: string[];
@@ -14,9 +14,9 @@ type Props = {
 };
 
 const STEPS = [
-  { icon: FolderKanban, title: "Open repo", detail: "Pick a local folder Phonton can index and verify against." },
-  { icon: Goal, title: "Describe a goal", detail: "State a merge-bound outcome, not a chat prompt." },
-  { icon: ShieldCheck, title: "Review the receipt", detail: "See models, checks, cost, and saved vs frontier after verification." },
+  { title: "Open repo", detail: "Pick a local folder Phonton can index and verify against." },
+  { title: "Describe a goal", detail: "State a merge-bound outcome, not a chat prompt." },
+  { title: "Review the receipt", detail: "See the diff, the checks that ran, tokens and cost before anything lands." },
 ];
 
 export function WelcomeShell({
@@ -107,13 +107,9 @@ export function WelcomeShell({
           <ol className="grid gap-3 sm:grid-cols-3">
             {STEPS.map((step, i) => (
               <li key={step.title} className="shell-surface rounded-xl border p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="flex size-6 items-center justify-center rounded-full bg-primary/15 text-xs font-medium text-primary">
-                    {i + 1}
-                  </span>
-                  <step.icon className="size-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{step.title}</span>
-                </div>
+                <p className="text-sm font-medium">
+                  <span className="text-primary tabular-nums">{i + 1}.</span> {step.title}
+                </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">{step.detail}</p>
               </li>
             ))}

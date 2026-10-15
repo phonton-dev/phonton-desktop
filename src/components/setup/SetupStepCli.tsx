@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { SidecarState } from "../../hooks/useSidecar";
 import { ensureSidecarReady } from "../../hooks/useSidecar";
 import { ensurePhontonCli } from "../../lib/cli-install";
-import { installDocsUrl } from "../../lib/license";
+const INSTALL_DOCS_URL = "https://phonton.dev/docs/install/";
 import { checkServeHealth, waitForPing } from "../../lib/serve";
 import { isTauri, startSidecar } from "../../lib/sidecar";
 
@@ -124,6 +124,7 @@ export function SetupStepCli({ onConnectedChange }: Props) {
     ) : phase === "error" || sidecar.status === "offline" ? (
       <XCircle size={20} color={phase === "error" ? "var(--ph-danger)" : "var(--ph-warn)"} />
     ) : (
+      // sloplint-disable-next-line UI-008 -- status icons share one 20px box, so nothing shifts
       <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
     );
 
@@ -190,7 +191,7 @@ export function SetupStepCli({ onConnectedChange }: Props) {
             type="button"
             className="btn ghost"
             onClick={() => {
-              const url = installDocsUrl();
+              const url = INSTALL_DOCS_URL;
               if (isTauri()) void openExternal(url);
               else window.open(url, "_blank");
             }}

@@ -53,7 +53,7 @@ function Checks({ checks }: { checks: CheckEvidence[] }) {
 
 function RunEnvironment({ receipt }: { receipt: LocalReceipt }) {
   const { profile, hardware, resident_reuse: resident } = receipt;
-  return <details className="lw-environment"><summary>Model identity & admission machine</summary>
+  return <details className="lw-environment tabular-nums"><summary>Model identity & admission machine</summary>
     <p>Model <code>{profile.model}</code> · digest <code>{profile.digest || "not recorded"}</code></p>
     <p>Runtime {profile.runtime_version || "not recorded"} · endpoint <code>{profile.endpoint || "not recorded"}</code></p>
     <p>Measured profile: {profile.context_tokens.toLocaleString()} context tokens · {profile.output_tokens.toLocaleString()} output-token ceiling · {profile.protocol ? label(profile.protocol) : "no edit protocol"}</p>
@@ -407,7 +407,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
   };
   const openSavedRun = () => openSavedRunId(savedRunId);
   if (modelsOpen) return <div className="local-workbench"><LocalModelsPage connected={connected} connectionIssue={engine.status === "offline" || engine.status === "upgrade_required" ? engine.error : undefined} onBack={() => setModelsOpen(false)} onReconnect={refresh} /></div>;
-  return <div className="local-workbench">
+  return <div className="local-workbench tabular-nums">
     <header className="lw-header"><span className="lw-wordmark">phonton<span aria-hidden="true">_</span></span>
       <span className="lw-engine">{connected ? `engine ${engine.version}` : label(engine.status)}</span>
       <nav aria-label="Workspace"><button onClick={openModels}>Local models</button><button onClick={onSettings}>Settings</button></nav>
@@ -491,7 +491,7 @@ export function LocalWorkbench({ onSettings }: { onSettings: () => void }) {
           <p>Version and build commands are diagnostic. Choose a test that exercises the candidate; review direct scripts before trusting their result.</p>
           <p>After you review the plan, you approve running its exact checks on this machine.</p>
         </details>
-          {plan && <div className="lw-plan">
+          {plan && <div className="lw-plan tabular-nums">
             <p>1. Snapshot {repository} without changing its files or Git index.{machine?.managed_storage && <> Save copies and receipts under <code>{machine.managed_storage.runs_path}</code> ({memorySize(machine.managed_storage.available_bytes)} currently free on the managed-files volume).</>}</p>
             {plan.files.map(file => <p key={file.path}>{localPlanFileAction(plan.request, file.path)} {file.path} — {file.reason}</p>)}
             {plan.creation && <p>CREATE {plan.creation.path} — {plan.creation.reason}</p>}

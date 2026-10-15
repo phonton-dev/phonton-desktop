@@ -45,7 +45,7 @@ export function TokensFocus({ session }: Props) {
         </p>
       ) : null}
       {usage ? (
-        <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1">
+        <div className="rounded-md border p-3 text-xs text-muted-foreground space-y-1 tabular-nums">
           <div>Input: {(usage.input_tokens ?? 0).toLocaleString()}</div>
           <div>Output: {(usage.output_tokens ?? 0).toLocaleString()}</div>
           <div>Cached: {(usage.cached_tokens ?? 0).toLocaleString()}</div>

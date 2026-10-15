@@ -17,7 +17,7 @@ function Root() {
       try {
         const win = getCurrentWindow();
         await win.setIcon("/phonton-logo.png");
-      } catch (err) {
+      } catch (err) { // sloplint-disable-line BE-001 -- cosmetic: a missing icon must not block startup
         console.warn("Failed to set window icon", err);
       }
     })();
