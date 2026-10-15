@@ -2,6 +2,20 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## 0.4.1 - No account anywhere
+
+Release notes: `release-notes/v0.4.1.md`.
+
+- [changed] The provider-key workbench setup no longer asks for a phonton.dev
+  sign-in; setup is theme, engine, provider key.
+- [changed] Settings opens on Provider. The Account page and its cloud-sync
+  token are gone, as are the header's plan badge and Cloud pricing link.
+- [changed] Numbers in the workbench, local models and token counts use
+  tabular figures.
+- [changed] The bundled engine is CLI 0.24.1.
+- [fixed] Settings shows "unknown" when the app version cannot be read,
+  instead of an empty value.
+
 ## 0.4.0 - Local workbench
 
 Desktop opens into a local workbench: install and calibrate a local model,
