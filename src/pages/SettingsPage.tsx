@@ -64,9 +64,17 @@ type Props = {
   onThemeChange: (id: ThemeId) => void;
   onBack: () => void;
   onShowSetup?: () => void;
+  /** Label for the `onShowSetup` button; it depends on what the caller does. */
+  setupLabel?: string;
 };
 
-export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Props) {
+export function SettingsPage({
+  themeId,
+  onThemeChange,
+  onBack,
+  onShowSetup,
+  setupLabel = "Provider-key workbench setup",
+}: Props) {
   const [section, setSection] = useState<SettingsSection>("provider");
   const [config, setConfig] = useState<PhontonConfig | null>(null);
   const [configPath, setConfigPath] = useState<string | null>(null);
@@ -462,7 +470,7 @@ export function SettingsPage({ themeId, onThemeChange, onBack, onShowSetup }: Pr
                 </Button>
                 {onShowSetup ? (
                   <Button variant="ghost" onClick={onShowSetup}>
-                    Provider-key workbench setup
+                    {setupLabel}
                   </Button>
                 ) : null}
               </section>

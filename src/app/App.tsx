@@ -62,7 +62,9 @@ export default function App() {
   const [settings, setSettings] = useState(false);
   const [themeId, setThemeId] = useState<ThemeId>(() => loadStoredTheme());
   if (onlineSetup) return <OnlineApp />;
+  // Opens the workbench; its setup wizard runs only if it never finished.
   if (settings) return <SettingsPage themeId={themeId} onThemeChange={setThemeId}
-    onBack={() => setSettings(false)} onShowSetup={() => setOnlineSetup(true)} />;
+    onBack={() => setSettings(false)} onShowSetup={() => setOnlineSetup(true)}
+    setupLabel="Open provider-key workbench" />;
   return <LocalWorkbench onSettings={() => setSettings(true)} />;
 }
