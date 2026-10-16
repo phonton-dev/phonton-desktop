@@ -20,8 +20,11 @@ async function plan(page: Page) {
   await expect(page.getByRole("button", { name: /Run without checks/ })).toBeVisible();
 }
 
-const shot = (page: Page, project: string, name: string) =>
-  page.screenshot({ path: `${dir}/${theme}-${project}-${name}.png`, fullPage: true });
+async function shot(page: Page, project: string, name: string) {
+  // Sticky navigation is drawn where the page is scrolled; capture from the top.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: `${dir}/${theme}-${project}-${name}.png`, fullPage: true });
+}
 
 test("tour: goal, plan, run, receipt", async ({ page }, info) => {
   await open(page, { recentRuns: true, runningPolls: 2 });
@@ -38,6 +41,18 @@ test("tour: goal, plan, run, receipt", async ({ page }, info) => {
   await shot(page, info.project.name, "4-applied");
 });
 
+test("tour: commands and runs", async ({ page }, info) => {
+  await open(page, { recentRuns: true });
+  await expect(page.getByRole("button", { name: MODEL_BUTTON })).toBeVisible();
+  await page.getByRole("button", { name: "Commands" }).click();
+  await expect(page.getByPlaceholder("Type a command…")).toBeVisible();
+  await shot(page, info.project.name, "11-commands");
+  await page.keyboard.press("Escape");
+  await page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Runs" }).click();
+  await expect(page.getByRole("heading", { name: "Runs", exact: true })).toBeVisible();
+  await shot(page, info.project.name, "12-runs");
+});
+
 test("tour: rejected", async ({ page }, info) => {
   await open(page, { scenario: "rejected" });
   await plan(page);
@@ -52,7 +67,7 @@ test("tour: models, settings, setup", async ({ page }, info) => {
   await page.getByRole("button", { name: "Local models" }).click();
   await expect(page.getByRole("heading", { name: "Installed models" })).toBeVisible();
   await shot(page, info.project.name, "6-models");
-  await page.getByRole("button", { name: /Workspace/ }).click();
+  await page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Goal" }).click();
   await page.getByRole("button", { name: "Settings" }).click();
   await shot(page, info.project.name, "7-settings");
   await page.getByRole("button", { name: "General" }).click();

@@ -13,11 +13,6 @@ type Props = {
   onSidecarAction?: () => void;
 };
 
-const STEPS = [
-  { title: "Open repo", detail: "Pick a local folder Phonton can index and verify against." },
-  { title: "Describe a goal", detail: "State a merge-bound outcome, not a chat prompt." },
-  { title: "Review the receipt", detail: "See the diff, the checks that ran, tokens and cost before anything lands." },
-];
 
 export function WelcomeShell({
   recentProjects,
@@ -93,18 +88,6 @@ export function WelcomeShell({
           </Frame>
         ) : null}
 
-        <Frame title="getting started">
-          <ol className="grid gap-4 sm:grid-cols-3">
-            {STEPS.map((step, i) => (
-              <li key={step.title} className="space-y-1">
-                <p className="text-sm font-medium">
-                  <span className="text-primary tabular-nums">{i + 1}.</span> {step.title}
-                </p>
-                <p className="text-xs text-muted-foreground leading-relaxed">{step.detail}</p>
-              </li>
-            ))}
-          </ol>
-        </Frame>
       </div>
     </div>
   );

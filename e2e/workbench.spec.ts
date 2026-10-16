@@ -14,12 +14,12 @@ test("first run: engine, model, repository, goal → plan → run → review →
   await expect(page.getByRole("heading", { name: "Local models" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Installed models" })).toBeVisible();
   await expect(page.getByText(MOCK.MODEL).first()).toBeVisible();
-  await page.getByRole("button", { name: /Workspace/ }).click();
+  await page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Goal" }).click();
 
   await page.getByRole("button", { name: /Open repository/ }).click();
   await page.getByLabel("Repository folder path").fill(MOCK.REPOSITORY);
   await page.getByRole("button", { name: /Open folder/ }).click();
-  await expect(page.getByRole("heading", { name: "What should we build in todo-api?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "New goal in todo-api" })).toBeVisible();
 
   // Goal → plan.
   const review = page.getByRole("button", { name: /^Review plan/ });
@@ -77,6 +77,35 @@ test("cancel a running goal", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel run" }).click();
   await expect(page.getByRole("button", { name: "Cancel requested…" })).toBeDisabled();
   expect(engine.calls).toContain("local.run.cancel");
+});
+
+test("dashboard readings and the command menu", async ({ page }) => {
+  await openWorkbench(page, { recentRuns: true });
+  const tiles = page.getByRole("group", { name: "Machine status" });
+  await expect(tiles).toContainText("0.25.0");
+  await expect(tiles).toContainText(MOCK.MODEL);
+  await expect(tiles.getByRole("progressbar", { name: "Memory in use", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Recent saved runs" })).toContainText("Return 404 for a missing todo id");
+
+  await page.keyboard.press("Control+k");
+  const menu = page.getByRole("dialog");
+  await menu.getByPlaceholder("Type a command…").fill("runs");
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Runs", exact: true })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Runs" })).toHaveAttribute("aria-current", "page");
+
+  await page.getByRole("button", { name: "Commands" }).click();
+  await page.getByPlaceholder("Type a command…").fill("light theme");
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});
+
+test("Ctrl+Enter in the goal reviews the plan", async ({ page }) => {
+  await openWorkbench(page);
+  await page.getByLabel("Coding goal").fill(GOAL);
+  await page.getByLabel("Coding goal").press("Control+Enter");
+  await expect(page.getByRole("region", { name: "Reviewed plan" })).toContainText("EDIT src/routes/todos.ts");
 });
 
 test("offline engine: the workbench says so and offers reconnect", async ({ page }) => {

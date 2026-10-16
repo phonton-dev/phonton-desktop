@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -62,12 +63,15 @@ type Props = {
   onShowSetup?: () => void;
   /** Label for the `onShowSetup` button; it depends on what the caller does. */
   setupLabel?: string;
+  /** Rendered inside the workbench shell, which supplies navigation: no back button or full-screen height. */
+  embedded?: boolean;
 };
 
 export function SettingsPage({
   onBack,
   onShowSetup,
   setupLabel = "Provider-key workbench setup",
+  embedded = false,
 }: Props) {
   const [section, setSection] = useState<SettingsSection>("appearance");
   const [config, setConfig] = useState<PhontonConfig | null>(null);
@@ -166,9 +170,9 @@ export function SettingsPage({
   };
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className={cn("flex flex-col bg-background", embedded ? "h-full min-h-0" : "h-screen")}>
       <header className="flex h-12 shrink-0 items-center gap-3 border-b px-4">
-        <Button variant="ghost" size="sm" onClick={onBack}>← Back</Button>
+        {!embedded && <Button variant="ghost" size="sm" onClick={onBack}>← Back</Button>}
         <h1 className="text-sm font-medium">Settings</h1>
         {configPath ? (
           <span className="hidden truncate text-xs text-muted-foreground sm:inline">Config: {configPath}</span>
@@ -192,7 +196,7 @@ export function SettingsPage({
           </div>
         </nav>
         <ScrollArea className="min-h-0 flex-1 p-4 md:p-6">
-          <div className="mx-auto max-w-2xl space-y-6">
+          <div className={cn("max-w-2xl space-y-6", !embedded && "mx-auto")}>
             {configUpgradeNeeded ? (
               <Alert variant="destructive">
                 <AlertTitle>CLI upgrade required</AlertTitle>

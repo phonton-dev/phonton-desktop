@@ -53,11 +53,7 @@ function OnlineApp() {
 /** Local work is available without an account or an online bootstrap request. */
 export default function App() {
   const [onlineSetup, setOnlineSetup] = useState(false);
-  const [settings, setSettings] = useState(false);
   if (onlineSetup) return <OnlineApp />;
-  // Opens the workbench; its setup wizard runs only if it never finished.
-  if (settings) return <SettingsPage
-    onBack={() => setSettings(false)} onShowSetup={() => setOnlineSetup(true)}
-    setupLabel="Open provider-key workbench" />;
-  return <LocalWorkbench onSettings={() => setSettings(true)} />;
+  // Settings can open the provider-key workbench; its setup wizard runs only if it never finished.
+  return <LocalWorkbench onShowSetup={() => setOnlineSetup(true)} />;
 }

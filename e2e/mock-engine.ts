@@ -248,7 +248,7 @@ export async function mockEngine(page: Page, options: MockOptions = {}): Promise
 export const MOCK = { REPOSITORY, MODEL };
 
 /** The model chooser button in the composer, e.g. "qwen3.5:9b ▾". */
-export const MODEL_BUTTON = /^qwen3\.5:9b/;
+export const MODEL_BUTTON = /^qwen3\.5:9b ▾$/;
 
 /** Load the workbench against the mock engine, optionally with a repository already open. */
 export async function openWorkbench(page: Page, options: MockOptions & { repository?: boolean } = {}): Promise<MockEngine> {

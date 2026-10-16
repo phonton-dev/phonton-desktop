@@ -26,13 +26,13 @@ function EconomicsBlock({ session }: { session: GoalSession | undefined }) {
     <>
       <section className="grid grid-cols-2 gap-3">
         <div className="border px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost estimate</p>
+          <p className="text-[11px] text-muted-foreground">Cost estimate</p>
           <p className="text-lg font-semibold tabular-nums">
             {receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"}
           </p>
         </div>
         <div className="border px-3 py-2">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Est. saved vs frontier</p>
+          <p className="text-[11px] text-muted-foreground">Est. saved vs frontier</p>
           <p className="text-lg font-semibold tabular-nums text-ok">
             {receipt && saved != null
               ? `${formatUsdMicros(receipt.saved_usd_micros)} (${saved}%)`
