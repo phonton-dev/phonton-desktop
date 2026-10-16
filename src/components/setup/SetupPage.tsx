@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { Glyph } from "../ascii/ascii";
 import { useSidecar } from "../../hooks/useSidecar";
 import { completeSetup } from "../../lib/setup";
-import type { ThemeId } from "../../themes/presets";
 import { SetupHeader } from "./SetupHeader";
 import { SetupStepCli } from "./SetupStepCli";
 import { SetupStepFinish } from "./SetupStepFinish";
@@ -12,15 +12,14 @@ import "./setup.css";
 
 const STEPS = ["welcome", "theme", "cli", "provider", "finish"] as const;
 export type SetupStep = (typeof STEPS)[number];
+const STEP_LABELS: Record<SetupStep, string> = { welcome: "welcome", theme: "theme", cli: "engine", provider: "provider", finish: "finish" };
 
 type Props = {
-  themeId: ThemeId;
-  onThemeChange: (id: ThemeId) => void;
   onComplete: () => void;
   initialStep?: SetupStep;
 };
 
-export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "welcome" }: Props) {
+export function SetupPage({ onComplete, initialStep = "welcome" }: Props) {
   const [step, setStep] = useState<SetupStep>(initialStep);
   const [cliConnected, setCliConnected] = useState(false);
   const [providerReady, setProviderReady] = useState(false);
@@ -51,28 +50,22 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
       <div className="setup-card">
         {step !== "welcome" ? <SetupHeader /> : null}
         {step !== "welcome" ? (
-          <div className="setup-steps" aria-hidden>
-            {STEPS.filter((s) => s !== "welcome").map((s, i) => {
-              const idx = i + 1;
-              const currentIdx = stepIndex;
-              return (
-                <div
-                  key={s}
-                  className={`setup-step-pill ${idx === currentIdx ? "active" : ""} ${idx < currentIdx ? "done" : ""}`}
-                />
-              );
-            })}
-          </div>
+          <ol className="setup-steps" aria-label="Setup progress">
+            {STEPS.slice(1).map((s, i) => (
+              <li key={s} aria-current={i + 1 === stepIndex ? "step" : undefined} data-done={i + 1 < stepIndex ? "" : undefined}>
+                <Glyph state={i + 1 < stepIndex ? "pass" : i + 1 === stepIndex ? "run" : "idle"} /> {STEP_LABELS[s]}
+              </li>
+            ))}
+          </ol>
         ) : null}
 
         <div className="setup-body">
           {step === "welcome" ? <SetupStepWelcome onGetStarted={goNext} /> : null}
-          {step === "theme" ? <SetupStepTheme themeId={themeId} onThemeChange={onThemeChange} /> : null}
+          {step === "theme" ? <SetupStepTheme /> : null}
           {step === "cli" ? <SetupStepCli onConnectedChange={setCliConnected} /> : null}
           {step === "provider" ? <SetupStepProvider onReadyChange={setProviderReady} /> : null}
           {step === "finish" ? (
             <SetupStepFinish
-              themeId={themeId}
               sidecar={sidecar}
               providerReady={providerReady}
               onOpen={finish}
@@ -83,11 +76,11 @@ export function SetupPage({ themeId, onThemeChange, onComplete, initialStep = "w
         {step !== "welcome" && step !== "finish" ? (
           <div className="setup-footer">
             <button type="button" className="btn ghost" onClick={goBack} disabled={stepIndex === 0}>
-              Back
+              ← Back
             </button>
             <div className="setup-footer-right">
               <button type="button" className="btn" onClick={goNext} disabled={!canContinue}>
-                Continue
+                Continue →
               </button>
             </div>
           </div>

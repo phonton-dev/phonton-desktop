@@ -21,6 +21,7 @@ import { taskStatusTone } from "@/lib/types/global-state";
 import type { GoalSession } from "@/hooks/useSessions";
 import { FolderOpen, Pin, Plus, Stethoscope } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Glyph, Spinner, type GlyphState } from "@/components/ascii/ascii";
 
 export type SidebarTab = "sessions" | "history";
 
@@ -40,20 +41,16 @@ type Props = {
   onSelectHistory: (task: TaskSummary) => void;
 };
 
-function sessionStatusDot(session: GoalSession): string {
-  if (session.running) return "bg-primary animate-pulse";
-  if (session.statusTone === "success") return "bg-emerald-500";
-  if (session.statusTone === "destructive") return "bg-red-500";
-  if (session.statusTone === "warning") return "bg-amber-500";
-  return "bg-muted-foreground/40";
+function sessionGlyph(session: GoalSession) {
+  if (session.running) return <Spinner />;
+  return <Glyph state={toneGlyph(session.statusTone)} />;
 }
 
-function historyStatusDot(status: unknown): string {
-  const tone = taskStatusTone(status as Parameters<typeof taskStatusTone>[0]);
-  if (tone === "success") return "bg-emerald-500";
-  if (tone === "destructive") return "bg-red-500";
-  if (tone === "warning") return "bg-amber-500";
-  return "bg-muted-foreground/40";
+function toneGlyph(tone: string | undefined): GlyphState {
+  if (tone === "success") return "pass";
+  if (tone === "destructive") return "fail";
+  if (tone === "warning") return "warn";
+  return "idle";
 }
 
 export function AppSidebar({
@@ -89,7 +86,7 @@ export function AppSidebar({
 
   if (!hasProject) {
     return (
-      <Sidebar collapsible="icon" className="border-r border-border/60">
+      <Sidebar collapsible="icon" className="top-12 h-auto border-r">
         <SidebarHeader className="gap-2 p-3">
           <Button size="sm" className="w-full justify-start gap-2" onClick={onOpenProject}>
             <FolderOpen className="size-4" />
@@ -130,14 +127,14 @@ export function AppSidebar({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter className="p-3 text-[10px] text-muted-foreground">
-          v0.3.4 · Ctrl+B sidebar
+          v{__APP_VERSION__} · Ctrl+B sidebar
         </SidebarFooter>
       </Sidebar>
     );
   }
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/60">
+    <Sidebar collapsible="icon" className="top-12 h-auto border-r">
       <SidebarHeader className="gap-2 p-3">
         <Button size="sm" className="w-full justify-start gap-2" onClick={onNewSession}>
           <Plus className="size-4" />
@@ -180,7 +177,7 @@ export function AppSidebar({
                         title="Double-click to pin"
                       >
                         <div className="flex w-full items-center gap-2">
-                          <span className={`size-2 shrink-0 rounded-full ${sessionStatusDot(session)}`} />
+                          {sessionGlyph(session)}
                           {session.pinned ? <Pin className="size-3 shrink-0 text-primary" /> : null}
                           <span className="truncate flex-1 text-left text-sm">
                             {displayGoalTitle(session.title)}
@@ -219,7 +216,7 @@ export function AppSidebar({
                         className="flex-col items-start gap-1 h-auto py-2"
                       >
                         <div className="flex w-full items-center gap-2">
-                          <span className={`size-2 shrink-0 rounded-full ${historyStatusDot(task.status)}`} />
+                          <Glyph state={toneGlyph(taskStatusTone(task.status as Parameters<typeof taskStatusTone>[0]))} />
                           <span className="truncate flex-1 text-left text-sm">
                             {displayGoalTitle(task.goal_text)}
                           </span>
@@ -239,7 +236,7 @@ export function AppSidebar({
         </Tabs>
       </SidebarContent>
       <SidebarFooter className="p-3 text-[10px] text-muted-foreground">
-        v0.3.4 · Ctrl+B sidebar
+        v{__APP_VERSION__} · Ctrl+B sidebar
       </SidebarFooter>
     </Sidebar>
   );

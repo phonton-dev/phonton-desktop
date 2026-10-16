@@ -8,6 +8,11 @@ dist/
 # Local screenshot captures
 screenshots/
 
+# Test and build output
+test-results/
+playwright-report/
+*.tsbuildinfo
+
 # Rust / Tauri
 src-tauri/target/
 src-tauri/binaries/

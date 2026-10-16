@@ -1,5 +1,5 @@
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { Glyph } from "../ascii/ascii";
 import { useEffect, useRef, useState } from "react";
 import type { SidecarState } from "../../hooks/useSidecar";
 import { ensureSidecarReady } from "../../hooks/useSidecar";
@@ -118,15 +118,19 @@ export function SetupStepCli({ onConnectedChange }: Props) {
 
   const busy = installing || phase === "checking" || phase === "starting" || sidecar.status === "connecting";
 
-  const statusIcon =
-    sidecar.status === "ready" ? (
-      <CheckCircle2 size={20} color="var(--ph-ok)" />
-    ) : phase === "error" || sidecar.status === "offline" ? (
-      <XCircle size={20} color={phase === "error" ? "var(--ph-danger)" : "var(--ph-warn)"} />
-    ) : (
-      // sloplint-disable-next-line UI-008 -- status icons share one 20px box, so nothing shifts
-      <Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} />
-    );
+  const statusIcon = (
+    <Glyph
+      state={
+        sidecar.status === "ready"
+          ? "pass"
+          : phase === "error"
+            ? "fail"
+            : sidecar.status === "offline"
+              ? "warn"
+              : "busy"
+      }
+    />
+  );
 
   const statusLabel =
     sidecar.status === "ready"
@@ -170,7 +174,7 @@ export function SetupStepCli({ onConnectedChange }: Props) {
           <span className="cli-status-label">{statusLabel}</span>
         </div>
         <p className="cli-status-detail">{statusDetail}</p>
-        <div className="toolbar" style={{ marginTop: 12 }}>
+        <div className="toolbar">
           <button
             type="button"
             className="btn"

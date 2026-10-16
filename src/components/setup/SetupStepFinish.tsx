@@ -1,45 +1,28 @@
-import { Check } from "lucide-react";
+import { Glyph } from "../ascii/ascii";
 import type { SidecarState } from "../../hooks/useSidecar";
-import { themePresets, type ThemeId } from "../../themes/presets";
+import { presetLabel, useTheme } from "../../themes/presets";
 
 type Props = {
-  themeId: ThemeId;
   sidecar: SidecarState;
   providerReady: boolean;
   onOpen: () => void;
 };
 
-export function SetupStepFinish({ themeId, sidecar, providerReady, onOpen }: Props) {
-  const themeLabel = themePresets.find((t) => t.id === themeId)?.label ?? themeId;
-  const cliLabel =
-    sidecar.status === "ready" ? `Connected (v${sidecar.version})` : "Not connected";
+export function SetupStepFinish({ sidecar, providerReady, onOpen }: Props) {
+  const theme = useTheme();
+  const engineReady = sidecar.status === "ready";
 
   return (
     <div>
-      <h2 className="setup-section-title">You&apos;re all set</h2>
-      <p className="setup-section-desc">Your control room is ready. Open Phonton to start running goals.</p>
+      <h2 className="setup-section-title">Ready to open the workbench</h2>
+      <p className="setup-section-desc">Open Phonton to start running goals.</p>
       <ul className="setup-finish-list">
-        <li>
-          <Check size={16} color="var(--ph-ok)" />
-          Theme: {themeLabel}
-        </li>
-        <li>
-          <Check size={16} color={sidecar.status === "ready" ? "var(--ph-ok)" : "var(--ph-warn)"} />
-          CLI: {cliLabel}
-        </li>
-        <li>
-          <Check size={16} color={providerReady ? "var(--ph-ok)" : "var(--ph-warn)"} />
-          Provider key: {providerReady ? "Probed locally" : "Not verified"}
-        </li>
+        <li><Glyph state="pass" /> Theme: {theme.name ?? presetLabel(theme.preset)}</li>
+        <li><Glyph state={engineReady ? "pass" : "warn"} /> Engine: {engineReady ? `connected (v${sidecar.version})` : "not connected"}</li>
+        <li><Glyph state={providerReady ? "pass" : "warn"} /> Provider key: {providerReady ? "probed locally" : "not verified"}</li>
       </ul>
-      <button
-        type="button"
-        className="btn"
-        onClick={onOpen}
-        style={{ width: "100%" }}
-        disabled={sidecar.status !== "ready" || !providerReady}
-      >
-        Open Phonton
+      <button type="button" className="btn btn-block" onClick={onOpen} disabled={!engineReady || !providerReady}>
+        Open Phonton →
       </button>
     </div>
   );

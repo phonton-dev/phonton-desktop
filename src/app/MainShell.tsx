@@ -206,7 +206,7 @@ export function MainShell({ onOpenSettings }: Props) {
           onClearProject={clearProject}
           onSidecarAction={() => void handleSidecarAction()}
         />
-        {projectSwitchError && <div role="alert" className="flex items-center justify-between gap-3 border-b border-amber-500/30 bg-amber-950/30 px-4 py-2 text-sm text-amber-100"><span>{projectSwitchError}</span><button className="underline" onClick={() => setProjectSwitchError(null)}>Dismiss</button></div>}
+        {projectSwitchError && <div role="alert" className="flex items-center justify-between gap-3 border-b border-warn/40 bg-warn/10 px-4 py-2 text-sm text-foreground"><span>{projectSwitchError}</span><button className="underline" onClick={() => setProjectSwitchError(null)}>Dismiss</button></div>}
         <div className="flex min-h-0 flex-1">
           <AppSidebar
             hasProject={hasProject}

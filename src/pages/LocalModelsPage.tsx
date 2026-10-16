@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AsciiBar } from "@/components/ascii/ascii";
 import { open } from "@tauri-apps/plugin-dialog";
 import { cancelModelOperation, memorySize, modelCatalog, modelOperation, modelStatus, setManagedStorage, setModelEndpoint, startModelOperation, type CatalogSnapshot, type ModelOperation, type ModelStatus } from "@/lib/local-models";
 import { canCancelModelOperation, matchingModelOperation, readOwnedModelOperation, writeOwnedModelOperation } from "@/lib/model-operation-identity";
@@ -8,7 +9,7 @@ import { localEngineErrorMessage } from "@/lib/serve";
 import { isTauri } from "@/lib/sidecar";
 import "./local-models.css";
 
-type Props = { connected: boolean; connectionIssue?: string; onBack: () => void; onReconnect: () => Promise<void> };
+type Props = { connected: boolean; connectionIssue?: string; onReconnect: () => Promise<void>; /** Hosts without their own navigation get a back button. */ onBack?: () => void };
 const fitLabel = { likely_fits_gpu: "Likely GPU fit", cpu_or_offload: "CPU / offload", insufficient_memory: "Memory pressure", unknown: "Fit unknown" };
 const OPERATION_CHANGED = "The engine's latest model operation changed before Phonton could confirm this step. Refresh installed models to check its result.";
 const showPath = (path: string) => path.startsWith("\\\\?\\") ? path.slice(4) : path;
@@ -30,7 +31,7 @@ function probeLabel(name: string): string {
   return labels[name] ?? name;
 }
 
-export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnect }: Props) {
+export function LocalModelsPage({ connected, connectionIssue, onReconnect, onBack }: Props) {
   const [status, setStatus] = useState<ModelStatus | null>(null);
   const managedRuntimeSupported = status?.managed_runtime_supported === true;
   const freshRuntimeStorageShortfall = needsFreshRuntimeStorage(status);
@@ -236,7 +237,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
     "managed_origin" in operation.result && operation.result.managed_origin === "verified_previous_launch";
 
   return <main className="local-models tabular-nums" aria-labelledby="models-title">
-    <div className="model-page-heading"><button onClick={onBack} disabled={submitting}>← Workspace</button><span>Connects over loopback</span></div>
+    {onBack && <div className="model-page-heading"><button onClick={onBack} disabled={submitting}>← Workspace</button><span>Connects over loopback</span></div>}
     <header><h1 id="models-title">Local models</h1><p>Install a model, measure which edits it gets right on this machine, then select it. Inference stays on 127.0.0.1.</p></header>
     {!connected && <p role="status">{connectionIssue ?? "Connect the Phonton engine to inspect your machine and manage models."} <button onClick={() => void onReconnect()}>Reconnect engine</button></p>}
     {error && <div className="model-error" role="alert"><strong>Couldn’t finish that step.</strong><p>{error}</p><button onClick={() => { setError(null); void onReconnect().then(() => void refresh()); }} disabled={loading}>Reconnect engine</button></div>}
@@ -314,7 +315,7 @@ export function LocalModelsPage({ connected, connectionIssue, onBack, onReconnec
       {calibrationResult === "unknown" && <p className="model-note">Refresh installed models to check whether this calibration produced a selectable profile.</p>}
       {ownedOperationId !== operation.id && <p className="model-note">Latest engine operation from another client. It cannot be cancelled from this window.</p>}
       {operation.running && !operation.cancelable && <p className="model-note">Selection, deselection and removal finish before Phonton reports their result. Refresh installed models if the connection drops.</p>}
-      {operation.progress?.total != null && operation.progress.total > 0 && <><progress aria-label="Download progress" max={operation.progress.total} value={operation.progress.completed ?? undefined} /><p>{memorySize(operation.progress.completed)} / {memorySize(operation.progress.total)}</p></>}
+      {operation.progress?.total != null && operation.progress.total > 0 && <><AsciiBar label="Download progress" max={operation.progress.total} value={operation.progress.completed} cells={32} /><p>{memorySize(operation.progress.completed)} / {memorySize(operation.progress.total)}</p></>}
       {canCancelModelOperation(ownedOperationId, operation) && <button onClick={() => void cancelModelOperation(operation.id).catch(e => setError(report(e)))}>Cancel operation</button>}
     </section>}
 

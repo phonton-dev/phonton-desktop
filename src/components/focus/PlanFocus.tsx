@@ -1,5 +1,6 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GoalSession } from "@/hooks/useSessions";
+import { Glyph } from "@/components/ascii/ascii";
 
 type Props = { session: GoalSession | undefined };
 
@@ -47,8 +48,8 @@ export function PlanFocus({ session }: Props) {
                 <h3 className="text-sm font-medium mb-2">Verify plan</h3>
                 <ul className="space-y-1 text-sm">
                   {contract.verify_plan.map((step) => (
-                    <li key={step.name} className="rounded-md border px-3 py-2">
-                      {step.name}
+                    <li key={step.name}>
+                      <Glyph state="pending" /> {step.name}
                     </li>
                   ))}
                 </ul>
@@ -61,7 +62,8 @@ export function PlanFocus({ session }: Props) {
             <h3 className="text-sm font-medium mb-2">Subtasks ({plan.subtasks.length})</h3>
             <ul className="space-y-2 text-sm">
               {plan.subtasks.map((st, i) => (
-                <li key={st.id ?? i} className="rounded-md border px-3 py-2">
+                <li key={st.id ?? i}>
+                  <span className="text-muted-foreground tabular-nums">{String(i + 1).padStart(2, "0")}</span>{" "}
                   <span className="font-medium">{st.description ?? st.id}</span>
                   {st.model_tier ? (
                     <span className="ml-2 text-xs text-muted-foreground">{st.model_tier}</span>

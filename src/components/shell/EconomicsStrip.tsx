@@ -24,13 +24,13 @@ function Cell({
 }) {
   const valueClass =
     tone === "ok"
-      ? "text-emerald-400"
+      ? "text-ok"
       : tone === "warn"
-        ? "text-amber-400"
+        ? "text-warn"
         : "text-foreground";
   return (
     <div className="min-w-0">
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="text-[11px] text-muted-foreground">{label}</p>
       <p className={`mt-0.5 truncate text-sm font-medium tabular-nums ${valueClass}`} title={value}>
         {value}
       </p>
@@ -54,7 +54,7 @@ export function EconomicsStrip({ session }: Props) {
           value={receipt ? formatUsdMicros(receipt.actual_usd_micros) : "-"}
         />
         <div className="min-w-0">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Verification</p>
+          <p className="text-[11px] text-muted-foreground">Verification</p>
           <div className="mt-0.5">
             {verify === "-" ? (
               <span className="text-sm text-muted-foreground">-</span>

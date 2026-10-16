@@ -37,7 +37,7 @@ export function ProjectSwitcher({
             className={
               compact
                 ? "w-full justify-between gap-2 font-normal"
-                : "h-8 max-w-[220px] justify-start gap-2 px-2 font-normal"
+                : "h-8 min-w-0 max-w-[220px] shrink justify-start gap-2 px-2 font-normal"
             }
           />
         }

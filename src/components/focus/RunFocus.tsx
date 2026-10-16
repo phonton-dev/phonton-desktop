@@ -2,6 +2,14 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { GoalSession } from "@/hooks/useSessions";
 import { subtaskStatusLabel, taskStatusLabel } from "@/lib/types/global-state";
+import { Glyph, Spinner } from "@/components/ascii/ascii";
+
+function workerGlyph(label: string) {
+  if (label === "Done") return <Glyph state="pass" />;
+  if (label === "Failed") return <Glyph state="fail" />;
+  if (label === "Running" || label.startsWith("Verifying")) return <Spinner />;
+  return <Glyph state="idle" />;
+}
 
 type Props = { session: GoalSession | undefined };
 
@@ -32,7 +40,7 @@ export function RunFocus({ session }: Props) {
         ) : (
           <ul className="space-y-2">
             {workers.map((w) => (
-              <li key={w.subtask_id} className="rounded-lg border bg-card/40 px-3 py-2">
+              <li key={w.subtask_id} className="border-l-2 px-3 py-1">
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-sm font-medium">{w.subtask_description}</span>
                   <Badge variant="outline" className="shrink-0 text-[10px]">
@@ -40,7 +48,7 @@ export function RunFocus({ session }: Props) {
                   </Badge>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {subtaskStatusLabel(w.status)}
+                  {workerGlyph(subtaskStatusLabel(w.status))} {subtaskStatusLabel(w.status)}
                   {w.is_thinking ? " · thinking…" : ""}
                   {w.tokens_used ? ` · ${w.tokens_used} tok` : ""}
                 </p>

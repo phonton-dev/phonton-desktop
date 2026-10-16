@@ -33,6 +33,12 @@ The public key in `src-tauri/tauri.conf.json` must match the private key.
 
 Without OS signing secrets, CI still produces unsigned installers and signed updater JSON.
 
+Current state: `release-desktop.yml` does not pass any OS signing secret to
+`tauri-action`, so every installer is unsigned. Wiring Authenticode (or
+Azure Trusted Signing) and Apple notarization waits on the signing decision.
+Until then, the README's "First launch of an unsigned build" section is the
+supported install path.
+
 ## Set secrets via GitHub CLI
 
 ```bash

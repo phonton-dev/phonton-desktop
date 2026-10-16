@@ -2,6 +2,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 import { checkForAppUpdate, type UpdateCheckResult } from "../../lib/app-updater";
 import { isTauri } from "../../lib/sidecar";
+import { AsciiLogo } from "../ascii/ascii";
 
 type Props = {
   onGetStarted: () => void;
@@ -68,14 +69,11 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
 
   return (
     <div className="setup-welcome">
-      <img src="/phonton-logo.png" alt="Phonton" className="setup-logo" />
-      <h1>Phonton Desktop</h1>
+      <AsciiLogo sweep="welcome" />
+      <h1>Desktop</h1>
       <p>Give Phonton a goal. It starts cheap, verifies, and shows the cost.</p>
       <ol className="setup-loop" aria-label="How Phonton works">
-        <li>Goal</li>
-        <li>Plan</li>
-        <li>Verify</li>
-        <li>Receipt</li>
+        {["goal", "plan", "edit", "verify", "review", "remember"].map((stage) => <li key={stage}>{stage}</li>)}
       </ol>
 
       {isTauri() ? (
@@ -84,7 +82,7 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
             {appVersion ? `Installed version: v${appVersion}` : "Phonton Desktop"}
             {updateStatus ? ` - ${updateStatus}` : null}
           </p>
-          <div className="toolbar" style={{ justifyContent: "center" }}>
+          <div className="toolbar center">
             <button
               type="button"
               className="btn secondary"
@@ -102,9 +100,9 @@ export function SetupStepWelcome({ onGetStarted }: Props) {
         </div>
       ) : null}
 
-      <div className="toolbar" style={{ justifyContent: "center", marginTop: 8 }}>
+      <div className="toolbar center">
         <button type="button" className="btn setup-cta" onClick={onGetStarted}>
-          Get started
+          Get started →
         </button>
       </div>
     </div>

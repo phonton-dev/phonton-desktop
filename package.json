@@ -1,12 +1,15 @@
 {
   "name": "phonton-desktop",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "license": "MIT OR Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "test": "node --test scripts/",
+    "test:e2e": "playwright test",
+    "test:theme-palette": "node --test scripts/theme-palette.test.mjs",
     "test:local-run-start": "node --test scripts/local-run-start.test.mjs",
     "test:local-run-checks": "node --test scripts/local-run-checks.test.mjs",
     "test:local-run-apply": "node --test scripts/local-run-apply.test.mjs",
@@ -58,6 +61,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/vite": "^4.3.1",
     "@tauri-apps/cli": "^2.2.0",
     "@types/react": "^19.0.8",
