@@ -2,7 +2,9 @@
 
 All notable changes to Phonton Desktop are documented here.
 
-## Unreleased - ASCII workbench and themes
+## 0.5.0 - ASCII workbench and themes
+
+Release notes: `release-notes/v0.5.0.md`.
 
 - [added] A sidebar with Goal, Runs, Local models and Settings (a top bar on
   narrow windows). Settings opens inside the workbench instead of replacing it.
