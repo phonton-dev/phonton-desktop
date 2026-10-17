@@ -10,7 +10,7 @@ const PHONTON_NODE_KEY = "phonton.cli.node";
 const PHONTON_SCRIPT_KEY = "phonton.cli.script";
 
 /** Last known published npm version when registry is unreachable. */
-export const CLI_VERSION_FALLBACK = "0.21.0";
+export const CLI_VERSION_FALLBACK = "0.25.0";
 
 export type CliInstallState =
   | { status: "idle" }

@@ -2,6 +2,24 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## 0.5.1 - CLI 0.25.0 engine
+
+Release notes: `release-notes/v0.5.1.md`.
+
+- [changed] The bundled engine is CLI 0.25.0.
+- [changed] Local models lists current local coding models (`qwen3.5:4b`,
+  `qwen3.5:9b`, `gemma4:12b`, `gpt-oss:20b`, `qwen3.6:35b-a3b`,
+  `qwen3.6:27b`) and suggests one by total memory. Under 4 GB, or without a
+  memory reading, nothing is suggested. The `qwen2.5-coder` entries are gone.
+  When nothing is suggested, Local models says why.
+- [changed] Fit estimates and calibration read the KV cache size from the
+  installed model, so a 6 GB GPU can calibrate `qwen3.5:4b` above 4096
+  tokens, and a model that fits the GPU plus available RAM is admitted as
+  partly offloaded.
+- [added] Local goal runs can verify jest projects.
+- [changed] The fallback CLI version for npm installs, used when the registry
+  is unreachable, is 0.25.0 (was 0.21.0).
+
 ## 0.5.0 - ASCII workbench and themes
 
 Release notes: `release-notes/v0.5.0.md`.
