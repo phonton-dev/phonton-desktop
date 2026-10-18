@@ -2,6 +2,16 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## 0.5.2 - CLI 0.25.1 engine
+
+Release notes: `release-notes/v0.5.2.md`.
+
+- [changed] The bundled engine is CLI 0.25.1.
+- [fixed] A local model loaded entirely in VRAM keeps working when other apps
+  take host memory; a call to it needs 512 MiB of free RAM instead of 1.5 GiB.
+- [changed] The fallback CLI version for npm installs, used when the registry
+  is unreachable, is 0.25.1.
+
 ## 0.5.1 - CLI 0.25.0 engine
 
 Release notes: `release-notes/v0.5.1.md`.
