@@ -34,6 +34,14 @@ for (const preset of PRESETS) {
       await expect(page).toHaveScreenshot(`receipt-${preset}.png`);
     });
 
+    test("record", async ({ page }) => {
+      await withTheme(page, preset);
+      await openWorkbench(page, { history: true });
+      await page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Runs" }).click();
+      await expect(page.getByText("9 read")).toBeVisible();
+      await expect(page).toHaveScreenshot(`record-${preset}.png`, { fullPage: true, mask: [page.locator(".lw-version")] });
+    });
+
     test("settings appearance", async ({ page }) => {
       await withTheme(page, preset);
       await openWorkbench(page);
@@ -43,6 +51,17 @@ for (const preset of PRESETS) {
     });
   });
 }
+
+test("running goal", async ({ page }) => {
+  await withTheme(page, "nebula");
+  await openWorkbench(page, { runningPolls: 10_000 });
+  await page.getByLabel("Coding goal").fill("Reject a /todos limit outside 1-100 with HTTP 400");
+  await page.getByRole("button", { name: /^Review plan/ }).click();
+  await page.getByLabel(/Run these checks on my machine/).check();
+  await page.getByRole("button", { name: /Run local goal/ }).click();
+  await expect(page.getByRole("button", { name: /Cancel run/ })).toBeVisible();
+  await expect(page).toHaveScreenshot("running-nebula.png", { mask: [page.locator(".lw-version")] });
+});
 
 test.describe("theme editor", () => {
   test.beforeEach(async ({ page }) => {

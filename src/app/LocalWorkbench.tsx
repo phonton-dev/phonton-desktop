@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useSidecar } from "@/hooks/useSidecar";
 import { isTauri } from "@/lib/sidecar";
 import { getActiveProject, setActiveProject } from "@/lib/projects";
 import { memorySize, modelStatus, type ModelStatus } from "@/lib/local-models";
-import { applyLocalRun, rollbackLocalRun, cancelLocalRun, localRunApplyStatus, localRunHasEvidence, localRunList, localRunRead, localRunRepositoryMatch, localRunStatus, previewLocalRun, startLocalRun, type CheckEvidence, type LocalApplyReceipt, type LocalReceipt, type LocalPlan, type LocalRunAttempt, type LocalRunList } from "@/lib/local-run";
+import { applyLocalRun, rollbackLocalRun, cancelLocalRun, localRunApplyStatus, localRunHasEvidence, localRunList, localRunRead, localRunRepositoryMatch, localRunStatus, previewLocalRun, recordRead, startLocalRun, type CheckEvidence, type LocalApplyReceipt, type LocalReceipt, type LocalPlan, type LocalRunAttempt, type LocalRunList, type RunRecord } from "@/lib/local-run";
+import { loopStages } from "@/lib/run-stats";
 import { createPendingLocalStart } from "@/lib/local-run-start";
 import { localPlanBudgetSummary } from "@/lib/local-plan-budget";
 import { localPlanFileAction } from "@/lib/local-plan-file-action";
@@ -16,7 +17,8 @@ import { localApplyEligibility, localMutationConfirmed, localMutationNeedsRechec
 import { localEngineErrorMessage, RpcRemoteError } from "@/lib/serve";
 import { LocalModelsPage } from "@/pages/LocalModelsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
-import { AsciiBar, AsciiLogo, Frame, Glyph, Spinner } from "@/components/ascii/ascii";
+import { AsciiBar, AsciiLogo, CandidateLoop, Frame, Glyph, LoopTrack, Spinner } from "@/components/ascii/ascii";
+import { ReceiptCard, RunsDashboard, Tile } from "./RunRecord";
 import { choosePreset, themePresets } from "@/themes/presets";
 import { CommandMenu, type CommandAction } from "./CommandMenu";
 import "./local-workbench.css";
@@ -75,11 +77,6 @@ function RunEnvironment({ receipt }: { receipt: LocalReceipt }) {
   </details>;
 }
 
-/** One labelled reading on the dashboard strip. */
-function Tile({ label, children, detail }: { label: string; children: ReactNode; detail?: ReactNode }) {
-  return <div className="lw-tile"><span className="lw-tile-label">{label}</span><span className="lw-tile-value">{children}</span>{detail && <span className="lw-tile-detail">{detail}</span>}</div>;
-}
-
 type View = "home" | "runs" | "models" | "settings";
 const NAV: { id: View; label: string }[] = [{ id: "home", label: "Goal" }, { id: "runs", label: "Runs" }, { id: "models", label: "Local models" }, { id: "settings", label: "Settings" }];
 
@@ -130,6 +127,10 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
   const [recentRuns, setRecentRuns] = useState<LocalRunList | null>(null);
   const [recentRunsError, setRecentRunsError] = useState<string | null>(null);
   const [recentRunsRefresh, setRecentRunsRefresh] = useState(0);
+  const [record, setRecord] = useState<RunRecord | null>(null);
+  const [recordError, setRecordError] = useState<string | null>(null);
+  // The receipt card shows the streak only for the run started in this window.
+  const [liveRunId, setLiveRunId] = useState("");
   const connected = engine.status === "ready";
   const matchingActiveModels = machine?.models.filter(({ model }) => sameInstalledModel(model.name, machine.active_model)) ?? [];
   const activeModel = matchingActiveModels.length === 1 ? matchingActiveModels[0] : undefined;
@@ -196,15 +197,29 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [connected, modelsOpen, running, machineRefresh]);
+  const runsOpen = view === "runs";
   useEffect(() => {
-    if (!connected || runId) return;
+    if (!connected || (runId && !runsOpen)) return;
     let live = true;
     setRecentRunsError(null);
     void localRunList()
       .then(value => { if (live) setRecentRuns(value); })
       .catch(e => { if (live) { setRecentRuns(null); setRecentRunsError(localEngineErrorMessage(e)); } });
     return () => { live = false; };
-  }, [connected, runId, recentRunsRefresh]);
+  }, [connected, runId, runsOpen, recentRunsRefresh]);
+  useEffect(() => {
+    // The engine updates its record when a run finishes; read it again then.
+    if (!connected || running) return;
+    let live = true;
+    void recordRead()
+      .then(value => {
+        if (!live) return;
+        if (value && typeof value.runs === "number" && typeof value.verified_runs === "number" && typeof value.streak === "number") { setRecord(value); setRecordError(null); }
+        else { setRecord(null); setRecordError("the reply was not a run record"); }
+      })
+      .catch(e => { if (live) { setRecord(null); setRecordError(localEngineErrorMessage(e)); } });
+    return () => { live = false; };
+  }, [connected, running, receipt?.id, recentRunsRefresh]);
   useEffect(() => {
     if (!connected || !runId) return;
     setRestoreError(null);
@@ -313,7 +328,7 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
     try {
       const result = await startLocalRun({ ...plan.request, approve_host_execution: hostApproved, allow_unverified_runtime: unverifiedRuntimeApproved }, requestedId, plan.model_selection);
       const cancellation = pending.admit(result, cancelLocalRun);
-      setRunId(requestedId); setRunning(true); setPlan(null);
+      setRunId(requestedId); setLiveRunId(requestedId); setRunning(true); setPlan(null);
       if (cancellation) {
         try {
           const cancelled = await cancellation;
@@ -427,6 +442,10 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
   };
   const openSavedRun = () => { openSavedRunId(savedRunId); setView("home"); };
   const runActive = Boolean(receipt || busy || restoring);
+  // A finished run can be swapped for another saved run; a running one cannot.
+  const canOpenRun = connected && !busy && !applying;
+  const openRun = (id: string) => { openSavedRunId(id); setView("home"); };
+  const stages = loopStages({ goal: !!goal.trim(), planning, planned: !!plan, running: busy, receipt, applied: applyStatus });
   const repositoryName = repository.split(/[\\/]/).filter(Boolean).pop() ?? "";
   const runtimeState = runtimePresentation.tone === "ready" ? "pass" : runtimePresentation.tone === "error" ? "fail" : "idle";
   // The presentation labels carry their own status mark; the Glyph replaces it.
@@ -447,7 +466,7 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
     { id: "reconnect", group: "Engine", label: "Reconnect engine", run: () => void refresh() },
     { id: "refresh-runs", group: "Engine", label: "Refresh saved runs", disabled: !connected, run: () => setRecentRunsRefresh(value => value + 1) },
     ...themePresets.map(preset => ({ id: `theme-${preset.id}`, group: "Theme", label: `${preset.label} theme`, run: () => choosePreset(preset.id) })),
-    ...(recentRuns?.runs.slice(0, 8).map(run => ({ id: `run-${run.id}`, group: "Recent runs", label: run.goal, keywords: [run.model], disabled: !connected || runActive, run: () => { openSavedRunId(run.id); setView("home"); } })) ?? []),
+    ...(recentRuns?.runs.slice(0, 8).map(run => ({ id: `run-${run.id}`, group: "Recent runs", label: run.goal, keywords: [run.model], disabled: !canOpenRun, run: () => openRun(run.id) })) ?? []),
   ];
   const runList = (limit?: number) => <>
     {recentRuns?.runs.length ? <ul className="lw-run-list">{recentRuns.runs.slice(0, limit).map(run => <li key={run.id}><button disabled={!connected || runActive} onClick={() => { openSavedRunId(run.id); setView("home"); }} title={run.goal}><span className="lw-recent-goal">{run.goal}</span><span className="lw-recent-meta">{run.model}</span><span className="lw-recent-meta">{run.recorded_at_unix_ms ? new Date(run.recorded_at_unix_ms).toLocaleString() : run.id.slice(0, 8)}</span></button></li>)}</ul> : <p>{recentRunsError ? `Saved runs unavailable: ${recentRunsError}` : recentRuns ? "No saved runs yet." : connected ? "Loading saved runs…" : "Connect the engine to show saved runs."}</p>}
@@ -475,6 +494,9 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
         {/* Readings pause during a run and on Local models; show nothing rather than a stale state. */}
         {machine && <><span><Glyph state={runtimeState} /> {runtimeLabel}</span>
           <span title={machine.active_model ?? undefined}>{machine.active_model ?? "no model selected"}</span></>}
+        {record && <><span className="lw-side-record" title="All-time record from the engine">record {record.verified_runs.toLocaleString()} of {record.runs.toLocaleString()} verified</span>
+          <span>streak {record.streak} · best {record.best_streak}</span>
+          <span>{record.local_tokens.toLocaleString()} tokens kept local</span></>}
         <span className="lw-version">desktop v{__APP_VERSION__}</span>
       </div>
     </aside>
@@ -483,8 +505,9 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
     : view === "settings" ? <div className="lw-content"><SettingsPage embedded onBack={() => setView("home")} onShowSetup={onShowSetup} setupLabel="Open provider-key workbench" /></div>
     : view === "runs" ? <main className="lw-content lw-main lw-runs">
       <div className="lw-page-head"><h1 className="lw-title">Runs</h1><button disabled={!connected} onClick={() => setRecentRunsRefresh(value => value + 1)}>Refresh</button></div>
-      <section className="lw-recent" aria-label="Saved runs">{runList()}{recentRuns?.limited && <p>This list is bounded. If a run is missing, open it by run ID below.</p>}</section>
-      <section className="lw-saved" aria-label="Open a saved run"><label htmlFor="saved-run-id">Open by run ID</label><div><input id="saved-run-id" value={savedRunId} onChange={e => setSavedRunId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /><button disabled={!connected || !savedRunId.trim() || runActive} onClick={openSavedRun}>Open evidence</button></div></section>
+      <RunsDashboard connected={connected} runs={recentRuns} runsError={recentRunsError} record={record} recordError={recordError} onOpen={canOpenRun ? openRun : undefined} onNewGoal={() => setView("home")} />
+      {recentRuns?.limited && <p className="rr-note">The engine lists recent runs only, so the totals above cover these receipts while the record covers every run. If a run is missing, open it by run ID below.</p>}
+      <section className="lw-saved" aria-label="Open a saved run"><label htmlFor="saved-run-id">Open by run ID</label><div><input id="saved-run-id" value={savedRunId} onChange={e => setSavedRunId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" /><button disabled={!canOpenRun || !savedRunId.trim()} onClick={openSavedRun}>Open evidence</button></div></section>
       {error && <div className="lw-error" role="alert"><p>{error}</p></div>}
     </main>
     : <main className={`lw-content lw-main ${runActive ? "has-run" : ""}`}>
@@ -492,16 +515,21 @@ export function LocalWorkbench({ onShowSetup }: { onShowSetup: () => void }) {
         {!repository && <AsciiLogo className="lw-logo" sweep={connected ? engine.version : undefined} />}
         <div className="lw-page-head"><h1 className="lw-title">New goal{repositoryName && <span> in {repositoryName}</span>}</h1></div>
         {tiles}
+        <LoopTrack className="lw-loop" stages={stages} busy={planning} />
       </>}
       {runActive && <section className="lw-run" aria-label="Local goal progress">
         <div className="lw-run-heading"><span><Glyph state={restoring && restoreError ? "fail" : busy || restoring ? "busy" : receipt?.selected_candidate ? "pending" : receipt && runOutcome(receipt)?.tone === "fail" ? "fail" : "idle"} /> {receipt ? label(receipt.state) : restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped" : "Recovery needs attention" : "Restoring saved goal" : "Preparing local goal"}</span>
           {busy ? <button disabled={cancelRequested} onClick={() => void cancel()}>{cancelRequested ? "Cancel requested…" : "Cancel run"}</button> : <button disabled={restoring && !restoreError || applying} onClick={newGoal}>New goal</button>}</div>
+        {(busy || receipt) && <LoopTrack className="lw-loop" stages={stages} busy={busy} sweep={receipt && !busy ? `${receipt.id}:${receipt.state}` : undefined} />}
+        {busy && <><p className="lw-run-note">Each candidate is edited and checked on an isolated copy. The loop repeats until one passes your checks or the budget runs out.</p>
+          <CandidateLoop busy repairing={!!receipt?.candidates.some(candidate => candidate.rejection)} /></>}
         {starting && cancelRequested && <p role="status">Cancellation will be sent when the local engine accepts this run.</p>}
         <h1>{receipt?.request.goal ?? attempt?.goal ?? (restoring ? restoreError ? endedWithoutReceipt ? "Goal stopped before a receipt" : "Saved goal unavailable" : "Loading local evidence…" : goal)}</h1>
         {receipt && !busy && (() => { const outcome = runOutcome(receipt); return outcome && <p className="lw-outcome" data-tone={outcome.tone} role="status">{outcome.text}</p>; })()}
         {receipt && <><p className="lw-run-repository">Run repository: <code>{receipt.request.repository}</code></p>{!repositorySelection.allowed && <p className="lw-run-repository" role="status">Current repository: <code>{repository || "none selected"}</code>. {repositorySelection.reason} {(!repository.trim() || currentRepositoryCheck?.matches === false || currentRepositoryCheck?.error) && <button onClick={() => selectRepository(receipt.request.repository)}>Switch to run repository</button>}{currentRepositoryCheck?.error && <button onClick={() => setRepositoryCheckAttempt(value => value + 1)}>Retry repository check</button>}</p>}</>}
         {restoring && restoreError && <><p>{endedWithoutReceipt ? attempt?.state === "ended_before_receipt" ? "The goal failed before its first receipt. No project check or model generation is recorded. Review the error and start a new goal." : "The engine stopped before its first receipt. No project check or model generation is recorded for this attempt. Review the error and start a new goal." : "Retry loading the saved receipt, or start a new goal."}</p>{!endedWithoutReceipt && <button disabled={!connected} onClick={() => { setError(null); setRestoreAttempt(value => value + 1); }}>Retry loading</button>}<details><summary>Recovery details</summary><p>Run {runId}{attempt ? ` · ${attempt.model}` : ""}</p><pre>{restoreError}</pre></details></>}
         {receipt && <>
+          {!busy && <ReceiptCard receipt={receipt} applyStatus={applyStatus} streak={receipt.id === liveRunId ? record?.streak ?? null : null} />}
           <p className="lw-telemetry">{receipt.profile.model} · digest {receipt.profile.digest?.slice(0, 12) || "unknown"} · {receipt.runtime_origin === "managed_verified" ? "Phonton-managed runtime" : receipt.runtime_origin === "external_unverified" ? "External runtime · inference location unverified" : "Runtime origin unknown"} · {(receipt.elapsed_ms / 1000).toFixed(1)}s · {receipt.candidates.length} {receipt.candidates.length === 1 ? "candidate" : "candidates"} · {receipt.model_calls_reserved != null ? receipt.model_calls_reserved : `≥${usage?.attempts ?? 0}`} model {receipt.model_calls_reserved === 1 ? "call" : "calls"} · {receipt.checks_used} {receipt.checks_used === 1 ? "check run" : "check runs"}</p>
           {usage && <p className="lw-telemetry">Runtime-reported tokens: {tokenReading(usage.inputTokens, usage.inputReported, usage.attempts, usage.attemptsComplete)} input / {tokenReading(usage.outputTokens, usage.outputReported, usage.attempts, usage.attemptsComplete)} output · {usage.repairs} {usage.repairs === 1 ? "repair" : "repairs"} · {usage.restarts} baseline {usage.restarts === 1 ? "restart" : "restarts"}{(usage.inputReported < usage.attempts || usage.outputReported < usage.attempts || !usage.attemptsComplete) && ` · counters saved for ${usage.inputReported} input and ${usage.outputReported} output ${usage.attemptsComplete ? `of ${usage.attempts} attempts` : "replies; older attempt total unknown"}`}</p>}
           <RunEnvironment receipt={receipt} />

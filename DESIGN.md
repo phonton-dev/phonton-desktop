@@ -27,9 +27,16 @@ root element; no component hardcodes a color. Nebula is the default preset:
 | `--ph-ok` / `--ph-warn` / `--ph-danger` | `#6ee09a` / `#e8c06a` / `#ff8a82` | ✓ ◇ ✗ states |
 
 The ASCII kit (`src/components/ascii/ascii.tsx`) is the only source of the
-ANSI Shadow logo, frames, state glyphs, spinner and text progress bars. Never
-swap in the compact pixel-block logo. Motion runs once on a state change and
-stops under reduced motion.
+ANSI Shadow logo, frames, state glyphs, spinner, text progress bars, the
+goal → remember loop track, the candidate loop, dotted leaders, block-character
+history columns and the receipt stamp. Never swap in the compact pixel-block
+logo. Motion runs once on a state change and stops under reduced motion. A
+photon (●) marks work in progress and travels only while the engine runs.
+Receipt numbers count up once, then the stamp lands, as in the CLI.
+
+Stats and achievements read only the engine record (`record.read`) and saved
+receipts. No points, levels or reminders; a locked achievement shows real
+progress or names the data it needs.
 
 Use local monospace fonts with Cascadia Code/Consolas fallbacks; avoid automatic
 font network requests. Numerals are tabular. Controls have visible focus, hover,

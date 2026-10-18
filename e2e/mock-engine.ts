@@ -148,6 +148,52 @@ function receipt(id: string, goal: string, scenario: Scenario) {
   };
 }
 
+type HistorySpec = { id: string; goal: string; repo: string; model: string; state: string; passes: boolean[]; elapsed: number; at: number; origin?: string; applied?: boolean };
+
+const WEB = "C:\\work\\web-dashboard";
+const OSS = "gpt-oss:20b";
+const at = (day: number, hour: number, minute: number) => Date.UTC(2026, 9, day, hour, minute);
+
+/** Saved runs for the record dashboard, newest first. `passes` lists each candidate's check result. */
+const HISTORY: HistorySpec[] = [
+  { id: "0b6c1f0e-8f3a-4d7e-9a51-2c4b7d9e1f03", goal: "Return 404 for a missing todo id", repo: REPOSITORY, model: MODEL, state: "review_ready", passes: [true], elapsed: 31_400, at: at(18, 16, 20), applied: true },
+  { id: "5d2e7a91-1c44-4b0f-8e6a-7f3b9c2d4a18", goal: "Add a created_at field to new todos", repo: REPOSITORY, model: MODEL, state: "review_ready", passes: [false, true], elapsed: 52_900, at: at(18, 11, 5) },
+  { id: "9a41c2d7-3b5e-4f60-8172-a3b4c5d6e7f8", goal: "Debounce the search input", repo: WEB, model: MODEL, state: "review_ready", passes: [false, false, true], elapsed: 108_200, at: at(17, 19, 40) },
+  { id: "1f2e3d4c-5b6a-4798-8a9b-0c1d2e3f4a5b", goal: "Fix the off-by-one in pagination", repo: WEB, model: OSS, state: "no_verified_candidate", passes: [false, false, false], elapsed: 151_300, at: at(17, 15, 12) },
+  { id: "6c7d8e9f-0a1b-4c2d-9e3f-4a5b6c7d8e9f", goal: "Rename userId to accountId in the session store", repo: REPOSITORY, model: OSS, state: "review_unverified", passes: [], elapsed: 44_000, at: at(16, 21, 30), origin: "external_unverified" },
+  { id: "2b3c4d5e-6f70-4182-93a4-b5c6d7e8f901", goal: "Validate email on signup", repo: WEB, model: MODEL, state: "review_ready", passes: [true], elapsed: 27_800, at: at(16, 10, 2) },
+  { id: "7e8f9a0b-1c2d-4e3f-8a4b-5c6d7e8f9a0b", goal: "Cache the todo count query", repo: REPOSITORY, model: MODEL, state: "review_ready", passes: [false, true], elapsed: 63_100, at: at(15, 18, 44) },
+  { id: "3d4e5f60-7182-4394-a5b6-c7d8e9f0a1b2", goal: "Add a health check route", repo: REPOSITORY, model: MODEL, state: "resource_pressure", passes: [], elapsed: 3_200, at: at(15, 9, 15) },
+  { id: "8f9a0b1c-2d3e-4f40-9b5c-6d7e8f9a0b1c", goal: "Sort todos by due date", repo: REPOSITORY, model: MODEL, state: "review_ready", passes: [true], elapsed: 38_600, at: at(14, 14, 0) },
+];
+
+function historyReceipt(spec: HistorySpec) {
+  const base = receipt(spec.id, spec.goal, "verified");
+  const unverified = spec.state === "review_unverified";
+  const candidates = unverified
+    ? [{ ...candidate(1, true, 198), checks: [], content_sha256: "c0ffee00".repeat(8) }]
+    : spec.passes.map((passed, i) => ({ ...candidate(i + 1, passed, 180 + i * 37), decision: i === 0 ? candidate(1, passed, 0).decision : { action: "repair", parent_candidate: i, reason: `Repaired after the failing check output from candidate ${i}.` } }));
+  const selected = spec.state === "review_ready" ? spec.passes.length : unverified ? 1 : null;
+  return {
+    ...base,
+    state: spec.state,
+    request: { ...base.request, repository: spec.repo },
+    profile: { ...base.profile, model: spec.model },
+    runtime_origin: spec.origin ?? "managed_verified",
+    baseline_checks: spec.state === "resource_pressure" ? [] : base.baseline_checks,
+    candidates,
+    selected_candidate: selected,
+    checks_used: candidates.reduce((total, c) => total + c.checks.length, spec.state === "resource_pressure" ? 0 : 1),
+    model_calls_reserved: candidates.length,
+    elapsed_ms: spec.elapsed,
+    git_index: spec.state === "resource_pressure" ? null : base.git_index,
+  };
+}
+
+const appliedJournal = (id: string, candidateNumber: number) => ({ schema: 1, run_id: id, candidate_number: candidateNumber, path: "src/routes/todos.ts", files: [{ path: "src/routes/todos.ts", before_sha256: "9".repeat(64), after_sha256: "c".repeat(64), backup: "backup-1", temporary: "tmp-1" }], state: "applied", detail: "Applied src/routes/todos.ts." });
+
+export type MockRecord = { runs: number; verified_runs: number; streak: number; best_streak: number; local_tokens: number; cloud_tokens: number; unknown_tokens: number };
+
 export type MockEngine = {
   /** Every RPC method name the page called, in order. */
   calls: string[];
@@ -163,6 +209,10 @@ export type MockOptions = {
   recentRuns?: boolean;
   /** Refuse every connection, as if no engine is listening. */
   offline?: boolean;
+  /** Nine saved runs across two repositories and two models, for the record dashboard. */
+  history?: boolean;
+  /** The engine's `record.read` reply; `null` answers like an engine without the method. */
+  record?: MockRecord | null;
 };
 
 // The Vite preview origin from playwright.config.ts, the only page that calls the engine.
@@ -179,6 +229,21 @@ export async function mockEngine(page: Page, options: MockOptions = {}): Promise
   let goal = "";
   let polls = 0;
   let applyStatus: Record<string, unknown> | null = null;
+  let finished: string | null = null;
+  const record: MockRecord | null = options.record === null ? null : { ...(options.record ?? (options.history
+    ? { runs: 16, verified_runs: 12, streak: 3, best_streak: 5, local_tokens: 148_230, cloud_tokens: 0, unknown_tokens: 6_912 }
+    : options.recentRuns ? { runs: 2, verified_runs: 2, streak: 2, best_streak: 2, local_tokens: 11_632, cloud_tokens: 0, unknown_tokens: 0 }
+    : { runs: 0, verified_runs: 0, streak: 0, best_streak: 0, local_tokens: 0, cloud_tokens: 0, unknown_tokens: 0 })) };
+  // Like the engine, count a finished run once, when its receipt is first reported.
+  const finish = (id: string) => {
+    if (!record || finished === id) return;
+    finished = id;
+    record.runs += 1;
+    record.local_tokens += 5420 + 5720 + 212 + (scenario === "verified" ? 236 : 240);
+    if (scenario === "verified") { record.verified_runs += 1; record.streak += 1; record.best_streak = Math.max(record.best_streak, record.streak); }
+    else record.streak = 0;
+  };
+  const history = new Map(options.history ? HISTORY.map(spec => [spec.id, spec]) : []);
 
   const handlers: Record<string, (p: Record<string, unknown>) => unknown> = {
     ping: () => ({
@@ -188,8 +253,9 @@ export async function mockEngine(page: Page, options: MockOptions = {}): Promise
     "models.status": () => modelStatus,
     "models.catalog.snapshot": () => catalog,
     "models.operation": () => null,
+    ...(record ? { "record.read": () => record } : {}),
     "local.run.list": () => ({
-      runs: options.recentRuns ? [
+      runs: options.history ? HISTORY.map(({ id, goal, model, at: recorded_at_unix_ms }) => ({ id, goal, model, recorded_at_unix_ms })) : options.recentRuns ? [
         { id: "0b6c1f0e-8f3a-4d7e-9a51-2c4b7d9e1f03", goal: "Return 404 for a missing todo id", model: MODEL, recorded_at_unix_ms: Date.UTC(2026, 9, 14, 16, 20) },
         { id: "5d2e7a91-1c44-4b0f-8e6a-7f3b9c2d4a18", goal: "Add a created_at field to new todos", model: MODEL, recorded_at_unix_ms: Date.UTC(2026, 9, 13, 9, 5) },
       ] : [],
@@ -211,14 +277,21 @@ export async function mockEngine(page: Page, options: MockOptions = {}): Promise
       if (!runId) return { id: "", running: false, receipt: null, error: null };
       polls += 1;
       const running = polls <= (options.runningPolls ?? 1);
+      if (!running) finish(runId);
       return { id: runId, running, receipt: running ? null : receipt(runId, goal, scenario), error: null };
     },
-    "local.run.read": (p) => receipt(String(p.id), goal || "Return 404 for a missing todo id", scenario),
+    "local.run.read": (p) => {
+      const spec = history.get(String(p.id));
+      return spec ? historyReceipt(spec) : receipt(String(p.id), goal || "Return 404 for a missing todo id", scenario);
+    },
     "local.run.has_evidence": () => true,
-    "local.run.apply_status": () => applyStatus,
+    "local.run.apply_status": (p) => {
+      const spec = history.get(String(p.id));
+      return spec ? spec.applied ? appliedJournal(spec.id, spec.passes.length) : null : applyStatus;
+    },
     "local.run.repository_match": () => ({ matches: true }),
     "local.run.apply": (p) => {
-      applyStatus = { schema: 1, run_id: p.id, candidate_number: p.candidate_number, path: "src/routes/todos.ts", files: [{ path: "src/routes/todos.ts", before_sha256: "9".repeat(64), after_sha256: "c".repeat(64), backup: "backup-1", temporary: "tmp-1" }], state: "applied", detail: "Applied src/routes/todos.ts." };
+      applyStatus = appliedJournal(String(p.id), Number(p.candidate_number));
       return applyStatus;
     },
     "local.run.rollback": (p) => {

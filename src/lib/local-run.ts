@@ -16,6 +16,9 @@ export type LocalApplyReceipt = { schema: number; run_id: string; candidate_numb
 export type RunStatus = { id: string; running: boolean; receipt: LocalReceipt | null; error: string | null };
 export type LocalRunSummary = { id: string; goal: string; model: string; recorded_at_unix_ms: number };
 export type LocalRunList = { runs: LocalRunSummary[]; limited: boolean };
+/** `record.read`: the all-time record the CLI and Desktop share. Only finished runs with a model attempt count. */
+export type RunRecord = { runs: number; verified_runs: number; streak: number; best_streak: number; local_tokens: number; cloud_tokens: number; unknown_tokens: number };
+export const recordRead = () => rpc<RunRecord>("record.read");
 export const localRunStatus = () => rpc<RunStatus>("local.run.status");
 export const localRunList = () => rpc<LocalRunList>("local.run.list");
 export const localRunRead = (id: string) => rpc<LocalReceipt | LocalRunAttempt>("local.run.read", { id });
