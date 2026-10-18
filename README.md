@@ -15,6 +15,12 @@ Desktop runs the same engine as the [Phonton CLI](https://github.com/phonton-dev
    run. A failing candidate goes back to the model with the failing output.
 4. **Apply.** A candidate that passed can be applied with original-byte
    backups, and restored later.
+5. **Record.** Every finished run ends with a receipt: changed files, checks,
+   tokens in and out, time, API cost, known gaps and the rollback point. The
+   Runs page adds your all-time record (the same one `phonton record` prints),
+   per-repository and per-model totals, personal bests and achievements. All
+   of it comes from saved receipts and the engine record; a streak only grows
+   when a candidate passes your checks.
 
 ## Download
 

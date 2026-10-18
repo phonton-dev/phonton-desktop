@@ -25,6 +25,7 @@
     "test:engine-capabilities": "node --test scripts/engine-capabilities.test.mjs",
     "test:project-switch": "node --test scripts/project-switch.test.mjs",
     "test:shell-child-lifecycle": "node --test scripts/shell-child-lifecycle.test.mjs",
+    "test:run-stats": "node --test scripts/run-stats.test.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:build": "tauri build",

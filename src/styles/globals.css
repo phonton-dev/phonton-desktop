@@ -259,3 +259,86 @@
 .ascii-bar-fill { color: var(--ph-accent); }
 .ascii-bar-dim { color: var(--ph-line); }
 .ascii-bar-text { color: var(--ph-muted); }
+
+/* Loop track: goal - plan - edit - verify - review - remember */
+.loop { position: relative; overflow: hidden; font-family: var(--ph-font-mono); font-size: 12px; }
+.loop ol { display: flex; align-items: center; margin: 0; padding: 0; list-style: none; }
+.loop li { display: flex; align-items: center; flex: 1 1 auto; min-width: 0; }
+.loop li:first-child { flex: 0 0 auto; }
+.loop-stage { white-space: nowrap; color: var(--ph-muted); }
+.loop li:is([data-state="done"], [data-state="active"]) .loop-stage { color: var(--ph-fg); }
+.loop li[data-state="fail"] .loop-stage { color: var(--ph-danger); }
+.loop li[data-state="warn"] .loop-stage { color: var(--ph-warn); }
+.loop-wire { position: relative; flex: 1 1 auto; min-width: 2ch; height: 1px; margin: 0 1ch; background: var(--ph-line); }
+.loop li[data-state="done"] .loop-wire { background: color-mix(in srgb, var(--ph-ok) 45%, var(--ph-line)); }
+.loop li[data-state="active"] .loop-wire { background: color-mix(in srgb, var(--ph-accent) 55%, var(--ph-line)); }
+.loop-photon {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translate(-50%, -50%);
+  font-size: 8px;
+  line-height: 1;
+  color: var(--ph-accent);
+  animation: loop-photon 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes loop-photon {
+  from { left: 0; opacity: 0; }
+  15%, 85% { opacity: 1; }
+  to { left: 100%; opacity: 0; }
+}
+.loop-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 40%, color-mix(in srgb, var(--ph-accent) 24%, transparent) 50%, transparent 60%);
+  background-size: 300% 100%;
+  background-position: 100% 0;
+  animation: loop-sweep 1.1s cubic-bezier(0.3, 0, 0.2, 1) 1 both;
+}
+@keyframes loop-sweep { to { background-position: 0% 0; } }
+@media (max-width: 520px) {
+  .loop ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 12px; }
+  .loop-wire { display: none; }
+}
+
+/* label ........ value */
+.leader { display: flex; align-items: baseline; min-width: 0; }
+.leader dt { color: var(--ph-muted); white-space: nowrap; }
+.leader dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ph-fg); }
+.leader-dots { flex: 1 1 2ch; min-width: 2ch; margin: 0 1ch; overflow: hidden; white-space: nowrap; color: var(--ph-faint); }
+.leader-dots::before { content: "························································································································"; }
+
+/* receipt stamp: dots, then the verdict, then the verdict inverted */
+.stamp { display: inline-block; font-family: var(--ph-font-mono); font-weight: 700; letter-spacing: 0.06em; padding: 0 6px; white-space: nowrap; }
+.stamp[data-verdict="verified"] { --stamp: var(--ph-ok); }
+.stamp[data-verdict="unverified"] { --stamp: var(--ph-muted); }
+.stamp[data-verdict="failed"] { --stamp: var(--ph-danger); }
+.stamp[data-phase="0"] { color: var(--ph-faint); font-weight: 400; }
+.stamp[data-phase="1"] { color: var(--stamp); }
+.stamp[data-phase="2"] { color: var(--ph-bg); background: var(--stamp); animation: stamp-in 0.26s cubic-bezier(0.2, 0, 0, 1) 1 both; }
+@keyframes stamp-in { from { transform: scale(1.18); } to { transform: none; } }
+
+/* block-character columns */
+.cols { display: grid; align-items: end; justify-items: center; gap: 0 4px; overflow-x: auto; padding-bottom: 2px; }
+.cols .col { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0; border-radius: 0; font-family: var(--ph-font-mono); }
+.cols .col:disabled { opacity: 1; cursor: default; }
+.col-bar { display: block; white-space: pre; line-height: 1; font-family: var(--ph-font-art); font-size: 14px; letter-spacing: -0.02em; color: var(--ph-muted); }
+.col[data-state="pass"] .col-bar { color: color-mix(in srgb, var(--ph-ok) 78%, var(--ph-bg)); }
+.col[data-state="fail"] .col-bar { color: color-mix(in srgb, var(--ph-danger) 78%, var(--ph-bg)); }
+.col[data-state="warn"] .col-bar { color: color-mix(in srgb, var(--ph-warn) 78%, var(--ph-bg)); }
+.col:is(:hover, :focus-visible) .col-bar { color: var(--ph-fg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .loop-photon, .loop-sweep { display: none; }
+  .stamp { animation: none; }
+}
+
+/* candidate loop: edit -> isolated copy -> your checks, repair on failure */
+.candidate-loop { font-family: var(--ph-font-art); line-height: 1.3; letter-spacing: 0; white-space: pre; color: var(--ph-line); }
+.candidate-loop .l { color: var(--ph-fg); }
+.candidate-loop .t { color: var(--ph-muted); }
+.candidate-loop .w { color: color-mix(in srgb, var(--ph-accent) 55%, var(--ph-line)); }
+.candidate-loop .d { color: var(--ph-line); }
+.candidate-loop .r { color: color-mix(in srgb, var(--ph-warn) 70%, var(--ph-line)); }
+.candidate-loop .p { color: var(--ph-accent); }

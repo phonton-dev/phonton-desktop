@@ -53,6 +53,24 @@ test("tour: commands and runs", async ({ page }, info) => {
   await shot(page, info.project.name, "12-runs");
 });
 
+test("tour: record, achievements, receipt card", async ({ page }, info) => {
+  await open(page, { history: true });
+  await page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Runs" }).click();
+  await expect(page.getByRole("region", { name: "Saved runs" })).toContainText("Sort todos by due date");
+  await expect(page.getByText("9 read")).toBeVisible();
+  await shot(page, info.project.name, "13-record");
+  await page.getByRole("region", { name: "Saved runs" }).getByRole("button", { name: /Debounce the search input/ }).click();
+  await expect(page.getByRole("region", { name: "Receipt" })).toContainText("VERIFIED");
+  await shot(page, info.project.name, "14-receipt-card");
+});
+
+test("tour: empty record", async ({ page }, info) => {
+  await open(page);
+  await page.getByRole("navigation", { name: "Workbench" }).getByRole("button", { name: "Runs" }).click();
+  await expect(page.getByText(/No runs yet/)).toBeVisible();
+  await shot(page, info.project.name, "15-record-empty");
+});
+
 test("tour: rejected", async ({ page }, info) => {
   await open(page, { scenario: "rejected" });
   await plan(page);

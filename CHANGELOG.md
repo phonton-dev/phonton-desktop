@@ -2,6 +2,31 @@
 
 All notable changes to Phonton Desktop are documented here.
 
+## Unreleased
+
+- [added] The Runs page shows your record: verified runs, streak and best
+  streak, and tokens kept local, sent to providers or of unknown origin, read
+  from the engine record that `phonton record` also prints.
+- [added] Saved receipts are summarized: outcomes, candidates tried, false
+  dones caught, check runs, tokens in and out, wall time, API cost, a history
+  chart of time or tokens per run, and totals by repository and by model.
+  Totals cover the runs the engine lists; the record covers every run.
+- [added] Achievements and personal records come only from the engine record
+  and saved receipts: first verified run, 10 and 50 verified runs, 3 and 10 in
+  a row, caught a false done, passed first try, repaired to green, landed a
+  verified change; fastest verified run, fewest tokens to verify, most
+  candidates to a pass. Each one links to the run that earned it.
+- [added] A receipt card on every finished run: files, checks, candidates,
+  tokens, time, API cost, model, streak, changed files, rollback point and
+  known gaps, stamped VERIFIED, UNVERIFIED or FAILED like the CLI receipt.
+- [added] A goal → plan → edit → verify → review → remember track on the Goal
+  page and on every run, and an animated candidate loop while a run is in
+  progress. Motion stops under reduced motion.
+- [added] The sidebar shows the record line: verified runs, streak and tokens
+  kept local.
+- [changed] Any finished run can be opened from Runs without starting a new
+  goal first.
+
 ## 0.5.2 - CLI 0.25.1 engine
 
 Release notes: `release-notes/v0.5.2.md`.
